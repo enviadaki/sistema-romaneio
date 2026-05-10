@@ -19,14 +19,14 @@ export const HealthCheckResponse = zod.object({
  * @summary List all packages
  */
 export const ListPackagesQueryParams = zod.object({
-  city: zod.coerce.string().optional().describe("Filter packages by city"),
+  city: zod.coerce.string().optional(),
 });
 
 export const ListPackagesResponseItem = zod.object({
   id: zod.number(),
   trackingNumber: zod.string(),
   city: zod.string(),
-  promisedDeliveryDate: zod.string().describe("Date in YYYY-MM-DD format"),
+  promisedDeliveryDate: zod.string(),
   createdAt: zod.string(),
 });
 export const ListPackagesResponse = zod.array(ListPackagesResponseItem);
@@ -80,7 +80,8 @@ export const ListScansResponseItem = zod.object({
   id: zod.number(),
   trackingNumber: zod.string(),
   city: zod.string(),
-  scanDate: zod.string().describe("Date portion YYYY-MM-DD"),
+  scanDate: zod.string(),
+  scannedBy: zod.string().nullish(),
   scannedAt: zod.string(),
 });
 export const ListScansResponse = zod.array(ListScansResponseItem);
@@ -133,7 +134,8 @@ export const GetStatsResponse = zod.object({
       id: zod.number(),
       trackingNumber: zod.string(),
       city: zod.string(),
-      scanDate: zod.string().describe("Date portion YYYY-MM-DD"),
+      scanDate: zod.string(),
+      scannedBy: zod.string().nullish(),
       scannedAt: zod.string(),
     }),
   ),

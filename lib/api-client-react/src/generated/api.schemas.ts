@@ -13,7 +13,6 @@ export interface Package {
   id: number;
   trackingNumber: string;
   city: string;
-  /** Date in YYYY-MM-DD format */
   promisedDeliveryDate: string;
   createdAt: string;
 }
@@ -41,8 +40,9 @@ export interface Scan {
   id: number;
   trackingNumber: string;
   city: string;
-  /** Date portion YYYY-MM-DD */
   scanDate: string;
+  /** @nullable */
+  scannedBy?: string | null;
   scannedAt: string;
 }
 
@@ -83,24 +83,15 @@ export interface ErrorResponse {
 }
 
 export type ListPackagesParams = {
-  /**
-   * Filter packages by city
-   */
   city?: string;
 };
 
 export type ListScansParams = {
   city?: string;
-  /**
-   * Filter by scan date (YYYY-MM-DD)
-   */
   date?: string;
 };
 
 export type GetRomaneioParams = {
   city: string;
-  /**
-   * Date in YYYY-MM-DD format
-   */
   date: string;
 };

@@ -8,8 +8,5 @@
 
 export type GetRomaneioParams = {
   city: string;
-  /**
-   * Date in YYYY-MM-DD format
-   */
   date: string;
 };

@@ -8,8 +8,5 @@
 
 export type ListScansParams = {
   city?: string;
-  /**
-   * Filter by scan date (YYYY-MM-DD)
-   */
   date?: string;
 };

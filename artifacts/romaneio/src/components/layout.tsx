@@ -1,9 +1,12 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Package, ScanLine, History, FileText } from "lucide-react";
+import { LayoutDashboard, Package, ScanLine, History, FileText, LogOut, User } from "lucide-react";
+import { useClerk, useUser } from "@clerk/react";
 
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
+  const { signOut } = useClerk();
+  const { user } = useUser();
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -12,6 +15,11 @@ export function Layout({ children }: { children: ReactNode }) {
     { href: "/historico", label: "Histórico", icon: History },
     { href: "/romaneio", label: "Romaneio", icon: FileText },
   ];
+
+  const displayName =
+    user?.fullName ||
+    user?.primaryEmailAddress?.emailAddress ||
+    "Usuário";
 
   return (
     <div className="min-h-[100dvh] flex flex-col md:flex-row bg-background">
@@ -41,6 +49,30 @@ export function Layout({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
+
+        {/* User info + logout */}
+        <div className="border-t border-sidebar-border p-3">
+          <div className="flex items-center gap-3 px-2 py-2 rounded-md">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground flex-shrink-0">
+              <User className="h-4 w-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{displayName}</p>
+              {user?.primaryEmailAddress && user?.fullName && (
+                <p className="text-xs text-sidebar-foreground/60 truncate">
+                  {user.primaryEmailAddress.emailAddress}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => signOut()}
+              className="flex-shrink-0 p-1.5 rounded-md text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+              title="Sair"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
       </aside>
 
       {/* Main Content */}

@@ -6,10 +6,11 @@ import {
   DeleteScanParams,
   ListScansQueryParams,
 } from "@workspace/api-zod";
+import { requireAuth } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
-router.get("/scans", async (req, res): Promise<void> => {
+router.get("/scans", requireAuth, async (req, res): Promise<void> => {
   const parsed = ListScansQueryParams.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -17,17 +18,10 @@ router.get("/scans", async (req, res): Promise<void> => {
   }
 
   let query = db.select().from(scansTable).$dynamic();
-
   const conditions = [];
-  if (parsed.data.city) {
-    conditions.push(eq(scansTable.city, parsed.data.city));
-  }
-  if (parsed.data.date) {
-    conditions.push(eq(scansTable.scanDate, parsed.data.date));
-  }
-  if (conditions.length > 0) {
-    query = query.where(and(...conditions));
-  }
+  if (parsed.data.city) conditions.push(eq(scansTable.city, parsed.data.city));
+  if (parsed.data.date) conditions.push(eq(scansTable.scanDate, parsed.data.date));
+  if (conditions.length > 0) query = query.where(and(...conditions));
 
   const scans = await query.orderBy(scansTable.scannedAt);
   res.json(
@@ -36,12 +30,13 @@ router.get("/scans", async (req, res): Promise<void> => {
       trackingNumber: s.trackingNumber,
       city: s.city,
       scanDate: s.scanDate,
+      scannedBy: s.scannedBy ?? null,
       scannedAt: s.scannedAt.toISOString(),
     }))
   );
 });
 
-router.post("/scans", async (req, res): Promise<void> => {
+router.post("/scans", requireAuth, async (req, res): Promise<void> => {
   const parsed = CreateScanBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -59,7 +54,6 @@ router.post("/scans", async (req, res): Promise<void> => {
   }
 
   const today = new Date().toISOString().slice(0, 10);
-
   const existing = await db
     .select()
     .from(scansTable)
@@ -75,12 +69,15 @@ router.post("/scans", async (req, res): Promise<void> => {
     return;
   }
 
+  const userFullName = (req as any).userFullName ?? null;
+
   const [scan] = await db
     .insert(scansTable)
     .values({
       trackingNumber: parsed.data.trackingNumber,
       city: parsed.data.city,
       scanDate: today,
+      scannedBy: userFullName,
     })
     .returning();
 
@@ -89,11 +86,12 @@ router.post("/scans", async (req, res): Promise<void> => {
     trackingNumber: scan.trackingNumber,
     city: scan.city,
     scanDate: scan.scanDate,
+    scannedBy: scan.scannedBy ?? null,
     scannedAt: scan.scannedAt.toISOString(),
   });
 });
 
-router.delete("/scans/:id", async (req, res): Promise<void> => {
+router.delete("/scans/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = DeleteScanParams.safeParse({ id: parseInt(raw, 10) });
   if (!params.success) {

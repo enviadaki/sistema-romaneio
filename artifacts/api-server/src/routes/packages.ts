@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db, packagesTable } from "@workspace/db";
 import {
   CreatePackageBody,
@@ -7,10 +7,11 @@ import {
   DeletePackageParams,
   ListPackagesQueryParams,
 } from "@workspace/api-zod";
+import { requireAuth } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
-router.get("/packages", async (req, res): Promise<void> => {
+router.get("/packages", requireAuth, async (req, res): Promise<void> => {
   const parsed = ListPackagesQueryParams.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -34,7 +35,7 @@ router.get("/packages", async (req, res): Promise<void> => {
   );
 });
 
-router.post("/packages", async (req, res): Promise<void> => {
+router.post("/packages", requireAuth, async (req, res): Promise<void> => {
   const parsed = CreatePackageBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -69,7 +70,7 @@ router.post("/packages", async (req, res): Promise<void> => {
   });
 });
 
-router.post("/packages/bulk", async (req, res): Promise<void> => {
+router.post("/packages/bulk", requireAuth, async (req, res): Promise<void> => {
   const parsed = BulkCreatePackagesBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -98,7 +99,7 @@ router.post("/packages/bulk", async (req, res): Promise<void> => {
         promisedDeliveryDate: pkg.promisedDeliveryDate,
       });
       imported++;
-    } catch (err) {
+    } catch {
       errors.push(`Erro ao importar ${pkg.trackingNumber}`);
     }
   }
@@ -106,7 +107,7 @@ router.post("/packages/bulk", async (req, res): Promise<void> => {
   res.status(201).json({ imported, skipped, errors });
 });
 
-router.delete("/packages/:id", async (req, res): Promise<void> => {
+router.delete("/packages/:id", requireAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = DeletePackageParams.safeParse({ id: parseInt(raw, 10) });
   if (!params.success) {
@@ -127,7 +128,7 @@ router.delete("/packages/:id", async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
-router.get("/cities", async (_req, res): Promise<void> => {
+router.get("/cities", requireAuth, async (_req, res): Promise<void> => {
   const rows = await db
     .selectDistinct({ city: packagesTable.city })
     .from(packagesTable)

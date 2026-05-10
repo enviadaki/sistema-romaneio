@@ -2,10 +2,11 @@ import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, scansTable, packagesTable } from "@workspace/db";
 import { GetRomaneioQueryParams } from "@workspace/api-zod";
+import { requireAuth } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
-router.get("/romaneio", async (req, res): Promise<void> => {
+router.get("/romaneio", requireAuth, async (req, res): Promise<void> => {
   const parsed = GetRomaneioQueryParams.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -19,18 +20,11 @@ router.get("/romaneio", async (req, res): Promise<void> => {
     .from(scansTable)
     .where(and(eq(scansTable.city, city), eq(scansTable.scanDate, date)));
 
-  const trackingNumbers = scans.map((s) => s.trackingNumber);
-
-  const packagesResult = trackingNumbers.length > 0
-    ? await db
-        .select()
-        .from(packagesTable)
-        .where(eq(packagesTable.city, city))
+  const packagesResult = scans.length > 0
+    ? await db.select().from(packagesTable).where(eq(packagesTable.city, city))
     : [];
 
-  const packageMap = new Map(
-    packagesResult.map((p) => [p.trackingNumber, p])
-  );
+  const packageMap = new Map(packagesResult.map((p) => [p.trackingNumber, p]));
 
   const romaneioItems = scans.map((s) => {
     const pkg = packageMap.get(s.trackingNumber);
@@ -40,12 +34,7 @@ router.get("/romaneio", async (req, res): Promise<void> => {
     };
   });
 
-  res.json({
-    city,
-    date,
-    totalCount: romaneioItems.length,
-    packages: romaneioItems,
-  });
+  res.json({ city, date, totalCount: romaneioItems.length, packages: romaneioItems });
 });
 
 export default router;

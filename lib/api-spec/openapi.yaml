@@ -45,7 +45,6 @@ paths:
           required: false
           schema:
             type: string
-          description: Filter packages by city
       responses:
         "200":
           description: List of packages
@@ -162,7 +161,6 @@ paths:
           required: false
           schema:
             type: string
-            description: Filter by scan date (YYYY-MM-DD)
       responses:
         "200":
           description: List of scans
@@ -239,7 +237,6 @@ paths:
           required: true
           schema:
             type: string
-            description: Date in YYYY-MM-DD format
       responses:
         "200":
           description: Romaneio data
@@ -288,7 +285,6 @@ components:
           type: string
         promisedDeliveryDate:
           type: string
-          description: Date in YYYY-MM-DD format
         createdAt:
           type: string
 
@@ -340,7 +336,8 @@ components:
           type: string
         scanDate:
           type: string
-          description: Date portion YYYY-MM-DD
+        scannedBy:
+          type: ["string", "null"]
         scannedAt:
           type: string
 

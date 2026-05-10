@@ -7,6 +7,7 @@ export const scansTable = pgTable("scans", {
   trackingNumber: text("tracking_number").notNull(),
   city: text("city").notNull(),
   scanDate: text("scan_date").notNull(),
+  scannedBy: text("scanned_by"),
   scannedAt: timestamp("scanned_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -10,7 +10,8 @@ export interface Scan {
   id: number;
   trackingNumber: string;
   city: string;
-  /** Date portion YYYY-MM-DD */
   scanDate: string;
+  /** @nullable */
+  scannedBy?: string | null;
   scannedAt: string;
 }

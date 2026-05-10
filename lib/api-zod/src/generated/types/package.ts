@@ -10,7 +10,6 @@ export interface Package {
   id: number;
   trackingNumber: string;
   city: string;
-  /** Date in YYYY-MM-DD format */
   promisedDeliveryDate: string;
   createdAt: string;
 }

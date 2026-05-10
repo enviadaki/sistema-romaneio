@@ -1,10 +1,11 @@
 import { Router, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
 import { db, packagesTable, scansTable } from "@workspace/db";
+import { requireAuth } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
-router.get("/stats", async (req, res): Promise<void> => {
+router.get("/stats", requireAuth, async (req, res): Promise<void> => {
   const today = new Date().toISOString().slice(0, 10);
 
   const [totalPackagesResult] = await db
@@ -44,6 +45,7 @@ router.get("/stats", async (req, res): Promise<void> => {
       trackingNumber: s.trackingNumber,
       city: s.city,
       scanDate: s.scanDate,
+      scannedBy: s.scannedBy ?? null,
       scannedAt: s.scannedAt.toISOString(),
     })),
     packagesByCity,

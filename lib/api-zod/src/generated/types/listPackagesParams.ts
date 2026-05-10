@@ -7,8 +7,5 @@
  */
 
 export type ListPackagesParams = {
-  /**
-   * Filter packages by city
-   */
   city?: string;
 };
