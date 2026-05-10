@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { 
-  useListPackages, 
+import { useState, useRef, useCallback } from "react";
+import {
+  useListPackages,
   getListPackagesQueryKey,
   useCreatePackage,
   useBulkCreatePackages,
@@ -11,8 +11,10 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { formatDate } from "@/lib/date-utils";
+import Papa from "papaparse";
+import * as XLSX from "xlsx";
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -26,14 +28,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Trash2 } from "lucide-react";
+import { Trash2, Upload, FileText, CheckCircle, AlertCircle, X } from "lucide-react";
+
+type PackageRow = { trackingNumber: string; city: string; promisedDeliveryDate: string };
+
+type FilePreview = {
+  rows: PackageRow[];
+  fileName: string;
+  errors: string[];
+};
 
 export default function Cadastro() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const [cityFilter, setCityFilter] = useState<string>("ALL");
-  const [activeTab, setActiveTab] = useState<"single" | "bulk">("single");
+  const [activeTab, setActiveTab] = useState<"single" | "bulk" | "file">("single");
 
   // Single mode state
   const [trackingNumber, setTrackingNumber] = useState("");
@@ -42,6 +52,11 @@ export default function Cadastro() {
 
   // Bulk mode state
   const [bulkData, setBulkData] = useState("");
+
+  // File upload state
+  const [filePreview, setFilePreview] = useState<FilePreview | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: packages, isLoading } = useListPackages(
     cityFilter !== "ALL" ? { city: cityFilter } : {},
@@ -68,7 +83,6 @@ export default function Cadastro() {
         onSuccess: () => {
           toast({ title: "Pacote registrado com sucesso!" });
           setTrackingNumber("");
-          // keep city and date to speed up entry
           invalidateLists();
         },
         onError: () => {
@@ -85,7 +99,7 @@ export default function Cadastro() {
     try {
       const lines = bulkData.split("\n").filter(l => l.trim().length > 0);
       const packagesData = lines.map(line => {
-        const parts = line.split("\t"); // assuming tab separated for spreadsheet paste
+        const parts = line.split("\t");
         if (parts.length >= 3) {
           return { trackingNumber: parts[0].trim(), city: parts[1].trim(), promisedDeliveryDate: parts[2].trim() };
         }
@@ -93,16 +107,16 @@ export default function Cadastro() {
         if (csvParts.length >= 3) {
           return { trackingNumber: csvParts[0].trim(), city: csvParts[1].trim(), promisedDeliveryDate: csvParts[2].trim() };
         }
-        throw new Error("Formato inválido. Use Rastreador, Cidade, Data (YYYY-MM-DD)");
+        throw new Error("Formato inválido. Use: Rastreador, Cidade, Data (YYYY-MM-DD)");
       });
 
       bulkCreate.mutate(
         { data: { packages: packagesData } },
         {
           onSuccess: (res) => {
-            toast({ 
-              title: "Importação concluída", 
-              description: `${res.imported} importados, ${res.skipped} ignorados.` 
+            toast({
+              title: "Importação concluída",
+              description: `${res.imported} importados, ${res.skipped} ignorados.`
             });
             setBulkData("");
             invalidateLists();
@@ -118,10 +132,154 @@ export default function Cadastro() {
   };
 
   const handleDelete = (id: number) => {
-    deletePkg.mutate(
-      { id },
+    deletePkg.mutate({ id }, { onSuccess: () => invalidateLists() });
+  };
+
+  // --- File upload logic ---
+
+  const parseRows = (rawRows: Record<string, string>[], fileName: string): FilePreview => {
+    const errors: string[] = [];
+    const rows: PackageRow[] = [];
+
+    rawRows.forEach((row, idx) => {
+      const keys = Object.keys(row).map(k => k.toLowerCase().trim());
+      const vals = Object.values(row).map(v => (v ?? "").toString().trim());
+
+      // Try to auto-detect columns by header name
+      const colMap: Record<string, number> = {};
+      keys.forEach((k, i) => {
+        if (/rastreio|tracking|código|codigo|rastreador/.test(k)) colMap.tracking = i;
+        if (/cidade|city|destino/.test(k)) colMap.city = i;
+        if (/data|date|promessa|entrega|delivery/.test(k)) colMap.date = i;
+      });
+
+      let trackingVal: string;
+      let cityVal: string;
+      let dateVal: string;
+
+      if (Object.keys(colMap).length >= 3) {
+        trackingVal = vals[colMap.tracking];
+        cityVal = vals[colMap.city];
+        dateVal = vals[colMap.date];
+      } else if (vals.length >= 3) {
+        // Positional: col 0 = tracking, col 1 = city, col 2 = date
+        trackingVal = vals[0];
+        cityVal = vals[1];
+        dateVal = vals[2];
+      } else {
+        errors.push(`Linha ${idx + 2}: colunas insuficientes (${vals.length} encontradas, 3 necessárias)`);
+        return;
+      }
+
+      if (!trackingVal) {
+        errors.push(`Linha ${idx + 2}: rastreador vazio`);
+        return;
+      }
+      if (!cityVal) {
+        errors.push(`Linha ${idx + 2}: cidade vazia`);
+        return;
+      }
+
+      // Normalize date: if it's a number (Excel serial date), convert it
+      let normalizedDate = dateVal;
+      if (/^\d{5}$/.test(dateVal)) {
+        const excelEpoch = new Date(1899, 11, 30);
+        const d = new Date(excelEpoch.getTime() + parseInt(dateVal) * 86400000);
+        normalizedDate = d.toISOString().slice(0, 10);
+      } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateVal)) {
+        // DD/MM/YYYY -> YYYY-MM-DD
+        const [dd, mm, yyyy] = dateVal.split("/");
+        normalizedDate = `${yyyy}-${mm}-${dd}`;
+      } else if (/^\d{4}-\d{2}-\d{2}$/.test(dateVal)) {
+        normalizedDate = dateVal;
+      } else if (dateVal) {
+        // Try parsing as generic date
+        const parsed = new Date(dateVal);
+        if (!isNaN(parsed.getTime())) {
+          normalizedDate = parsed.toISOString().slice(0, 10);
+        } else {
+          errors.push(`Linha ${idx + 2}: data "${dateVal}" inválida (use YYYY-MM-DD ou DD/MM/YYYY)`);
+          return;
+        }
+      }
+
+      rows.push({ trackingNumber: trackingVal, city: cityVal, promisedDeliveryDate: normalizedDate });
+    });
+
+    return { rows, fileName, errors };
+  };
+
+  const processFile = useCallback((file: File) => {
+    const ext = file.name.split(".").pop()?.toLowerCase();
+
+    if (ext === "csv") {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (result) => {
+          const preview = parseRows(result.data as Record<string, string>[], file.name);
+          setFilePreview(preview);
+        },
+        error: () => {
+          toast({ title: "Erro ao ler CSV", variant: "destructive" });
+        }
+      });
+    } else if (ext === "xlsx" || ext === "xls") {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target!.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: "array" });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: "" });
+          const preview = parseRows(rows, file.name);
+          setFilePreview(preview);
+        } catch {
+          toast({ title: "Erro ao ler arquivo Excel", variant: "destructive" });
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      toast({ title: "Formato não suportado. Use .csv, .xlsx ou .xls", variant: "destructive" });
+    }
+  }, []);
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processFile(file);
+    e.target.value = "";
+  };
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) processFile(file);
+  }, [processFile]);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => setIsDragging(false);
+
+  const handleFileImport = () => {
+    if (!filePreview || filePreview.rows.length === 0) return;
+    bulkCreate.mutate(
+      { data: { packages: filePreview.rows } },
       {
-        onSuccess: () => invalidateLists()
+        onSuccess: (res) => {
+          toast({
+            title: "Importação concluída",
+            description: `${res.imported} importados, ${res.skipped} já existentes.`
+          });
+          setFilePreview(null);
+          invalidateLists();
+        },
+        onError: () => {
+          toast({ title: "Erro na importação.", variant: "destructive" });
+        }
       }
     );
   };
@@ -136,23 +294,34 @@ export default function Cadastro() {
       <div className="grid md:grid-cols-2 gap-8">
         <Card>
           <CardHeader>
-            <div className="flex gap-4 border-b pb-4">
-              <Button 
-                variant={activeTab === "single" ? "default" : "outline"} 
+            <div className="flex gap-2 border-b pb-4 flex-wrap">
+              <Button
+                variant={activeTab === "single" ? "default" : "outline"}
+                size="sm"
                 onClick={() => setActiveTab("single")}
               >
                 Individual
               </Button>
-              <Button 
-                variant={activeTab === "bulk" ? "default" : "outline"} 
+              <Button
+                variant={activeTab === "bulk" ? "default" : "outline"}
+                size="sm"
                 onClick={() => setActiveTab("bulk")}
               >
-                Lote (Colar do Excel)
+                Colar do Excel
+              </Button>
+              <Button
+                variant={activeTab === "file" ? "default" : "outline"}
+                size="sm"
+                onClick={() => { setActiveTab("file"); setFilePreview(null); }}
+              >
+                <Upload className="h-3.5 w-3.5 mr-1.5" />
+                Arquivo CSV/Excel
               </Button>
             </div>
           </CardHeader>
           <CardContent>
-            {activeTab === "single" ? (
+            {/* Single */}
+            {activeTab === "single" && (
               <form onSubmit={handleSingleSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label>Rastreador (Tracking Number)</Label>
@@ -163,23 +332,26 @@ export default function Cadastro() {
                   <Input value={city} onChange={e => setCity(e.target.value)} placeholder="Ex: São Paulo" required />
                 </div>
                 <div className="space-y-2">
-                  <Label>Data de Entrega Prometida (YYYY-MM-DD)</Label>
+                  <Label>Data de Entrega Prometida</Label>
                   <Input type="date" value={promisedDeliveryDate} onChange={e => setPromisedDeliveryDate(e.target.value)} required />
                 </div>
                 <Button type="submit" disabled={createPkg.isPending} className="w-full">
                   {createPkg.isPending ? "Salvando..." : "Cadastrar Pacote"}
                 </Button>
               </form>
-            ) : (
+            )}
+
+            {/* Bulk paste */}
+            {activeTab === "bulk" && (
               <form onSubmit={handleBulkSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label>Cole os dados (Rastreador, Cidade, Data)</Label>
-                  <CardDescription>Cole diretamente do Excel/Planilhas (separado por tabulação ou vírgula).</CardDescription>
-                  <Textarea 
-                    rows={10} 
-                    value={bulkData} 
-                    onChange={e => setBulkData(e.target.value)} 
-                    placeholder="BR123456	São Paulo	2023-10-15&#10;BR987654	Rio de Janeiro	2023-10-16"
+                  <CardDescription>Cole diretamente do Excel/Planilhas. Cada linha = 1 pacote, separado por tabulação ou vírgula.</CardDescription>
+                  <Textarea
+                    rows={10}
+                    value={bulkData}
+                    onChange={e => setBulkData(e.target.value)}
+                    placeholder={"BR123456\tSão Paulo\t2025-05-15\nBR987654\tCampinas\t2025-05-16"}
                     className="font-mono text-sm"
                   />
                 </div>
@@ -187,6 +359,122 @@ export default function Cadastro() {
                   {bulkCreate.isPending ? "Importando..." : "Importar Pacotes"}
                 </Button>
               </form>
+            )}
+
+            {/* File upload */}
+            {activeTab === "file" && (
+              <div className="space-y-4">
+                {!filePreview ? (
+                  <>
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      onDrop={handleDrop}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      className={`border-2 border-dashed rounded-lg p-10 text-center cursor-pointer transition-colors ${
+                        isDragging
+                          ? "border-primary bg-primary/5"
+                          : "border-muted-foreground/30 hover:border-primary/60 hover:bg-muted/30"
+                      }`}
+                    >
+                      <Upload className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+                      <p className="font-medium mb-1">Arraste o arquivo aqui ou clique para selecionar</p>
+                      <p className="text-sm text-muted-foreground">Suporta .csv, .xlsx e .xls</p>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".csv,.xlsx,.xls"
+                        onChange={handleFileInput}
+                        className="hidden"
+                      />
+                    </div>
+                    <div className="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground space-y-1">
+                      <p className="font-medium text-foreground">Formato esperado:</p>
+                      <p>O arquivo deve ter 3 colunas (com ou sem cabecalho):</p>
+                      <p className="font-mono text-xs bg-muted rounded px-2 py-1 mt-1">
+                        Rastreador | Cidade | Data (YYYY-MM-DD ou DD/MM/YYYY)
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm">
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">{filePreview.fileName}</span>
+                      </div>
+                      <Button variant="ghost" size="icon" onClick={() => setFilePreview(null)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    {filePreview.errors.length > 0 && (
+                      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-1">
+                        <div className="flex items-center gap-2 text-sm font-medium text-destructive">
+                          <AlertCircle className="h-4 w-4" />
+                          {filePreview.errors.length} linha(s) com problema
+                        </div>
+                        <ul className="text-xs text-muted-foreground space-y-0.5 mt-1 max-h-24 overflow-y-auto">
+                          {filePreview.errors.map((err, i) => <li key={i}>{err}</li>)}
+                        </ul>
+                      </div>
+                    )}
+
+                    {filePreview.rows.length > 0 && (
+                      <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-3 flex items-center gap-2 text-sm">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <span><strong>{filePreview.rows.length}</strong> pacotes prontos para importar</span>
+                      </div>
+                    )}
+
+                    {/* Preview table */}
+                    <div className="rounded-lg border overflow-hidden max-h-56 overflow-y-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-xs">Rastreador</TableHead>
+                            <TableHead className="text-xs">Cidade</TableHead>
+                            <TableHead className="text-xs">Data Prometida</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filePreview.rows.slice(0, 50).map((row, i) => (
+                            <TableRow key={i}>
+                              <TableCell className="font-mono text-xs py-1.5">{row.trackingNumber}</TableCell>
+                              <TableCell className="text-xs py-1.5">{row.city}</TableCell>
+                              <TableCell className="text-xs py-1.5">{row.promisedDeliveryDate}</TableCell>
+                            </TableRow>
+                          ))}
+                          {filePreview.rows.length > 50 && (
+                            <TableRow>
+                              <TableCell colSpan={3} className="text-xs text-center text-muted-foreground py-2">
+                                ... e mais {filePreview.rows.length - 50} pacotes
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setFilePreview(null)}
+                        className="flex-1"
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        onClick={handleFileImport}
+                        disabled={bulkCreate.isPending || filePreview.rows.length === 0}
+                        className="flex-1"
+                      >
+                        {bulkCreate.isPending ? "Importando..." : `Importar ${filePreview.rows.length} pacotes`}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>
