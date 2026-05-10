@@ -3,13 +3,22 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: API specification for Sistema de Romaneios
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: packages
+    description: Package management
+  - name: scans
+    description: Scan operations
+  - name: romaneio
+    description: Romaneio generation
+  - name: stats
+    description: Statistics
+
 paths:
   /healthz:
     get:
@@ -24,13 +33,383 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /packages:
+    get:
+      operationId: listPackages
+      tags: [packages]
+      summary: List all packages
+      parameters:
+        - name: city
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter packages by city
+      responses:
+        "200":
+          description: List of packages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Package"
+    post:
+      operationId: createPackage
+      tags: [packages]
+      summary: Create a single package
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PackageInput"
+      responses:
+        "201":
+          description: Package created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Package"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tracking number already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /packages/bulk:
+    post:
+      operationId: bulkCreatePackages
+      tags: [packages]
+      summary: Bulk import packages
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PackageBulkInput"
+      responses:
+        "201":
+          description: Packages imported
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkImportResult"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /packages/{id}:
+    delete:
+      operationId: deletePackage
+      tags: [packages]
+      summary: Delete a package
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /cities:
+    get:
+      operationId: listCities
+      tags: [packages]
+      summary: List distinct cities from packages
+      responses:
+        "200":
+          description: List of cities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /scans:
+    get:
+      operationId: listScans
+      tags: [scans]
+      summary: List scan history
+      parameters:
+        - name: city
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+            description: Filter by scan date (YYYY-MM-DD)
+      responses:
+        "200":
+          description: List of scans
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Scan"
+    post:
+      operationId: createScan
+      tags: [scans]
+      summary: Record a package scan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScanInput"
+      responses:
+        "201":
+          description: Scan recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Scan"
+        "404":
+          description: Tracking number not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Package already scanned today
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /scans/{id}:
+    delete:
+      operationId: deleteScan
+      tags: [scans]
+      summary: Remove a scan from history
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /romaneio:
+    get:
+      operationId: getRomaneio
+      tags: [romaneio]
+      summary: Get romaneio for a city and date
+      parameters:
+        - name: city
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            description: Date in YYYY-MM-DD format
+      responses:
+        "200":
+          description: Romaneio data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Romaneio"
+        "400":
+          description: Missing parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /stats:
+    get:
+      operationId: getStats
+      tags: [stats]
+      summary: Get dashboard statistics
+      responses:
+        "200":
+          description: Statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stats"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    Package:
+      type: object
+      required: [id, trackingNumber, city, promisedDeliveryDate, createdAt]
+      properties:
+        id:
+          type: integer
+        trackingNumber:
+          type: string
+        city:
+          type: string
+        promisedDeliveryDate:
+          type: string
+          description: Date in YYYY-MM-DD format
+        createdAt:
+          type: string
+
+    PackageInput:
+      type: object
+      required: [trackingNumber, city, promisedDeliveryDate]
+      properties:
+        trackingNumber:
+          type: string
+          minLength: 1
+        city:
+          type: string
+          minLength: 1
+        promisedDeliveryDate:
+          type: string
+          minLength: 1
+
+    PackageBulkInput:
+      type: object
+      required: [packages]
+      properties:
+        packages:
+          type: array
+          items:
+            $ref: "#/components/schemas/PackageInput"
+
+    BulkImportResult:
+      type: object
+      required: [imported, skipped, errors]
+      properties:
+        imported:
+          type: integer
+        skipped:
+          type: integer
+        errors:
+          type: array
+          items:
+            type: string
+
+    Scan:
+      type: object
+      required: [id, trackingNumber, city, scanDate, scannedAt]
+      properties:
+        id:
+          type: integer
+        trackingNumber:
+          type: string
+        city:
+          type: string
+        scanDate:
+          type: string
+          description: Date portion YYYY-MM-DD
+        scannedAt:
+          type: string
+
+    ScanInput:
+      type: object
+      required: [trackingNumber, city]
+      properties:
+        trackingNumber:
+          type: string
+          minLength: 1
+        city:
+          type: string
+          minLength: 1
+
+    Romaneio:
+      type: object
+      required: [city, date, packages, totalCount]
+      properties:
+        city:
+          type: string
+        date:
+          type: string
+        totalCount:
+          type: integer
+        packages:
+          type: array
+          items:
+            $ref: "#/components/schemas/RomaneioItem"
+
+    RomaneioItem:
+      type: object
+      required: [trackingNumber, promisedDeliveryDate]
+      properties:
+        trackingNumber:
+          type: string
+        promisedDeliveryDate:
+          type: string
+
+    Stats:
+      type: object
+      required: [totalPackages, totalScansToday, totalCities, recentScans, packagesByCity]
+      properties:
+        totalPackages:
+          type: integer
+        totalScansToday:
+          type: integer
+        totalCities:
+          type: integer
+        recentScans:
+          type: array
+          items:
+            $ref: "#/components/schemas/Scan"
+        packagesByCity:
+          type: array
+          items:
+            $ref: "#/components/schemas/CityCount"
+
+    CityCount:
+      type: object
+      required: [city, count]
+      properties:
+        city:
+          type: string
+        count:
+          type: integer
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
