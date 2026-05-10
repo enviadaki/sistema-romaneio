@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CityCount } from "./cityCount";
+import type { OperatorCount } from "./operatorCount";
 import type { Scan } from "./scan";
 
 export interface Stats {
@@ -14,4 +15,5 @@ export interface Stats {
   totalCities: number;
   recentScans: Scan[];
   packagesByCity: CityCount[];
+  scansByOperator: OperatorCount[];
 }

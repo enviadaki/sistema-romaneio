@@ -70,12 +70,18 @@ export interface CityCount {
   count: number;
 }
 
+export interface OperatorCount {
+  operator: string;
+  count: number;
+}
+
 export interface Stats {
   totalPackages: number;
   totalScansToday: number;
   totalCities: number;
   recentScans: Scan[];
   packagesByCity: CityCount[];
+  scansByOperator: OperatorCount[];
 }
 
 export interface ErrorResponse {

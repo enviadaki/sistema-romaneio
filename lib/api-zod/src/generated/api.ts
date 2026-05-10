@@ -145,4 +145,10 @@ export const GetStatsResponse = zod.object({
       count: zod.number(),
     }),
   ),
+  scansByOperator: zod.array(
+    zod.object({
+      operator: zod.string(),
+      count: zod.number(),
+    }),
+  ),
 });

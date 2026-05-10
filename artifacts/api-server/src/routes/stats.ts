@@ -36,6 +36,21 @@ router.get("/stats", requireAuth, async (req, res): Promise<void> => {
     .groupBy(packagesTable.city)
     .orderBy(sql`count(*) desc`);
 
+  const scansByOperatorRaw = await db
+    .select({
+      operator: scansTable.scannedBy,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(scansTable)
+    .where(eq(scansTable.scanDate, today))
+    .groupBy(scansTable.scannedBy)
+    .orderBy(sql`count(*) desc`);
+
+  const scansByOperator = scansByOperatorRaw.map((row) => ({
+    operator: row.operator ?? "Sem identificação",
+    count: row.count,
+  }));
+
   res.json({
     totalPackages: totalPackagesResult?.count ?? 0,
     totalScansToday: totalScansResult?.count ?? 0,
@@ -49,6 +64,7 @@ router.get("/stats", requireAuth, async (req, res): Promise<void> => {
       scannedAt: s.scannedAt.toISOString(),
     })),
     packagesByCity,
+    scansByOperator,
   });
 });
 

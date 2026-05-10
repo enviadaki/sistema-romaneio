@@ -13,6 +13,7 @@ export * from "./getRomaneioParams";
 export * from "./healthStatus";
 export * from "./listPackagesParams";
 export * from "./listScansParams";
+export * from "./operatorCount";
 export * from "./package";
 export * from "./packageBulkInput";
 export * from "./packageInput";

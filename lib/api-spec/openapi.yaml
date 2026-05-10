@@ -378,7 +378,7 @@ components:
 
     Stats:
       type: object
-      required: [totalPackages, totalScansToday, totalCities, recentScans, packagesByCity]
+      required: [totalPackages, totalScansToday, totalCities, recentScans, packagesByCity, scansByOperator]
       properties:
         totalPackages:
           type: integer
@@ -394,6 +394,19 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CityCount"
+        scansByOperator:
+          type: array
+          items:
+            $ref: "#/components/schemas/OperatorCount"
+
+    OperatorCount:
+      type: object
+      required: [operator, count]
+      properties:
+        operator:
+          type: string
+        count:
+          type: integer
 
     CityCount:
       type: object
