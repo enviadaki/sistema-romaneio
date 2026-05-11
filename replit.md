@@ -38,7 +38,7 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- **Trusted-proxy assumption**: `app.set("trust proxy", 1)` in `artifacts/api-server/src/app.ts` assumes exactly one upstream reverse-proxy hop in production (Replit's edge). `req.ip` and the IP forwarded to Clerk's Frontend API depend on this being correct. If the deployment topology changes (multiple load balancer hops or direct internet exposure), this value must be updated to match — either a hop count, an array of trusted CIDRs, or a custom function — or per-IP abuse controls at Clerk will be bypassable again.
 
 ## Pointers
 

@@ -13,6 +13,12 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+// Trust exactly one upstream proxy hop (Replit's edge / reverse proxy).
+// With this set, Express derives req.ip from the rightmost X-Forwarded-For
+// entry appended by the trusted edge, discarding any attacker-supplied
+// leftmost values and preventing IP spoofing against Clerk's rate limits.
+app.set("trust proxy", 1);
+
 app.use(
   pinoHttp({
     logger,
