@@ -151,4 +151,10 @@ export const GetStatsResponse = zod.object({
       count: zod.number(),
     }),
   ),
+  scansByCity: zod.array(
+    zod.object({
+      city: zod.string(),
+      count: zod.number(),
+    }),
+  ),
 });

@@ -3,7 +3,7 @@ import {
   getGetStatsQueryKey,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package, ScanLine, MapPin, Trophy, User } from "lucide-react";
+import { Package, ScanLine, MapPin, Trophy, User, Route } from "lucide-react";
 import { formatDateTime } from "@/lib/date-utils";
 import {
   Table,
@@ -15,6 +15,9 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { ROUTES } from "@/lib/routes-data";
+import { useMemo } from "react";
 
 const MEDAL_COLORS = ["text-yellow-500", "text-slate-400", "text-amber-700"];
 const MEDAL_LABELS = ["🥇", "🥈", "🥉"];
@@ -23,6 +26,38 @@ export default function Dashboard() {
   const { data: stats, isLoading } = useGetStats({
     query: { queryKey: getGetStatsQueryKey() },
   });
+
+  // Build route progress from static ROUTES config + stats data
+  const routeProgress = useMemo(() => {
+    if (!stats) return [];
+
+    const pkgMap: Record<string, number> = {};
+    for (const item of stats.packagesByCity) {
+      pkgMap[item.city] = (pkgMap[item.city] ?? 0) + item.count;
+    }
+
+    const scanMap: Record<string, number> = {};
+    for (const item of stats.scansByCity) {
+      scanMap[item.city] = (scanMap[item.city] ?? 0) + item.count;
+    }
+
+    return ROUTES.map((route) => {
+      let totalPkgs = 0;
+      let totalScans = 0;
+      for (const city of route.cities) {
+        totalPkgs += pkgMap[city] ?? 0;
+        totalScans += scanMap[city] ?? 0;
+      }
+      return { name: route.name, totalPkgs, totalScans };
+    })
+      .filter((r) => r.totalPkgs > 0)
+      .sort((a, b) => {
+        // Sort by: scanned first (has progress), then by name
+        const aPct = a.totalPkgs > 0 ? a.totalScans / a.totalPkgs : 0;
+        const bPct = b.totalPkgs > 0 ? b.totalScans / b.totalPkgs : 0;
+        return bPct - aPct;
+      });
+  }, [stats]);
 
   if (isLoading) {
     return (
@@ -36,6 +71,7 @@ export default function Dashboard() {
           <Skeleton className="h-[300px] w-full" />
           <Skeleton className="h-[300px] w-full" />
         </div>
+        <Skeleton className="h-[400px] w-full" />
         <Skeleton className="h-[300px] w-full" />
       </div>
     );
@@ -47,6 +83,13 @@ export default function Dashboard() {
     (acc, o) => acc + o.count,
     0,
   );
+
+  const rotasCompletas = routeProgress.filter(
+    (r) => r.totalPkgs > 0 && r.totalScans >= r.totalPkgs,
+  ).length;
+  const rotasComProgresso = routeProgress.filter(
+    (r) => r.totalScans > 0 && r.totalScans < r.totalPkgs,
+  ).length;
 
   return (
     <div className="space-y-8">
@@ -94,6 +137,95 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Route Progress Panel */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Route className="h-5 w-5 text-primary" />
+            <CardTitle>Progresso por Rota — Hoje</CardTitle>
+          </div>
+          <div className="flex gap-2">
+            {rotasCompletas > 0 && (
+              <Badge className="bg-green-100 text-green-800 hover:bg-green-100 text-xs">
+                ✓ {rotasCompletas} completa{rotasCompletas !== 1 ? "s" : ""}
+              </Badge>
+            )}
+            {rotasComProgresso > 0 && (
+              <Badge variant="secondary" className="text-xs">
+                {rotasComProgresso} em andamento
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {routeProgress.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground gap-2">
+              <Route className="h-8 w-8 opacity-30" />
+              <p className="text-sm">Nenhuma rota com pacotes cadastrados.</p>
+              <p className="text-xs">Cadastre pacotes para ver o progresso por rota.</p>
+            </div>
+          ) : (
+            <ScrollArea className="h-[380px] pr-2">
+              <div className="space-y-3 pr-2">
+                {routeProgress.map((route) => {
+                  const pct =
+                    route.totalPkgs > 0
+                      ? Math.min(100, Math.round((route.totalScans / route.totalPkgs) * 100))
+                      : 0;
+                  const isComplete = route.totalScans >= route.totalPkgs;
+                  const hasProgress = route.totalScans > 0;
+
+                  return (
+                    <div key={route.name} className="space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className={`text-sm font-medium truncate flex-1 ${
+                            isComplete ? "text-green-700" : ""
+                          }`}
+                        >
+                          {isComplete && (
+                            <span className="mr-1.5 text-green-600">✓</span>
+                          )}
+                          {route.name}
+                        </span>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-xs text-muted-foreground tabular-nums">
+                            {route.totalScans}/{route.totalPkgs}
+                          </span>
+                          <span
+                            className={`text-xs font-bold tabular-nums w-9 text-right ${
+                              isComplete
+                                ? "text-green-600"
+                                : hasProgress
+                                ? "text-primary"
+                                : "text-muted-foreground"
+                            }`}
+                          >
+                            {pct}%
+                          </span>
+                        </div>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            isComplete
+                              ? "bg-green-500"
+                              : hasProgress
+                              ? "bg-primary"
+                              : "bg-muted-foreground/20"
+                          }`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Operator Ranking */}
       <Card>

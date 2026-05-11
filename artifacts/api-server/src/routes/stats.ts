@@ -51,6 +51,15 @@ router.get("/stats", requireAuth, async (req, res): Promise<void> => {
     count: row.count,
   }));
 
+  const scansByCityRaw = await db
+    .select({
+      city: scansTable.city,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(scansTable)
+    .where(eq(scansTable.scanDate, today))
+    .groupBy(scansTable.city);
+
   res.json({
     totalPackages: totalPackagesResult?.count ?? 0,
     totalScansToday: totalScansResult?.count ?? 0,
@@ -65,6 +74,7 @@ router.get("/stats", requireAuth, async (req, res): Promise<void> => {
     })),
     packagesByCity,
     scansByOperator,
+    scansByCity: scansByCityRaw,
   });
 });
 

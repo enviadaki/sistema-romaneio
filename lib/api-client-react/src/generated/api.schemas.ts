@@ -82,6 +82,7 @@ export interface Stats {
   recentScans: Scan[];
   packagesByCity: CityCount[];
   scansByOperator: OperatorCount[];
+  scansByCity: CityCount[];
 }
 
 export interface ErrorResponse {
