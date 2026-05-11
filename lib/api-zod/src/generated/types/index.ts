@@ -8,6 +8,8 @@
 
 export * from "./bulkImportResult";
 export * from "./cityCount";
+export * from "./clearPackagesParams";
+export * from "./clearPackagesResult";
 export * from "./errorResponse";
 export * from "./getRomaneioParams";
 export * from "./healthStatus";

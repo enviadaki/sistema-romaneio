@@ -16,6 +16,20 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
+ * @summary Delete all packages registered on a given date (or all if no date)
+ */
+export const ClearPackagesQueryParams = zod.object({
+  date: zod.coerce
+    .string()
+    .optional()
+    .describe("ISO date (YYYY-MM-DD). If omitted, deletes ALL packages."),
+});
+
+export const ClearPackagesResponse = zod.object({
+  deleted: zod.number(),
+});
+
+/**
  * @summary List all packages
  */
 export const ListPackagesQueryParams = zod.object({

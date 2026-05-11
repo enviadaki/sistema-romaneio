@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql, and, gte, lt } from "drizzle-orm";
 import { db, packagesTable } from "@workspace/db";
 import {
   CreatePackageBody,
@@ -10,6 +10,28 @@ import {
 import { requireAuth } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
+
+// DELETE /packages/clear — must come BEFORE /packages/:id
+router.delete("/packages/clear", requireAuth, async (req, res): Promise<void> => {
+  const date = (req.query.date as string | undefined)?.trim();
+
+  let deleted: { id: number }[];
+  if (date) {
+    // Delete packages created on that specific calendar date
+    const startOfDay = new Date(`${date}T00:00:00.000Z`);
+    const endOfDay   = new Date(`${date}T23:59:59.999Z`);
+    deleted = await db
+      .delete(packagesTable)
+      .where(and(gte(packagesTable.createdAt, startOfDay), lt(packagesTable.createdAt, endOfDay)))
+      .returning({ id: packagesTable.id });
+  } else {
+    deleted = await db
+      .delete(packagesTable)
+      .returning({ id: packagesTable.id });
+  }
+
+  res.json({ deleted: deleted.length });
+});
 
 router.get("/packages", requireAuth, async (req, res): Promise<void> => {
   const parsed = ListPackagesQueryParams.safeParse(req.query);

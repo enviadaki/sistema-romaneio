@@ -86,9 +86,20 @@ export interface Stats {
   scansByCity: CityCount[];
 }
 
+export interface ClearPackagesResult {
+  deleted: number;
+}
+
 export interface ErrorResponse {
   error: string;
 }
+
+export type ClearPackagesParams = {
+  /**
+   * ISO date (YYYY-MM-DD). If omitted, deletes ALL packages.
+   */
+  date?: string;
+};
 
 export type ListPackagesParams = {
   city?: string;

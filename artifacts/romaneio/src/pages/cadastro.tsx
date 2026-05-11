@@ -5,12 +5,14 @@ import {
   useCreatePackage,
   useBulkCreatePackages,
   useDeletePackage,
+  useClearPackages,
   useListCities,
-  getListCitiesQueryKey
+  getListCitiesQueryKey,
+  getGetStatsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { formatDate } from "@/lib/date-utils";
+import { formatDate, getTodayDateString } from "@/lib/date-utils";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
@@ -28,7 +30,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Trash2, Upload, FileText, CheckCircle, AlertCircle, X } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Trash2, Upload, FileText, CheckCircle, AlertCircle, X, Eraser } from "lucide-react";
 
 type PackageRow = { trackingNumber: string; city: string; promisedDeliveryDate: string };
 
@@ -44,6 +52,11 @@ export default function Cadastro() {
 
   const [cityFilter, setCityFilter] = useState<string>("ALL");
   const [activeTab, setActiveTab] = useState<"single" | "bulk" | "file">("single");
+
+  // Clear dialog state
+  const [clearOpen, setClearOpen] = useState(false);
+  const [clearDate, setClearDate] = useState(getTodayDateString);
+  const [clearMode, setClearMode] = useState<"date" | "all">("date");
 
   // Single mode state
   const [trackingNumber, setTrackingNumber] = useState("");
@@ -67,10 +80,29 @@ export default function Cadastro() {
   const createPkg = useCreatePackage();
   const bulkCreate = useBulkCreatePackages();
   const deletePkg = useDeletePackage();
+  const clearPkgs = useClearPackages();
 
   const invalidateLists = () => {
     queryClient.invalidateQueries({ queryKey: getListPackagesQueryKey() });
     queryClient.invalidateQueries({ queryKey: getListCitiesQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetStatsQueryKey() });
+  };
+
+  const handleClear = () => {
+    const params = clearMode === "date" ? { params: { date: clearDate } } : {};
+    clearPkgs.mutate(params as any, {
+      onSuccess: (res) => {
+        toast({
+          title: "Pacotes removidos",
+          description: `${res.deleted} pacote${res.deleted !== 1 ? "s" : ""} apagado${res.deleted !== 1 ? "s" : ""} com sucesso.`,
+        });
+        setClearOpen(false);
+        invalidateLists();
+      },
+      onError: () => {
+        toast({ title: "Erro ao limpar pacotes.", variant: "destructive" });
+      },
+    });
   };
 
   const handleSingleSubmit = (e: React.FormEvent) => {
@@ -480,22 +512,119 @@ export default function Cadastro() {
         </Card>
 
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Pacotes Cadastrados</h2>
-            <div className="w-[200px]">
-              <Select value={cityFilter} onValueChange={setCityFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Todas as Cidades" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Todas as Cidades</SelectItem>
-                  {cities?.map(c => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-semibold">Pacotes Cadastrados</h2>
+              {packages && packages.length > 0 && (
+                <span className="text-sm text-muted-foreground">({packages.length})</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-[180px]">
+                <Select value={cityFilter} onValueChange={setCityFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todas as Cidades" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Todas as Cidades</SelectItem>
+                    {cities?.map(c => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => { setClearMode("date"); setClearDate(getTodayDateString()); setClearOpen(true); }}
+              >
+                <Eraser className="h-4 w-4 mr-1.5" />
+                Limpar
+              </Button>
             </div>
           </div>
+
+          {/* Clear packages dialog */}
+          <Dialog open={clearOpen} onOpenChange={setClearOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-destructive">
+                  <Eraser className="h-5 w-5" />
+                  Limpar Pacotes
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-5 pt-2">
+                <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
+                  ⚠️ Esta ação é <strong>irreversível</strong>. Os pacotes apagados não poderão ser recuperados.
+                </div>
+
+                {/* Mode selector */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">O que deseja apagar?</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setClearMode("date")}
+                      className={`rounded-lg border-2 p-3 text-sm text-left transition-colors ${
+                        clearMode === "date"
+                          ? "border-destructive bg-destructive/5 font-semibold"
+                          : "border-muted hover:border-muted-foreground/40"
+                      }`}
+                    >
+                      <div className="font-medium mb-0.5">Por data</div>
+                      <div className="text-xs text-muted-foreground">Apaga os pacotes de um dia específico</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setClearMode("all")}
+                      className={`rounded-lg border-2 p-3 text-sm text-left transition-colors ${
+                        clearMode === "all"
+                          ? "border-destructive bg-destructive/5 font-semibold"
+                          : "border-muted hover:border-muted-foreground/40"
+                      }`}
+                    >
+                      <div className="font-medium mb-0.5">Todos</div>
+                      <div className="text-xs text-muted-foreground">Apaga <strong>todos</strong> os pacotes do sistema</div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Date picker — only shown for "date" mode */}
+                {clearMode === "date" && (
+                  <div className="space-y-1.5">
+                    <Label>Data de cadastro dos pacotes</Label>
+                    <Input
+                      type="date"
+                      value={clearDate}
+                      onChange={e => setClearDate(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Serão apagados todos os pacotes cadastrados nessa data.
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setClearOpen(false)}
+                    disabled={clearPkgs.isPending}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    className="flex-1"
+                    onClick={handleClear}
+                    disabled={clearPkgs.isPending}
+                  >
+                    {clearPkgs.isPending ? "Apagando..." : clearMode === "all" ? "Apagar Tudo" : "Apagar do Dia"}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           <Card>
             <Table>

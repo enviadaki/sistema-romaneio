@@ -18,6 +18,8 @@ import type {
 
 import type {
   BulkImportResult,
+  ClearPackagesParams,
+  ClearPackagesResult,
   ErrorResponse,
   GetRomaneioParams,
   HealthStatus,
@@ -116,6 +118,102 @@ export function useHealthCheck<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Delete all packages registered on a given date (or all if no date)
+ */
+export const getClearPackagesUrl = (params?: ClearPackagesParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/packages/clear?${stringifiedParams}`
+    : `/api/packages/clear`;
+};
+
+export const clearPackages = async (
+  params?: ClearPackagesParams,
+  options?: RequestInit,
+): Promise<ClearPackagesResult> => {
+  return customFetch<ClearPackagesResult>(getClearPackagesUrl(params), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getClearPackagesMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearPackages>>,
+    TError,
+    { params?: ClearPackagesParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof clearPackages>>,
+  TError,
+  { params?: ClearPackagesParams },
+  TContext
+> => {
+  const mutationKey = ["clearPackages"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof clearPackages>>,
+    { params?: ClearPackagesParams }
+  > = (props) => {
+    const { params } = props ?? {};
+
+    return clearPackages(params, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClearPackagesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearPackages>>
+>;
+
+export type ClearPackagesMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete all packages registered on a given date (or all if no date)
+ */
+export const useClearPackages = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearPackages>>,
+    TError,
+    { params?: ClearPackagesParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof clearPackages>>,
+  TError,
+  { params?: ClearPackagesParams },
+  TContext
+> => {
+  return useMutation(getClearPackagesMutationOptions(options));
+};
 
 /**
  * @summary List all packages
