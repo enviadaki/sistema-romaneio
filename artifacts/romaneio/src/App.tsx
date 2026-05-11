@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Switch, Route, Router as WouterRouter, Redirect, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import { ClerkProvider, SignIn, SignUp, Show, useClerk } from "@clerk/react";
+import { ClerkProvider, SignIn, Show, useClerk } from "@clerk/react";
 import { shadcn } from "@clerk/themes";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -95,7 +95,6 @@ function SignInPage() {
         <SignIn
           routing="path"
           path={`${basePath}/sign-in`}
-          signUpUrl={`${basePath}/sign-up`}
           appearance={clerkAppearance}
         />
       </div>
@@ -103,29 +102,6 @@ function SignInPage() {
   );
 }
 
-function SignUpPage() {
-  return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-gradient-to-br from-slate-900 via-[#0f2850] to-slate-800 px-4">
-      <div className="w-full max-w-md">
-        <div className="mb-8 text-center">
-          <img
-            src={`${basePath}/logo.svg`}
-            alt="Logo"
-            className="mx-auto mb-4 h-14 w-14"
-          />
-          <h1 className="text-2xl font-bold text-white">Sistema de Romaneios</h1>
-          <p className="mt-1 text-sm text-slate-400">Crie sua conta para começar</p>
-        </div>
-        <SignUp
-          routing="path"
-          path={`${basePath}/sign-up`}
-          signInUrl={`${basePath}/sign-in`}
-          appearance={clerkAppearance}
-        />
-      </div>
-    </div>
-  );
-}
 
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
@@ -180,18 +156,11 @@ function AppRoutes() {
       proxyUrl={clerkProxyUrl}
       appearance={clerkAppearance}
       signInUrl={`${basePath}/sign-in`}
-      signUpUrl={`${basePath}/sign-up`}
       localization={{
         signIn: {
           start: {
             title: "Bem-vindo de volta",
             subtitle: "Faça login para acessar o sistema",
-          },
-        },
-        signUp: {
-          start: {
-            title: "Crie sua conta",
-            subtitle: "Comece a usar o sistema agora",
           },
         },
       }}
@@ -203,7 +172,7 @@ function AppRoutes() {
           <ClerkQueryClientCacheInvalidator />
           <Switch>
             <Route path="/sign-in/*?" component={SignInPage} />
-            <Route path="/sign-up/*?" component={SignUpPage} />
+            <Route path="/sign-up/*?" component={() => <Redirect to="/sign-in" />} />
             <Route path="/*?" component={ProtectedApp} />
           </Switch>
           <Toaster />

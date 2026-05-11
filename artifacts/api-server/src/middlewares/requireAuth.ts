@@ -5,24 +5,40 @@ const clerkClient = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY,
 });
 
-// In-memory cache: userId -> { name, expiresAt }
-const nameCache = new Map<string, { name: string | null; expiresAt: number }>();
+// Roles permitted to access the system. Override via ALLOWED_ROLES env var
+// (comma-separated, e.g. "operator,admin"). Defaults to "operator,admin".
+const ALLOWED_ROLES = new Set(
+  (process.env.ALLOWED_ROLES ?? "operator,admin")
+    .split(",")
+    .map((r) => r.trim())
+    .filter(Boolean)
+);
+
+// In-memory cache: userId -> { name, authorized, expiresAt }
+const userCache = new Map<string, { name: string | null; authorized: boolean; expiresAt: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-async function resolveUserName(userId: string): Promise<string | null> {
-  const cached = nameCache.get(userId);
+async function resolveUser(userId: string): Promise<{ name: string | null; authorized: boolean }> {
+  const cached = userCache.get(userId);
   if (cached && cached.expiresAt > Date.now()) {
-    return cached.name;
+    return { name: cached.name, authorized: cached.authorized };
   }
 
   try {
     const user = await clerkClient.users.getUser(userId);
     const parts = [user.firstName, user.lastName].filter(Boolean);
-    const name = parts.length > 0 ? parts.join(" ") : (user.emailAddresses[0]?.emailAddress ?? null);
-    nameCache.set(userId, { name, expiresAt: Date.now() + CACHE_TTL_MS });
-    return name;
+    const name =
+      parts.length > 0
+        ? parts.join(" ")
+        : (user.emailAddresses[0]?.emailAddress ?? null);
+    const role = (user.publicMetadata as Record<string, unknown>)?.role as
+      | string
+      | undefined;
+    const authorized = ALLOWED_ROLES.has(role ?? "");
+    userCache.set(userId, { name, authorized, expiresAt: Date.now() + CACHE_TTL_MS });
+    return { name, authorized };
   } catch {
-    return null;
+    return { name: null, authorized: false };
   }
 }
 
@@ -35,21 +51,20 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   }
   (req as any).userId = userId;
 
-  // Try JWT claim first (fast path), fall back to Clerk API
-  const claimName = (auth?.sessionClaims?.["fullName"] as string | undefined) ?? null;
-
-  if (claimName) {
-    (req as any).userFullName = claimName;
-    next();
-    return;
-  }
-
-  // Async path: fetch from Clerk API
-  resolveUserName(userId).then((name) => {
-    (req as any).userFullName = name;
-    next();
-  }).catch(() => {
-    (req as any).userFullName = null;
-    next();
-  });
+  resolveUser(userId)
+    .then(({ name, authorized }) => {
+      if (!authorized) {
+        res
+          .status(403)
+          .json({ error: "Acesso negado. Conta não autorizada para este sistema." });
+        return;
+      }
+      (req as any).userFullName = name;
+      next();
+    })
+    .catch(() => {
+      res
+        .status(403)
+        .json({ error: "Acesso negado. Conta não autorizada para este sistema." });
+    });
 }
