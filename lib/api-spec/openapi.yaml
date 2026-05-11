@@ -225,13 +225,25 @@ paths:
     get:
       operationId: getRomaneio
       tags: [romaneio]
-      summary: Get romaneio for a city and date
+      summary: Get romaneio for a city/route and date
       parameters:
         - name: city
           in: query
-          required: true
+          required: false
           schema:
             type: string
+        - name: cities
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Comma-separated list of cities (route mode)
+        - name: label
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Display label for the romaneio (route name)
         - name: date
           in: query
           required: true
@@ -369,9 +381,11 @@ components:
 
     RomaneioItem:
       type: object
-      required: [trackingNumber, promisedDeliveryDate]
+      required: [trackingNumber, city, promisedDeliveryDate]
       properties:
         trackingNumber:
+          type: string
+        city:
           type: string
         promisedDeliveryDate:
           type: string

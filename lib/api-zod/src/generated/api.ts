@@ -103,10 +103,18 @@ export const DeleteScanParams = zod.object({
 });
 
 /**
- * @summary Get romaneio for a city and date
+ * @summary Get romaneio for a city/route and date
  */
 export const GetRomaneioQueryParams = zod.object({
-  city: zod.coerce.string(),
+  city: zod.coerce.string().optional(),
+  cities: zod.coerce
+    .string()
+    .optional()
+    .describe("Comma-separated list of cities (route mode)"),
+  label: zod.coerce
+    .string()
+    .optional()
+    .describe("Display label for the romaneio (route name)"),
   date: zod.coerce.string(),
 });
 
@@ -117,6 +125,7 @@ export const GetRomaneioResponse = zod.object({
   packages: zod.array(
     zod.object({
       trackingNumber: zod.string(),
+      city: zod.string(),
       promisedDeliveryDate: zod.string(),
     }),
   ),

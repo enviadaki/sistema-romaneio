@@ -8,5 +8,6 @@
 
 export interface RomaneioItem {
   trackingNumber: string;
+  city: string;
   promisedDeliveryDate: string;
 }

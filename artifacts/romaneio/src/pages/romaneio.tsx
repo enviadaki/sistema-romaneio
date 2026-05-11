@@ -1,20 +1,21 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
-  useGetRomaneio,
-  getGetRomaneioQueryKey,
   useListCities,
-  getListCitiesQueryKey
+  getListCitiesQueryKey,
 } from "@workspace/api-client-react";
 import { formatDate, getTodayDateString } from "@/lib/date-utils";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { ROUTES } from "@/lib/routes-data";
+import { useQuery } from "@tanstack/react-query";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Printer, FileDown, Settings2, X } from "lucide-react";
+import { Printer, FileDown, Settings2, MapPin, Route } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -30,12 +31,46 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+
+type FilterMode = "cidade" | "rota";
+
+interface RomaneioItem {
+  trackingNumber: string;
+  city: string;
+  promisedDeliveryDate: string;
+}
+
+interface RomaneioData {
+  city: string;
+  date: string;
+  totalCount: number;
+  packages: RomaneioItem[];
+}
+
+async function fetchRomaneio(params: {
+  city?: string;
+  cities?: string;
+  label?: string;
+  date: string;
+}): Promise<RomaneioData> {
+  const url = new URL("/api/romaneio", window.location.origin);
+  if (params.city) url.searchParams.set("city", params.city);
+  if (params.cities) url.searchParams.set("cities", params.cities);
+  if (params.label) url.searchParams.set("label", params.label);
+  url.searchParams.set("date", params.date);
+
+  const res = await fetch(url.toString(), { credentials: "include" });
+  if (!res.ok) throw new Error("Erro ao buscar romaneio");
+  return res.json();
+}
 
 export default function Romaneio() {
+  const [filterMode, setFilterMode] = useState<FilterMode>("cidade");
   const [city, setCity] = useState<string>("");
+  const [selectedRoute, setSelectedRoute] = useState<string>("");
   const [date, setDate] = useState<string>(getTodayDateString());
 
-  // Company settings for PDF header
   const [empresa, setEmpresa] = useState(() => localStorage.getItem("romaneio_empresa") || "");
   const [cnpj, setCnpj] = useState(() => localStorage.getItem("romaneio_cnpj") || "");
   const [endereco, setEndereco] = useState(() => localStorage.getItem("romaneio_endereco") || "");
@@ -50,14 +85,45 @@ export default function Romaneio() {
 
   const { data: cities } = useListCities({ query: { queryKey: getListCitiesQueryKey() } });
 
-  const { data: romaneio, isLoading } = useGetRomaneio(
-    { city, date },
-    { query: { queryKey: getGetRomaneioQueryKey({ city, date }), enabled: !!(city && date) } }
-  );
+  const isReady =
+    !!date && (filterMode === "cidade" ? !!city : !!selectedRoute);
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const routeObj = ROUTES.find((r) => r.name === selectedRoute);
+
+  const { data: romaneio, isLoading } = useQuery({
+    queryKey: ["romaneio", filterMode, filterMode === "cidade" ? city : selectedRoute, date],
+    enabled: isReady,
+    queryFn: () => {
+      if (filterMode === "cidade") {
+        return fetchRomaneio({ city, date });
+      } else {
+        return fetchRomaneio({
+          cities: routeObj?.cities.join(",") ?? "",
+          label: selectedRoute,
+          date,
+        });
+      }
+    },
+  });
+
+  // Group packages by city for route mode
+  const packagesByCity = useCallback(() => {
+    if (!romaneio) return [];
+    if (filterMode === "cidade") return [{ city: romaneio.city, packages: romaneio.packages }];
+    const map: Record<string, RomaneioItem[]> = {};
+    for (const pkg of romaneio.packages) {
+      if (!map[pkg.city]) map[pkg.city] = [];
+      map[pkg.city].push(pkg);
+    }
+    return Object.entries(map)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([c, pkgs]) => ({ city: c, packages: pkgs }));
+  }, [romaneio, filterMode]);
+
+  const isRouteMode = filterMode === "rota";
+  const canExport = !!(romaneio && romaneio.packages.length > 0);
+
+  const handlePrint = () => window.print();
 
   const handleExportPDF = () => {
     if (!romaneio) return;
@@ -68,23 +134,20 @@ export default function Romaneio() {
     const margin = 15;
     const contentWidth = pageWidth - margin * 2;
 
-    // ── Header background bar ──
+    // ── Header background ──
     doc.setFillColor(15, 40, 80);
     doc.rect(0, 0, pageWidth, 38, "F");
 
-    // Company name
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.text(empresa || "SISTEMA DE ROMANEIOS", margin, 14);
 
-    // CNPJ / address
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     if (cnpj) doc.text(`CNPJ: ${cnpj}`, margin, 21);
     if (endereco) doc.text(endereco, margin, endereco && cnpj ? 27 : 21);
 
-    // Document title (right side)
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
     doc.setTextColor(255, 255, 255);
@@ -92,30 +155,31 @@ export default function Romaneio() {
     const titleW = doc.getTextWidth(titleText);
     doc.text(titleText, pageWidth - margin - titleW, 14);
 
-    // Emission date (right side)
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     const emitidoText = `Emitido: ${new Date().toLocaleString("pt-BR")}`;
     const emitW = doc.getTextWidth(emitidoText);
     doc.text(emitidoText, pageWidth - margin - emitW, 21);
 
-    // ── Info block below header ──
+    // ── Info block ──
     doc.setFillColor(240, 244, 250);
     doc.rect(0, 38, pageWidth, 18, "F");
 
     doc.setTextColor(15, 40, 80);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
-    doc.text("CIDADE DESTINO:", margin, 47);
+
+    const destinoLabel = isRouteMode ? "ROTA:" : "CIDADE DESTINO:";
+    doc.text(destinoLabel, margin, 47);
     doc.setFont("helvetica", "normal");
-    doc.text(romaneio.city.toUpperCase(), margin + doc.getTextWidth("CIDADE DESTINO:") + 2, 47);
+    doc.text(romaneio.city.toUpperCase(), margin + doc.getTextWidth(destinoLabel) + 2, 47);
 
     doc.setFont("helvetica", "bold");
-    doc.text("DATA DE BIPAGEM:", margin + 70, 47);
+    doc.text("DATA DE BIPAGEM:", margin + 80, 47);
     doc.setFont("helvetica", "normal");
-    doc.text(formatDate(romaneio.date), margin + 70 + doc.getTextWidth("DATA DE BIPAGEM:") + 2, 47);
+    doc.text(formatDate(romaneio.date), margin + 80 + doc.getTextWidth("DATA DE BIPAGEM:") + 2, 47);
 
-    // Total volumes — highlighted box
+    // Total volumes box
     doc.setFillColor(15, 40, 80);
     const boxX = pageWidth - margin - 60;
     doc.roundedRect(boxX, 39, 60, 16, 2, 2, "F");
@@ -129,72 +193,112 @@ export default function Romaneio() {
     // ── Table ──
     const tableStartY = 62;
 
-    const tableRows = romaneio.packages.map((pkg, i) => [
-      String(i + 1),
-      pkg.trackingNumber,
-      formatDate(pkg.promisedDeliveryDate),
-      "",
-    ]);
+    if (isRouteMode) {
+      // Route mode: include CIDADE column
+      const groups = packagesByCity();
+      let currentY = tableStartY;
+      let globalIndex = 1;
 
-    autoTable(doc, {
-      startY: tableStartY,
-      margin: { left: margin, right: margin },
-      head: [["#", "RASTREADOR (TRACKING NUMBER)", "ENTREGA PROMETIDA", "ASSINATURA"]],
-      body: tableRows,
-      theme: "grid",
-      styles: {
-        fontSize: 9,
-        cellPadding: 3,
-        lineColor: [180, 195, 215],
-        lineWidth: 0.3,
-        textColor: [20, 30, 50],
-        valign: "middle",
-      },
-      headStyles: {
-        fillColor: [15, 40, 80],
-        textColor: [255, 255, 255],
-        fontStyle: "bold",
-        fontSize: 8,
-        cellPadding: 4,
-      },
-      alternateRowStyles: {
-        fillColor: [245, 248, 252],
-      },
-      columnStyles: {
-        0: { cellWidth: 12, halign: "center", fontStyle: "bold" },
-        1: { cellWidth: 75, fontStyle: "bold", font: "courier", fontSize: 9 },
-        2: { cellWidth: 38, halign: "center" },
-        3: { cellWidth: contentWidth - 12 - 75 - 38 },
-      },
-      didDrawPage: (data) => {
-        // Page number footer
-        const pageCount = (doc.internal as any).getNumberOfPages();
-        const currentPage = data.pageNumber;
-        doc.setFontSize(8);
-        doc.setTextColor(130, 140, 160);
-        doc.setFont("helvetica", "normal");
-        doc.text(
-          `Página ${currentPage}`,
-          pageWidth / 2,
-          pageHeight - 8,
-          { align: "center" }
-        );
-      },
-    });
+      for (const group of groups) {
+        // City header row
+        autoTable(doc, {
+          startY: currentY,
+          margin: { left: margin, right: margin },
+          head: [[{ content: `📍 ${group.city.toUpperCase()}  (${group.packages.length} volumes)`, colSpan: 4 }]],
+          body: group.packages.map((pkg) => [
+            String(globalIndex++),
+            pkg.trackingNumber,
+            formatDate(pkg.promisedDeliveryDate),
+            "",
+          ]),
+          theme: "grid",
+          styles: {
+            fontSize: 9,
+            cellPadding: 3,
+            lineColor: [180, 195, 215],
+            lineWidth: 0.3,
+            textColor: [20, 30, 50],
+            valign: "middle",
+          },
+          headStyles: {
+            fillColor: [30, 64, 120],
+            textColor: [255, 255, 255],
+            fontStyle: "bold",
+            fontSize: 9,
+            cellPadding: 4,
+          },
+          alternateRowStyles: { fillColor: [245, 248, 252] },
+          columnStyles: {
+            0: { cellWidth: 12, halign: "center", fontStyle: "bold" },
+            1: { cellWidth: 75, fontStyle: "bold", font: "courier", fontSize: 9 },
+            2: { cellWidth: 38, halign: "center" },
+            3: { cellWidth: contentWidth - 12 - 75 - 38 },
+          },
+          didDrawPage: (data) => {
+            const pageCount = (doc.internal as any).getNumberOfPages();
+            doc.setFontSize(8);
+            doc.setTextColor(130, 140, 160);
+            doc.setFont("helvetica", "normal");
+            doc.text(`Página ${data.pageNumber}`, pageWidth / 2, pageHeight - 8, { align: "center" });
+          },
+        });
+        currentY = (doc as any).lastAutoTable.finalY + 4;
+      }
+    } else {
+      // City mode: no CIDADE column
+      const tableRows = romaneio.packages.map((pkg, i) => [
+        String(i + 1),
+        pkg.trackingNumber,
+        formatDate(pkg.promisedDeliveryDate),
+        "",
+      ]);
 
-    // ── Footer on last page ──
+      autoTable(doc, {
+        startY: tableStartY,
+        margin: { left: margin, right: margin },
+        head: [["#", "RASTREADOR (TRACKING NUMBER)", "ENTREGA PROMETIDA", "ASSINATURA"]],
+        body: tableRows,
+        theme: "grid",
+        styles: {
+          fontSize: 9,
+          cellPadding: 3,
+          lineColor: [180, 195, 215],
+          lineWidth: 0.3,
+          textColor: [20, 30, 50],
+          valign: "middle",
+        },
+        headStyles: {
+          fillColor: [15, 40, 80],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+          fontSize: 8,
+          cellPadding: 4,
+        },
+        alternateRowStyles: { fillColor: [245, 248, 252] },
+        columnStyles: {
+          0: { cellWidth: 12, halign: "center", fontStyle: "bold" },
+          1: { cellWidth: 75, fontStyle: "bold", font: "courier", fontSize: 9 },
+          2: { cellWidth: 38, halign: "center" },
+          3: { cellWidth: contentWidth - 12 - 75 - 38 },
+        },
+        didDrawPage: (data) => {
+          doc.setFontSize(8);
+          doc.setTextColor(130, 140, 160);
+          doc.setFont("helvetica", "normal");
+          doc.text(`Página ${data.pageNumber}`, pageWidth / 2, pageHeight - 8, { align: "center" });
+        },
+      });
+    }
+
+    // ── Footer ──
     const finalY = (doc as any).lastAutoTable.finalY + 16;
-
     if (finalY < pageHeight - 45) {
-      // Separator line
       doc.setDrawColor(180, 195, 215);
       doc.setLineWidth(0.4);
       doc.line(margin, finalY, pageWidth - margin, finalY);
 
-      // Signature area
       const sigY = finalY + 20;
       const sigW = 70;
-
       doc.setDrawColor(60, 80, 120);
       doc.setLineWidth(0.6);
       doc.line(margin, sigY, margin + sigW, sigY);
@@ -206,23 +310,19 @@ export default function Romaneio() {
       doc.line(pageWidth - margin - sigW, sigY, pageWidth - margin, sigY);
       doc.text("Assinatura do Responsável", pageWidth - margin - sigW / 2, sigY + 5, { align: "center" });
 
-      // Footer note
       doc.setFontSize(7);
       doc.setTextColor(150, 160, 175);
       doc.text(
         `Documento gerado automaticamente pelo Sistema de Romaneios — ${new Date().toLocaleString("pt-BR")}`,
         pageWidth / 2,
         pageHeight - 14,
-        { align: "center" }
+        { align: "center" },
       );
     }
 
-    // Save
-    const fileName = `romaneio_${romaneio.city.replace(/\s+/g, "_")}_${romaneio.date}.pdf`;
-    doc.save(fileName);
+    const safeName = romaneio.city.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_-]/g, "");
+    doc.save(`romaneio_${safeName}_${romaneio.date}.pdf`);
   };
-
-  const canExport = !!(romaneio && romaneio.packages.length > 0);
 
   return (
     <div className="space-y-8">
@@ -232,7 +332,6 @@ export default function Romaneio() {
           <p className="text-muted-foreground mt-2">Gere, imprima ou exporte o manifesto de entrega em PDF.</p>
         </div>
 
-        {/* Company settings dialog */}
         <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
           <DialogTrigger asChild>
             <Button variant="outline" size="sm">
@@ -247,27 +346,15 @@ export default function Romaneio() {
             <div className="space-y-4 pt-2">
               <div className="space-y-1.5">
                 <Label>Nome da Empresa / Transportadora</Label>
-                <Input
-                  value={empresa}
-                  onChange={e => setEmpresa(e.target.value)}
-                  placeholder="Ex: Transportadora Rápida Ltda"
-                />
+                <Input value={empresa} onChange={e => setEmpresa(e.target.value)} placeholder="Ex: Transportadora Rápida Ltda" />
               </div>
               <div className="space-y-1.5">
                 <Label>CNPJ</Label>
-                <Input
-                  value={cnpj}
-                  onChange={e => setCnpj(e.target.value)}
-                  placeholder="00.000.000/0001-00"
-                />
+                <Input value={cnpj} onChange={e => setCnpj(e.target.value)} placeholder="00.000.000/0001-00" />
               </div>
               <div className="space-y-1.5">
                 <Label>Endereço</Label>
-                <Input
-                  value={endereco}
-                  onChange={e => setEndereco(e.target.value)}
-                  placeholder="Rua Exemplo, 123 — São Paulo, SP"
-                />
+                <Input value={endereco} onChange={e => setEndereco(e.target.value)} placeholder="Rua Exemplo, 123 — São Paulo, SP" />
               </div>
               <div className="flex gap-2 pt-2">
                 <Button variant="outline" onClick={() => setSettingsOpen(false)} className="flex-1">Cancelar</Button>
@@ -279,47 +366,102 @@ export default function Romaneio() {
       </div>
 
       {/* Controls */}
-      <div className="flex flex-col sm:flex-row gap-4 no-print border-b pb-6">
-        <div className="w-full sm:w-[280px]">
-          <Label className="text-xs font-semibold mb-1 block">Cidade</Label>
-          <Select value={city} onValueChange={setCity}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione a cidade..." />
-            </SelectTrigger>
-            <SelectContent>
-              {cities?.map(c => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      <div className="flex flex-col gap-4 no-print border-b pb-6">
+        {/* Mode toggle */}
+        <div className="flex flex-col sm:flex-row gap-4 items-end">
+          <div className="w-full sm:w-[200px]">
+            <Label className="text-xs font-semibold mb-1 block">Filtrar por</Label>
+            <Tabs
+              value={filterMode}
+              onValueChange={(v) => {
+                setFilterMode(v as FilterMode);
+                setCity("");
+                setSelectedRoute("");
+              }}
+            >
+              <TabsList className="w-full">
+                <TabsTrigger value="cidade" className="flex-1 gap-1.5">
+                  <MapPin className="h-3.5 w-3.5" />
+                  Cidade
+                </TabsTrigger>
+                <TabsTrigger value="rota" className="flex-1 gap-1.5">
+                  <Route className="h-3.5 w-3.5" />
+                  Rota
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+
+          {filterMode === "cidade" ? (
+            <div className="w-full sm:w-[280px]">
+              <Label className="text-xs font-semibold mb-1 block">Cidade</Label>
+              <Select value={city} onValueChange={setCity}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a cidade..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {cities?.map(c => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="w-full sm:w-[320px]">
+              <Label className="text-xs font-semibold mb-1 block">Rota</Label>
+              <Select value={selectedRoute} onValueChange={setSelectedRoute}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a rota..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  {ROUTES.map(r => (
+                    <SelectItem key={r.name} value={r.name}>
+                      <span className="font-medium">{r.name}</span>
+                      <span className="ml-2 text-xs text-muted-foreground">({r.cities.length} cidades)</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div className="w-full sm:w-[200px]">
+            <Label className="text-xs font-semibold mb-1 block">Data da Bipagem</Label>
+            <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+
+          <div className="flex items-end gap-2">
+            <Button variant="outline" onClick={handlePrint} disabled={!canExport}>
+              <Printer className="mr-2 h-4 w-4" />
+              Imprimir
+            </Button>
+            <Button onClick={handleExportPDF} disabled={!canExport}>
+              <FileDown className="mr-2 h-4 w-4" />
+              Exportar PDF
+            </Button>
+          </div>
         </div>
-        <div className="w-full sm:w-[200px]">
-          <Label className="text-xs font-semibold mb-1 block">Data da Bipagem</Label>
-          <Input
-            type="date"
-            value={date}
-            onChange={e => setDate(e.target.value)}
-          />
-        </div>
-        <div className="flex items-end gap-2">
-          <Button variant="outline" onClick={handlePrint} disabled={!canExport}>
-            <Printer className="mr-2 h-4 w-4" />
-            Imprimir
-          </Button>
-          <Button onClick={handleExportPDF} disabled={!canExport}>
-            <FileDown className="mr-2 h-4 w-4" />
-            Exportar PDF
-          </Button>
-        </div>
+
+        {/* Route city badges */}
+        {filterMode === "rota" && selectedRoute && routeObj && (
+          <div className="flex flex-wrap gap-1">
+            {routeObj.cities.slice(0, 10).map(c => (
+              <Badge key={c} variant="secondary" className="text-xs">{c}</Badge>
+            ))}
+            {routeObj.cities.length > 10 && (
+              <Badge variant="outline" className="text-xs">+{routeObj.cities.length - 10} mais</Badge>
+            )}
+          </div>
+        )}
       </div>
 
-      {!city && (
+      {!isReady && (
         <div className="text-center py-16 text-muted-foreground no-print">
-          Selecione uma cidade para gerar o romaneio.
+          Selecione uma {filterMode === "cidade" ? "cidade" : "rota"} para gerar o romaneio.
         </div>
       )}
 
-      {isLoading && city && (
+      {isLoading && isReady && (
         <div className="text-center py-12 text-muted-foreground no-print">Gerando romaneio...</div>
       )}
 
@@ -334,7 +476,9 @@ export default function Romaneio() {
               {endereco && <p className="text-xs text-gray-500 mt-0.5">{endereco}</p>}
             </div>
             <div className="text-right">
-              <p className="text-sm font-semibold">Cidade: {romaneio.city}</p>
+              <p className="text-sm font-semibold">
+                {isRouteMode ? "Rota:" : "Cidade:"} {romaneio.city}
+              </p>
               <p className="text-sm">Data do Scan: {formatDate(romaneio.date)}</p>
               <p className="text-xl font-bold mt-2 border-2 border-black inline-block px-3 py-1">
                 {romaneio.totalCount} VOLUMES
@@ -344,14 +488,49 @@ export default function Romaneio() {
 
           {romaneio.packages.length === 0 ? (
             <div className="text-center py-12 italic text-gray-500">
-              Nenhum pacote bipado para esta cidade/data.
+              Nenhum pacote bipado para {isRouteMode ? "esta rota" : "esta cidade"}/data.
+            </div>
+          ) : isRouteMode ? (
+            /* Route mode: group by city */
+            <div className="space-y-6">
+              {packagesByCity().map((group) => (
+                <div key={group.city}>
+                  <div className="flex items-center gap-2 mb-2 bg-gray-100 px-3 py-1.5 rounded">
+                    <MapPin className="h-4 w-4 text-gray-600 flex-shrink-0" />
+                    <span className="font-bold text-sm uppercase tracking-wide">{group.city}</span>
+                    <span className="text-xs text-gray-500 ml-auto">{group.packages.length} volume{group.packages.length !== 1 ? "s" : ""}</span>
+                  </div>
+                  <table className="w-full text-sm border-collapse border border-black">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="border border-black px-2 py-1.5 text-center w-8">#</th>
+                        <th className="border border-black px-2 py-1.5 text-left">RASTREADOR</th>
+                        <th className="border border-black px-2 py-1.5 text-left w-32">ENTREGA PROMETIDA</th>
+                        <th className="border border-black px-2 py-1.5 text-center w-32">ASSINATURA</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.packages.map((pkg, index) => (
+                        <tr key={index} className={index % 2 === 1 ? "bg-gray-50" : ""}>
+                          <td className="border border-black px-2 py-1.5 text-center font-bold">{index + 1}</td>
+                          <td className="border border-black px-2 py-1.5 font-mono font-bold tracking-wider">{pkg.trackingNumber}</td>
+                          <td className="border border-black px-2 py-1.5">{formatDate(pkg.promisedDeliveryDate)}</td>
+                          <td className="border border-black px-2 py-1.5"></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
             </div>
           ) : (
+            /* City mode: flat table with city column */
             <table className="w-full text-sm border-collapse border border-black">
               <thead>
                 <tr className="bg-gray-100">
                   <th className="border border-black px-3 py-2 text-center w-10">#</th>
                   <th className="border border-black px-3 py-2 text-left">RASTREADOR (TRACKING NUMBER)</th>
+                  <th className="border border-black px-3 py-2 text-left w-32">CIDADE</th>
                   <th className="border border-black px-3 py-2 text-left w-36">ENTREGA PROMETIDA</th>
                   <th className="border border-black px-3 py-2 text-center w-36">ASSINATURA</th>
                 </tr>
@@ -361,6 +540,7 @@ export default function Romaneio() {
                   <tr key={index} className={index % 2 === 1 ? "bg-gray-50" : ""}>
                     <td className="border border-black px-3 py-2 text-center font-bold">{index + 1}</td>
                     <td className="border border-black px-3 py-2 font-mono font-bold tracking-wider">{pkg.trackingNumber}</td>
+                    <td className="border border-black px-3 py-2 text-xs">{pkg.city}</td>
                     <td className="border border-black px-3 py-2">{formatDate(pkg.promisedDeliveryDate)}</td>
                     <td className="border border-black px-3 py-2"></td>
                   </tr>

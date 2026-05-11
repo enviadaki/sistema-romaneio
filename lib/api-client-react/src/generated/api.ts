@@ -805,7 +805,7 @@ export const useDeleteScan = <
 };
 
 /**
- * @summary Get romaneio for a city and date
+ * @summary Get romaneio for a city/route and date
  */
 export const getGetRomaneioUrl = (params: GetRomaneioParams) => {
   const normalizedParams = new URLSearchParams();
@@ -872,7 +872,7 @@ export type GetRomaneioQueryResult = NonNullable<
 export type GetRomaneioQueryError = ErrorType<ErrorResponse>;
 
 /**
- * @summary Get romaneio for a city and date
+ * @summary Get romaneio for a city/route and date
  */
 
 export function useGetRomaneio<

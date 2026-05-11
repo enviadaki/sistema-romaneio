@@ -55,6 +55,7 @@ export interface ScanInput {
 
 export interface RomaneioItem {
   trackingNumber: string;
+  city: string;
   promisedDeliveryDate: string;
 }
 
@@ -99,6 +100,14 @@ export type ListScansParams = {
 };
 
 export type GetRomaneioParams = {
-  city: string;
+  city?: string;
+  /**
+   * Comma-separated list of cities (route mode)
+   */
+  cities?: string;
+  /**
+   * Display label for the romaneio (route name)
+   */
+  label?: string;
   date: string;
 };
