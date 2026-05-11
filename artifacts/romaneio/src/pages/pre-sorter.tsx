@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import {
   useListCities,
   getListCitiesQueryKey,
@@ -12,6 +12,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { getTodayDateString } from "@/lib/date-utils";
 import { playScanSuccess, playScanError, playScanWarning } from "@/lib/scan-sounds";
+import { ROUTES } from "@/lib/routes-data";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,22 +23,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CheckCircle2, XCircle, AlertCircle, MapPin, Route } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 
+type FilterMode = "cidade" | "rota";
 type ScanStatus = "success" | "error" | "warning";
 
 interface ScanResult {
   status: ScanStatus;
   message: string;
   trackingNumber?: string;
+  city?: string;
 }
 
 export default function PreSorter() {
   const queryClient = useQueryClient();
   const today = getTodayDateString();
 
+  const [filterMode, setFilterMode] = useState<FilterMode>("rota");
   const [selectedCity, setSelectedCity] = useState<string>("");
+  const [selectedRoute, setSelectedRoute] = useState<string>("");
   const [scanInput, setScanInput] = useState("");
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
 
@@ -47,22 +54,58 @@ export default function PreSorter() {
     query: { queryKey: getListCitiesQueryKey() },
   });
 
-  const { data: scans } = useListScans(
-    { city: selectedCity, date: today },
+  // Derived: cities for the selected route
+  const routeCities = useMemo(() => {
+    if (filterMode !== "rota" || !selectedRoute) return [];
+    return ROUTES.find((r) => r.name === selectedRoute)?.cities ?? [];
+  }, [filterMode, selectedRoute]);
+
+  // Build cities query param (comma-separated for route mode)
+  const citiesParam = useMemo(() => {
+    if (filterMode === "rota") return routeCities.join(",");
+    return selectedCity;
+  }, [filterMode, routeCities, selectedCity]);
+
+  const isReady = filterMode === "cidade" ? !!selectedCity : !!selectedRoute;
+
+  // Fetch packages for all cities in route (or single city)
+  const { data: packages } = useListPackages(
+    filterMode === "rota" ? ({} as any) : { city: selectedCity },
     {
       query: {
-        queryKey: getListScansQueryKey({ city: selectedCity, date: today }),
-        enabled: !!selectedCity,
+        queryKey: [...getListPackagesQueryKey(), citiesParam],
+        enabled: isReady,
+        queryFn: async ({ queryKey: _key }: any) => {
+          if (!citiesParam) return [];
+          const url =
+            filterMode === "rota"
+              ? `/api/packages?cities=${encodeURIComponent(citiesParam)}`
+              : `/api/packages?city=${encodeURIComponent(selectedCity)}`;
+          const res = await fetch(url, { credentials: "include" });
+          if (!res.ok) throw new Error("Erro ao buscar pacotes");
+          return res.json();
+        },
       },
     },
   );
 
-  const { data: packages } = useListPackages(
-    { city: selectedCity },
+  // Fetch scans for all cities in route (or single city) + today
+  const { data: scans } = useListScans(
+    filterMode === "cidade" ? { city: selectedCity, date: today } : ({} as any),
     {
       query: {
-        queryKey: getListPackagesQueryKey({ city: selectedCity }),
-        enabled: !!selectedCity,
+        queryKey: [...getListScansQueryKey(), citiesParam, today],
+        enabled: isReady,
+        queryFn: async ({ queryKey: _key }: any) => {
+          if (!citiesParam) return [];
+          const url =
+            filterMode === "rota"
+              ? `/api/scans?cities=${encodeURIComponent(citiesParam)}&date=${today}`
+              : `/api/scans?city=${encodeURIComponent(selectedCity)}&date=${today}`;
+          const res = await fetch(url, { credentials: "include" });
+          if (!res.ok) throw new Error("Erro ao buscar scans");
+          return res.json();
+        },
       },
     },
   );
@@ -70,10 +113,15 @@ export default function PreSorter() {
   const createScan = useCreateScan();
 
   useEffect(() => {
-    if (selectedCity && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [selectedCity]);
+    if (isReady && inputRef.current) inputRef.current.focus();
+  }, [isReady, selectedCity, selectedRoute]);
+
+  // Reset selection when switching modes
+  useEffect(() => {
+    setSelectedCity("");
+    setSelectedRoute("");
+    setScanResult(null);
+  }, [filterMode]);
 
   const triggerResult = (result: ScanResult) => {
     setScanResult(result);
@@ -87,44 +135,47 @@ export default function PreSorter() {
     e.preventDefault();
 
     const code = scanInput.trim();
-    if (!code || !selectedCity) return;
-
+    if (!code || !isReady) return;
     setScanInput("");
 
-    const expectedPkg = packages?.find((p) => p.trackingNumber === code);
+    const expectedPkg = packages?.find((p: any) => p.trackingNumber === code);
     if (!expectedPkg) {
+      const label =
+        filterMode === "rota"
+          ? `rota ${selectedRoute}`
+          : `cidade ${selectedCity}`;
       triggerResult({
         status: "error",
-        message: `Pacote não encontrado para a cidade ${selectedCity}`,
+        message: `Pacote não encontrado para ${label}`,
         trackingNumber: code,
       });
       return;
     }
 
-    const alreadyScanned = scans?.find((s) => s.trackingNumber === code);
+    const alreadyScanned = scans?.find((s: any) => s.trackingNumber === code);
     if (alreadyScanned) {
       triggerResult({
         status: "warning",
         message: "Pacote já foi bipado hoje",
         trackingNumber: code,
+        city: expectedPkg.city,
       });
       return;
     }
 
     createScan.mutate(
-      { data: { trackingNumber: code, city: selectedCity } },
+      { data: { trackingNumber: code, city: expectedPkg.city } },
       {
         onSuccess: () => {
           triggerResult({
             status: "success",
-            message: "Scan confirmado",
+            message: `Scan confirmado`,
             trackingNumber: code,
+            city: expectedPkg.city,
           });
           queryClient.invalidateQueries({ queryKey: getListScansQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetStatsQueryKey() });
-          setTimeout(() => {
-            inputRef.current?.focus();
-          }, 100);
+          setTimeout(() => inputRef.current?.focus(), 100);
         },
         onError: () => {
           triggerResult({
@@ -139,158 +190,266 @@ export default function PreSorter() {
 
   const statusConfig = {
     success: {
-      bg: "bg-green-50 border-green-200 text-green-900 dark:bg-green-950/30 dark:border-green-900 dark:text-green-300",
+      bg: "bg-green-50 border-green-200 text-green-900",
       icon: <CheckCircle2 className="h-7 w-7 text-green-500 flex-shrink-0" />,
       label: "CONFIRMADO",
       labelColor: "text-green-600",
     },
     error: {
-      bg: "bg-red-50 border-red-200 text-red-900 dark:bg-red-950/30 dark:border-red-900 dark:text-red-300",
+      bg: "bg-red-50 border-red-200 text-red-900",
       icon: <XCircle className="h-7 w-7 text-red-500 flex-shrink-0" />,
       label: "ERRO",
       labelColor: "text-red-600",
     },
     warning: {
-      bg: "bg-yellow-50 border-yellow-200 text-yellow-900 dark:bg-yellow-950/30 dark:border-yellow-900 dark:text-yellow-300",
+      bg: "bg-yellow-50 border-yellow-200 text-yellow-900",
       icon: <AlertCircle className="h-7 w-7 text-yellow-500 flex-shrink-0" />,
       label: "ATENÇÃO",
       labelColor: "text-yellow-600",
     },
   };
 
+  // Group confirmed scans by city for route mode
+  const scansByCity = useMemo(() => {
+    if (!scans || filterMode !== "rota") return null;
+    const map: Record<string, typeof scans> = {};
+    for (const s of scans as any[]) {
+      if (!map[s.city]) map[s.city] = [];
+      map[s.city].push(s);
+    }
+    return map;
+  }, [scans, filterMode]);
+
+  const pendingPackages = useMemo(() => {
+    if (!packages) return [];
+    const scannedSet = new Set((scans as any[] | undefined)?.map((s: any) => s.trackingNumber) ?? []);
+    return (packages as any[]).filter((p: any) => !scannedSet.has(p.trackingNumber));
+  }, [packages, scans]);
+
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Pré-Sorter (Bipagem)</h1>
         <p className="text-muted-foreground mt-2">
-          Biper pacotes para gerar o romaneio da cidade.
+          Biper pacotes para gerar o romaneio da rota ou cidade.
         </p>
       </div>
 
       <Card className="border-2 border-primary/20">
         <CardContent className="pt-6 space-y-6">
+          {/* Mode toggle */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">
-              1. Selecione a Cidade do Romaneio
-            </label>
-            <Select value={selectedCity} onValueChange={setSelectedCity}>
-              <SelectTrigger className="text-lg py-6">
-                <SelectValue placeholder="Selecione a cidade..." />
-              </SelectTrigger>
-              <SelectContent>
-                {cities?.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <label className="text-sm font-medium">1. Filtrar por</label>
+            <Tabs value={filterMode} onValueChange={(v) => setFilterMode(v as FilterMode)}>
+              <TabsList className="w-full">
+                <TabsTrigger value="rota" className="flex-1 gap-2">
+                  <Route className="h-4 w-4" />
+                  Rota
+                </TabsTrigger>
+                <TabsTrigger value="cidade" className="flex-1 gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Cidade
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
 
+          {/* Route or City selector */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">
+              {filterMode === "rota" ? "2. Selecione a Rota" : "2. Selecione a Cidade"}
+            </label>
+
+            {filterMode === "rota" ? (
+              <>
+                <Select value={selectedRoute} onValueChange={setSelectedRoute}>
+                  <SelectTrigger className="text-lg py-6">
+                    <SelectValue placeholder="Selecione a rota..." />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    {ROUTES.map((r) => (
+                      <SelectItem key={r.name} value={r.name}>
+                        <span className="font-medium">{r.name}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          ({r.cities.length} cidades)
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedRoute && routeCities.length > 0 && (
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {routeCities.slice(0, 8).map((c) => (
+                      <Badge key={c} variant="secondary" className="text-xs">
+                        {c}
+                      </Badge>
+                    ))}
+                    {routeCities.length > 8 && (
+                      <Badge variant="outline" className="text-xs">
+                        +{routeCities.length - 8} mais
+                      </Badge>
+                    )}
+                  </div>
+                )}
+              </>
+            ) : (
+              <Select value={selectedCity} onValueChange={setSelectedCity}>
+                <SelectTrigger className="text-lg py-6">
+                  <SelectValue placeholder="Selecione a cidade..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {cities?.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          {/* Barcode input */}
           <div
-            className={`transition-opacity duration-300 ${
-              selectedCity ? "opacity-100" : "opacity-50 pointer-events-none"
-            }`}
+            className={`transition-opacity duration-300 ${isReady ? "opacity-100" : "opacity-50 pointer-events-none"}`}
           >
             <div className="space-y-2">
-              <label className="text-sm font-medium">2. Bipar Rastreador</label>
+              <label className="text-sm font-medium">3. Bipar Rastreador</label>
               <Input
                 ref={inputRef}
                 value={scanInput}
                 onChange={(e) => setScanInput(e.target.value)}
                 onKeyDown={handleScan}
                 placeholder={
-                  selectedCity
-                    ? "Escaneie o código de barras ou digite e aperte Enter..."
-                    : "Selecione uma cidade primeiro"
+                  isReady
+                    ? "Escaneie o código de barras ou digite e pressione Enter..."
+                    : `Selecione uma ${filterMode === "rota" ? "rota" : "cidade"} primeiro`
                 }
                 className="text-2xl py-8 font-mono tracking-wider"
-                disabled={!selectedCity || createScan.isPending}
+                disabled={!isReady || createScan.isPending}
               />
             </div>
           </div>
 
           {/* Feedback visual + sonoro */}
-          {scanResult && (() => {
-            const cfg = statusConfig[scanResult.status];
-            return (
-              <div
-                className={`p-4 rounded-lg border-2 flex items-center gap-4 transition-all ${cfg.bg}`}
-              >
-                {cfg.icon}
-                <div className="flex-1 min-w-0">
-                  <p className={`text-xs font-bold tracking-widest ${cfg.labelColor}`}>
-                    {cfg.label}
-                  </p>
-                  <p className="font-mono font-bold text-lg leading-tight truncate">
-                    {scanResult.trackingNumber}
-                  </p>
-                  <p className="text-sm mt-0.5 opacity-80">{scanResult.message}</p>
+          {scanResult &&
+            (() => {
+              const cfg = statusConfig[scanResult.status];
+              return (
+                <div className={`p-4 rounded-lg border-2 flex items-center gap-4 ${cfg.bg}`}>
+                  {cfg.icon}
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-bold tracking-widest ${cfg.labelColor}`}>
+                      {cfg.label}
+                    </p>
+                    <p className="font-mono font-bold text-lg leading-tight truncate">
+                      {scanResult.trackingNumber}
+                    </p>
+                    <p className="text-sm mt-0.5 opacity-80">{scanResult.message}</p>
+                    {scanResult.city && scanResult.status === "success" && (
+                      <p className="text-xs mt-1 flex items-center gap-1 opacity-70">
+                        <MapPin className="h-3 w-3" />
+                        {scanResult.city}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })()}
+              );
+            })()}
         </CardContent>
       </Card>
 
-      {selectedCity && (
+      {isReady && (
         <div className="grid md:grid-cols-2 gap-6">
+          {/* Confirmed */}
           <Card>
             <CardContent className="pt-6">
               <h3 className="font-semibold text-lg mb-4 flex justify-between">
                 <span>Confirmados (Hoje)</span>
-                <span className="text-primary font-bold">{scans?.length || 0}</span>
+                <span className="text-primary font-bold">{(scans as any[])?.length || 0}</span>
               </h3>
               <ScrollArea className="h-[400px] pr-4">
-                <div className="space-y-2">
-                  {scans?.map((s) => (
-                    <div
-                      key={s.id}
-                      className="flex justify-between items-center p-2 rounded border bg-card text-sm"
-                    >
-                      <span className="font-mono">{s.trackingNumber}</span>
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    </div>
-                  ))}
-                  {scans?.length === 0 && (
-                    <p className="text-center text-muted-foreground py-8">
-                      Nenhum pacote bipado hoje.
-                    </p>
-                  )}
-                </div>
+                {filterMode === "rota" && scansByCity ? (
+                  <div className="space-y-4">
+                    {Object.entries(scansByCity).map(([city, cityScans]) => (
+                      <div key={city}>
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {city} ({cityScans.length})
+                        </p>
+                        <div className="space-y-1">
+                          {cityScans.map((s: any) => (
+                            <div
+                              key={s.id}
+                              className="flex justify-between items-center p-2 rounded border bg-card text-sm"
+                            >
+                              <span className="font-mono">{s.trackingNumber}</span>
+                              <CheckCircle2 className="h-4 w-4 text-green-500" />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    {(scans as any[])?.length === 0 && (
+                      <p className="text-center text-muted-foreground py-8">
+                        Nenhum pacote bipado hoje.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {(scans as any[])?.map((s: any) => (
+                      <div
+                        key={s.id}
+                        className="flex justify-between items-center p-2 rounded border bg-card text-sm"
+                      >
+                        <span className="font-mono">{s.trackingNumber}</span>
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      </div>
+                    ))}
+                    {(scans as any[])?.length === 0 && (
+                      <p className="text-center text-muted-foreground py-8">
+                        Nenhum pacote bipado hoje.
+                      </p>
+                    )}
+                  </div>
+                )}
               </ScrollArea>
             </CardContent>
           </Card>
 
+          {/* Pending */}
           <Card>
             <CardContent className="pt-6">
               <h3 className="font-semibold text-lg mb-4 flex justify-between">
                 <span>Faltantes (Esperados)</span>
-                <span className="text-muted-foreground font-bold">
-                  {(packages?.length || 0) - (scans?.length || 0)}
-                </span>
+                <span className="text-muted-foreground font-bold">{pendingPackages.length}</span>
               </h3>
               <ScrollArea className="h-[400px] pr-4">
                 <div className="space-y-2">
-                  {packages
-                    ?.filter(
-                      (p) => !scans?.find((s) => s.trackingNumber === p.trackingNumber),
-                    )
-                    .map((p) => (
-                      <div
-                        key={p.id}
-                        className="flex justify-between items-center p-2 rounded border border-dashed bg-muted/30 text-sm"
-                      >
-                        <span className="font-mono text-muted-foreground">
-                          {p.trackingNumber}
-                        </span>
-                      </div>
-                    ))}
-                  {packages?.filter(
-                    (p) => !scans?.find((s) => s.trackingNumber === p.trackingNumber),
-                  ).length === 0 && (
+                  {pendingPackages.map((p: any) => (
+                    <div
+                      key={p.id}
+                      className="flex justify-between items-center p-2 rounded border border-dashed bg-muted/30 text-sm gap-2"
+                    >
+                      <span className="font-mono text-muted-foreground">
+                        {p.trackingNumber}
+                      </span>
+                      {filterMode === "rota" && (
+                        <Badge variant="outline" className="text-xs flex-shrink-0">
+                          {p.city}
+                        </Badge>
+                      )}
+                    </div>
+                  ))}
+                  {pendingPackages.length === 0 && (scans as any[])?.length > 0 && (
                     <p className="text-center text-muted-foreground py-8">
-                      Todos os pacotes foram bipados!
+                      Todos os pacotes foram bipados! 🎉
+                    </p>
+                  )}
+                  {pendingPackages.length === 0 && (!(scans as any[])?.length) && (
+                    <p className="text-center text-muted-foreground py-8">
+                      Nenhum pacote cadastrado para esta{" "}
+                      {filterMode === "rota" ? "rota" : "cidade"}.
                     </p>
                   )}
                 </div>

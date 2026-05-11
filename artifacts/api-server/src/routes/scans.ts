@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { db, scansTable, packagesTable } from "@workspace/db";
 import {
   CreateScanBody,
@@ -19,7 +19,13 @@ router.get("/scans", requireAuth, async (req, res): Promise<void> => {
 
   let query = db.select().from(scansTable).$dynamic();
   const conditions = [];
-  if (parsed.data.city) conditions.push(eq(scansTable.city, parsed.data.city));
+  const citiesParam = (req.query as any).cities as string | undefined;
+  if (citiesParam) {
+    const cityList = citiesParam.split(",").map((c: string) => c.trim()).filter(Boolean);
+    if (cityList.length > 0) conditions.push(inArray(scansTable.city, cityList));
+  } else if (parsed.data.city) {
+    conditions.push(eq(scansTable.city, parsed.data.city));
+  }
   if (parsed.data.date) conditions.push(eq(scansTable.scanDate, parsed.data.date));
   if (conditions.length > 0) query = query.where(and(...conditions));
 

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db, packagesTable } from "@workspace/db";
 import {
   CreatePackageBody,
@@ -19,7 +19,13 @@ router.get("/packages", requireAuth, async (req, res): Promise<void> => {
   }
 
   let query = db.select().from(packagesTable).$dynamic();
-  if (parsed.data.city) {
+  const citiesParam = (req.query as any).cities as string | undefined;
+  if (citiesParam) {
+    const cityList = citiesParam.split(",").map((c: string) => c.trim()).filter(Boolean);
+    if (cityList.length > 0) {
+      query = query.where(inArray(packagesTable.city, cityList));
+    }
+  } else if (parsed.data.city) {
     query = query.where(eq(packagesTable.city, parsed.data.city));
   }
 
