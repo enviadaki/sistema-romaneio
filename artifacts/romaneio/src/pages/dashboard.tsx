@@ -37,7 +37,7 @@ export default function Dashboard() {
     }
 
     const scanMap: Record<string, number> = {};
-    for (const item of stats.scansByCity) {
+    for (const item of stats.scansByCity ?? []) {
       scanMap[item.city] = (scanMap[item.city] ?? 0) + item.count;
     }
 
