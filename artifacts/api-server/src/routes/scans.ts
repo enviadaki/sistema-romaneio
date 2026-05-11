@@ -49,43 +49,34 @@ router.post("/scans", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const pkg = await db
+  const [pkg] = await db
     .select()
     .from(packagesTable)
     .where(eq(packagesTable.trackingNumber, parsed.data.trackingNumber));
 
-  if (pkg.length === 0) {
+  if (!pkg) {
     res.status(404).json({ error: "Rastreio não encontrado na base" });
     return;
   }
 
   const today = new Date().toISOString().slice(0, 10);
-  const existing = await db
-    .select()
-    .from(scansTable)
-    .where(
-      and(
-        eq(scansTable.trackingNumber, parsed.data.trackingNumber),
-        eq(scansTable.scanDate, today)
-      )
-    );
-
-  if (existing.length > 0) {
-    res.status(409).json({ error: "Pacote já bipado hoje" });
-    return;
-  }
-
   const userFullName = (req as any).userFullName ?? null;
 
   const [scan] = await db
     .insert(scansTable)
     .values({
-      trackingNumber: parsed.data.trackingNumber,
-      city: parsed.data.city,
+      trackingNumber: pkg.trackingNumber,
+      city: pkg.city,
       scanDate: today,
       scannedBy: userFullName,
     })
+    .onConflictDoNothing()
     .returning();
+
+  if (!scan) {
+    res.status(409).json({ error: "Pacote já bipado hoje" });
+    return;
+  }
 
   res.status(201).json({
     id: scan.id,

@@ -164,7 +164,7 @@ export default function PreSorter() {
     }
 
     createScan.mutate(
-      { data: { trackingNumber: code, city: expectedPkg.city } },
+      { data: { trackingNumber: code } },
       {
         onSuccess: () => {
           triggerResult({

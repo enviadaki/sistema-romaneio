@@ -9,6 +9,4 @@
 export interface ScanInput {
   /** @minLength 1 */
   trackingNumber: string;
-  /** @minLength 1 */
-  city: string;
 }

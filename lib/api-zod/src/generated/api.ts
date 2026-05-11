@@ -106,7 +106,6 @@ export const ListScansResponse = zod.array(ListScansResponseItem);
 
 export const CreateScanBody = zod.object({
   trackingNumber: zod.string().min(1),
-  city: zod.string().min(1),
 });
 
 /**

@@ -375,12 +375,9 @@ components:
 
     ScanInput:
       type: object
-      required: [trackingNumber, city]
+      required: [trackingNumber]
       properties:
         trackingNumber:
-          type: string
-          minLength: 1
-        city:
           type: string
           minLength: 1
 
