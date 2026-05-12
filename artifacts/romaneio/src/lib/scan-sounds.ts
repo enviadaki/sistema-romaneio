@@ -34,8 +34,8 @@ function playTone(
 export function playScanSuccess() {
   const ac = getCtx();
   const t = ac.currentTime;
-  playTone(880, t, 0.12, 0.35, "sine", ac);
-  playTone(1320, t + 0.13, 0.18, 0.3, "sine", ac);
+  playTone(880, t, 0.12, 0.9, "sine", ac);
+  playTone(1320, t + 0.13, 0.18, 0.85, "sine", ac);
 }
 
 /** Bipe grave descendente — pacote não encontrado / erro */
@@ -52,7 +52,7 @@ export function playScanError() {
   osc.frequency.setValueAtTime(320, t);
   osc.frequency.exponentialRampToValueAtTime(120, t + 0.35);
 
-  gain.gain.setValueAtTime(0.28, t);
+  gain.gain.setValueAtTime(0.85, t);
   gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.38);
 
   osc.start(t);
@@ -63,6 +63,6 @@ export function playScanError() {
 export function playScanWarning() {
   const ac = getCtx();
   const t = ac.currentTime;
-  playTone(520, t, 0.1, 0.3, "triangle", ac);
-  playTone(520, t + 0.15, 0.1, 0.25, "triangle", ac);
+  playTone(520, t, 0.1, 0.85, "triangle", ac);
+  playTone(520, t + 0.15, 0.1, 0.8, "triangle", ac);
 }
