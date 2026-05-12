@@ -109,6 +109,18 @@ export const CreateScanBody = zod.object({
 });
 
 /**
+ * @summary Register scans for multiple packages at once (without physical scanning)
+ */
+export const BulkCreateScansBody = zod.object({
+  trackingNumbers: zod.array(zod.string()),
+});
+
+export const BulkCreateScansResponse = zod.object({
+  created: zod.number(),
+  skipped: zod.number(),
+});
+
+/**
  * @summary Remove a scan from history
  */
 export const DeleteScanParams = zod.object({

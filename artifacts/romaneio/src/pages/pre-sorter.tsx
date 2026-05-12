@@ -3,6 +3,7 @@ import {
   useListCities,
   getListCitiesQueryKey,
   useCreateScan,
+  useBulkCreateScans,
   useListScans,
   getListScansQueryKey,
   useListPackages,
@@ -10,12 +11,14 @@ import {
   getGetStatsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { getTodayDateString } from "@/lib/date-utils";
 import { playScanSuccess, playScanError, playScanWarning } from "@/lib/scan-sounds";
 import { ROUTES } from "@/lib/routes-data";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -23,8 +26,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle2, XCircle, AlertCircle, MapPin, Route } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, MapPin, Route, Zap } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 
@@ -40,6 +49,7 @@ interface ScanResult {
 
 export default function PreSorter() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const today = getTodayDateString();
 
   const [filterMode, setFilterMode] = useState<FilterMode>("rota");
@@ -47,6 +57,7 @@ export default function PreSorter() {
   const [selectedRoute, setSelectedRoute] = useState<string>("");
   const [scanInput, setScanInput] = useState("");
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+  const [autoOpen, setAutoOpen] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -111,6 +122,28 @@ export default function PreSorter() {
   );
 
   const createScan = useCreateScan();
+  const bulkCreateScans = useBulkCreateScans();
+
+  const handleAutoRegister = () => {
+    if (!pendingPackages.length) return;
+    bulkCreateScans.mutate(
+      { data: { trackingNumbers: pendingPackages.map((p: any) => p.trackingNumber) } },
+      {
+        onSuccess: (res) => {
+          toast({
+            title: "Romaneio gerado automaticamente",
+            description: `${res.created} pacote${res.created !== 1 ? "s" : ""} registrado${res.created !== 1 ? "s" : ""}${res.skipped > 0 ? `, ${res.skipped} ignorado${res.skipped !== 1 ? "s" : ""}` : ""}.`,
+          });
+          setAutoOpen(false);
+          queryClient.invalidateQueries({ queryKey: getListScansQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetStatsQueryKey() });
+        },
+        onError: () => {
+          toast({ title: "Erro ao registrar pacotes automaticamente.", variant: "destructive" });
+        },
+      }
+    );
+  };
 
   useEffect(() => {
     if (isReady && inputRef.current) inputRef.current.focus();
@@ -420,10 +453,81 @@ export default function PreSorter() {
           {/* Pending */}
           <Card>
             <CardContent className="pt-6">
-              <h3 className="font-semibold text-lg mb-4 flex justify-between">
-                <span>Faltantes (Esperados)</span>
-                <span className="text-muted-foreground font-bold">{pendingPackages.length}</span>
-              </h3>
+              <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+                <h3 className="font-semibold text-lg flex items-center gap-2">
+                  <span>Faltantes (Esperados)</span>
+                  <span className="text-muted-foreground font-bold text-base">{pendingPackages.length}</span>
+                </h3>
+                {pendingPackages.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 border-amber-400 text-amber-700 hover:bg-amber-50"
+                    onClick={() => setAutoOpen(true)}
+                  >
+                    <Zap className="h-4 w-4" />
+                    Gerar Automático
+                  </Button>
+                )}
+              </div>
+
+              {/* Auto-register dialog */}
+              <Dialog open={autoOpen} onOpenChange={setAutoOpen}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <Zap className="h-5 w-5 text-amber-500" />
+                      Gerar Romaneio Automaticamente
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-5 pt-2">
+                    <p className="text-sm text-muted-foreground">
+                      Esta ação vai registrar <strong>{pendingPackages.length} pacote{pendingPackages.length !== 1 ? "s" : ""}</strong>{" "}
+                      {filterMode === "rota"
+                        ? `da rota "${selectedRoute}"`
+                        : `da cidade "${selectedCity}"`}{" "}
+                      como bipados, sem necessidade de leitura física do código de barras.
+                    </p>
+
+                    {filterMode === "rota" && pendingPackages.length > 0 && (
+                      <div className="rounded-lg border bg-muted/40 p-3 text-sm space-y-1">
+                        {Object.entries(
+                          (pendingPackages as any[]).reduce<Record<string, number>>((acc, p) => {
+                            acc[p.city] = (acc[p.city] ?? 0) + 1;
+                            return acc;
+                          }, {})
+                        ).map(([city, count]) => (
+                          <div key={city} className="flex justify-between">
+                            <span className="flex items-center gap-1 text-muted-foreground">
+                              <MapPin className="h-3 w-3" />{city}
+                            </span>
+                            <span className="font-medium">{count} pacote{count !== 1 ? "s" : ""}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 pt-1">
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => setAutoOpen(false)}
+                        disabled={bulkCreateScans.isPending}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        className="flex-1 gap-1.5 bg-amber-500 hover:bg-amber-600 text-white"
+                        onClick={handleAutoRegister}
+                        disabled={bulkCreateScans.isPending}
+                      >
+                        <Zap className="h-4 w-4" />
+                        {bulkCreateScans.isPending ? "Registrando..." : "Confirmar"}
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
               <ScrollArea className="h-[400px] pr-4">
                 <div className="space-y-2">
                   {pendingPackages.map((p: any) => (

@@ -18,6 +18,8 @@ import type {
 
 import type {
   BulkImportResult,
+  BulkScansInput,
+  BulkScansResult,
   ClearPackagesParams,
   ClearPackagesResult,
   ErrorResponse,
@@ -816,6 +818,92 @@ export const useCreateScan = <
   TContext
 > => {
   return useMutation(getCreateScanMutationOptions(options));
+};
+
+/**
+ * @summary Register scans for multiple packages at once (without physical scanning)
+ */
+export const getBulkCreateScansUrl = () => {
+  return `/api/scans/bulk`;
+};
+
+export const bulkCreateScans = async (
+  bulkScansInput: BulkScansInput,
+  options?: RequestInit,
+): Promise<BulkScansResult> => {
+  return customFetch<BulkScansResult>(getBulkCreateScansUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(bulkScansInput),
+  });
+};
+
+export const getBulkCreateScansMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkCreateScans>>,
+    TError,
+    { data: BodyType<BulkScansInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof bulkCreateScans>>,
+  TError,
+  { data: BodyType<BulkScansInput> },
+  TContext
+> => {
+  const mutationKey = ["bulkCreateScans"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof bulkCreateScans>>,
+    { data: BodyType<BulkScansInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return bulkCreateScans(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BulkCreateScansMutationResult = NonNullable<
+  Awaited<ReturnType<typeof bulkCreateScans>>
+>;
+export type BulkCreateScansMutationBody = BodyType<BulkScansInput>;
+export type BulkCreateScansMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Register scans for multiple packages at once (without physical scanning)
+ */
+export const useBulkCreateScans = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkCreateScans>>,
+    TError,
+    { data: BodyType<BulkScansInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof bulkCreateScans>>,
+  TError,
+  { data: BodyType<BulkScansInput> },
+  TContext
+> => {
+  return useMutation(getBulkCreateScansMutationOptions(options));
 };
 
 /**

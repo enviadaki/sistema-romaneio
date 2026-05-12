@@ -7,6 +7,8 @@
  */
 
 export * from "./bulkImportResult";
+export * from "./bulkScansInput";
+export * from "./bulkScansResult";
 export * from "./cityCount";
 export * from "./clearPackagesParams";
 export * from "./clearPackagesResult";

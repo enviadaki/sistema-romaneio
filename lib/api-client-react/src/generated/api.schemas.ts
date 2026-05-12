@@ -84,6 +84,15 @@ export interface Stats {
   scansByCity: CityCount[];
 }
 
+export interface BulkScansInput {
+  trackingNumbers: string[];
+}
+
+export interface BulkScansResult {
+  created: number;
+  skipped: number;
+}
+
 export interface ClearPackagesResult {
   deleted: number;
 }

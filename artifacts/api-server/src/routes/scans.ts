@@ -3,6 +3,7 @@ import { eq, and, inArray } from "drizzle-orm";
 import { db, scansTable, packagesTable } from "@workspace/db";
 import {
   CreateScanBody,
+  BulkCreateScansBody,
   DeleteScanParams,
   ListScansQueryParams,
 } from "@workspace/api-zod";
@@ -40,6 +41,56 @@ router.get("/scans", requireAuth, async (req, res): Promise<void> => {
       scannedAt: s.scannedAt.toISOString(),
     }))
   );
+});
+
+// POST /scans/bulk — must come BEFORE /scans/:id pattern
+router.post("/scans/bulk", requireAuth, async (req, res): Promise<void> => {
+  const parsed = BulkCreateScansBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { trackingNumbers } = parsed.data;
+  if (trackingNumbers.length === 0) {
+    res.json({ created: 0, skipped: 0 });
+    return;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const userFullName = (req as any).userFullName ?? null;
+
+  // Fetch all matching packages in one query
+  const pkgs = await db
+    .select()
+    .from(packagesTable)
+    .where(inArray(packagesTable.trackingNumber, trackingNumbers));
+
+  const pkgMap = new Map(pkgs.map((p) => [p.trackingNumber, p]));
+
+  let created = 0;
+  let skipped = 0;
+
+  for (const tn of trackingNumbers) {
+    const pkg = pkgMap.get(tn);
+    if (!pkg) { skipped++; continue; }
+
+    const [inserted] = await db
+      .insert(scansTable)
+      .values({
+        trackingNumber: pkg.trackingNumber,
+        city: pkg.city,
+        scanDate: today,
+        scannedBy: userFullName,
+      })
+      .onConflictDoNothing()
+      .returning();
+
+    if (inserted) created++;
+    else skipped++;
+  }
+
+  res.json({ created, skipped });
 });
 
 router.post("/scans", requireAuth, async (req, res): Promise<void> => {

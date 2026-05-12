@@ -220,6 +220,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /scans/bulk:
+    post:
+      operationId: bulkCreateScans
+      tags: [scans]
+      summary: Register scans for multiple packages at once (without physical scanning)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkScansInput"
+      responses:
+        "200":
+          description: Result with created and skipped counts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkScansResult"
+
   /scans/{id}:
     delete:
       operationId: deleteScan
@@ -450,6 +469,24 @@ components:
         city:
           type: string
         count:
+          type: integer
+
+    BulkScansInput:
+      type: object
+      required: [trackingNumbers]
+      properties:
+        trackingNumbers:
+          type: array
+          items:
+            type: string
+
+    BulkScansResult:
+      type: object
+      required: [created, skipped]
+      properties:
+        created:
+          type: integer
+        skipped:
           type: integer
 
     ClearPackagesResult:
