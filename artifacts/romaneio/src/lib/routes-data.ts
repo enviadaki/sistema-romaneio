@@ -6,19 +6,31 @@ export interface Route {
 export const ROUTES: Route[] = [
   {
     name: "ABAIRA - ROTA 03.4",
-    cities: ["ABAÍRA", "Catolés", "Catolés Abaíra"],
+    cities: [
+      "ABAÍRA",
+      "Catolés",
+      "Catolés Abaíra",
+    ],
   },
   {
     name: "ANAGE - RETIRA 05",
-    cities: ["ANAGE", "ANAGE (BA)"],
+    cities: [
+      "ANAGE",
+      "ANAGE (BA)",
+    ],
   },
   {
     name: "ARACATU - ROTA 05",
-    cities: ["ARACATU", "ARACATU (BA)"],
+    cities: [
+      "ARACATU",
+      "ARACATU (BA)",
+    ],
   },
   {
     name: "BARRA DO CHOÇA - RETIRA 06",
     cities: [
+      "BARRA DO CHO?A",
+      "BARRA DO CHOÇA",
       "BARRA DO CHOCA",
       "BARRA DO CHOCA (BA)",
       "BARRA NOVA",
@@ -28,11 +40,17 @@ export const ROUTES: Route[] = [
   },
   {
     name: "BELO CAMPO - RETIRA 03",
-    cities: ["BELO CAMPO", "BELO CAMPO (BA)"],
+    cities: [
+      "BELO CAMPO",
+      "BELO CAMPO (BA)",
+    ],
   },
   {
     name: "BOA NOVA - ROTA 01",
-    cities: ["BOA NOVA", "BOA NOVA (BA)"],
+    cities: [
+      "BOA NOVA",
+      "BOA NOVA (BA)",
+    ],
   },
   {
     name: "BOM JESUS DA SERRA - ROTA 01",
@@ -51,7 +69,10 @@ export const ROUTES: Route[] = [
   },
   {
     name: "CACULE - ROTA 05.2",
-    cities: ["CACULE (BA)", "CACULÉ"],
+    cities: [
+      "CACULE (BA)",
+      "CACULÉ",
+    ],
   },
   {
     name: "CAETANOS - RETIRA 01",
@@ -70,11 +91,20 @@ export const ROUTES: Route[] = [
   },
   {
     name: "CANDIBA - ROTA 05.4",
-    cities: ["CANDIBA", "CANDIBA (BA)", "Pilões"],
+    cities: [
+      "CANDIBA",
+      "CANDIBA (BA)",
+      "Pilões",
+    ],
   },
   {
     name: "CANDIDO SALES - RETIRA 02",
-    cities: ["CANDIDO SALES (BA)", "CÂNDIDO SALES", "LAGOA GRANDE", "QUARAÇU"],
+    cities: [
+      "CANDIDO SALES (BA)",
+      "CÂNDIDO SALES",
+      "LAGOA GRANDE",
+      "QUARAÇU",
+    ],
   },
   {
     name: "CARAIBAS - RETIRA 05",
@@ -87,23 +117,40 @@ export const ROUTES: Route[] = [
   },
   {
     name: "CARIRANHA - ROTA 05.4",
-    cities: ["Agrovila XV", "CARINHANHA", "CARINHANHA (BA)"],
+    cities: [
+      "Agrovila XV",
+      "CARINHANHA",
+      "CARINHANHA (BA)",
+    ],
   },
   {
     name: "CONDEUBA - RETIRA 03",
-    cities: ["Alegre", "CONDEUBA (BA)", "CONDEÚBA"],
+    cities: [
+      "Alegre",
+      "CONDEUBA (BA)",
+      "CONDEÚBA",
+    ],
   },
   {
     name: "CORDEIROS - RETIRA 03",
-    cities: ["CORDEIROS", "CORDEIROS (BA)"],
+    cities: [
+      "CORDEIROS",
+      "CORDEIROS (BA)",
+    ],
   },
   {
     name: "DOM BASILIO - ROTA 03.3",
-    cities: ["DOM BASILIO", "DOM BASILIO (BA)"],
+    cities: [
+      "DOM BASILIO",
+      "DOM BASILIO (BA)",
+    ],
   },
   {
     name: "ERICO CARDOSO - ROTA 03.2",
-    cities: ["ERICO CARDOSO (BA)", "ÉRICO CARDOSO"],
+    cities: [
+      "ERICO CARDOSO (BA)",
+      "ÉRICO CARDOSO",
+    ],
   },
   {
     name: "GUAJERU - ROTA 05.2",
@@ -127,21 +174,32 @@ export const ROUTES: Route[] = [
   },
   {
     name: "IBISSUCE - ROTA 05.2",
-    cities: ["IBIASSUCE (BA)", "IBIASSUCÊ"],
+    cities: [
+      "IBIASSUCE (BA)",
+      "IBIASSUCÊ",
+    ],
   },
   {
     name: "IGUAI - ROTA 02",
-    cities: ["IGUAI (BA)", "IGUAÍ", "Iguaibi", "Iguaí"],
+    cities: [
+      "IGUA?",
+      "IGUAI (BA)",
+      "IGUAÍ",
+      "Iguaí",
+      "Iguaibi",
+    ],
   },
   {
     name: "ITAMBÉ - ROTA 04",
-    cities: ["ITAMBÉ"],
+    cities: [
+      "ITAMBE",
+      "ITAMBÉ",
+    ],
   },
   {
     name: "ITAPETINGA - ROTA 04",
     cities: [
       "Bandeira do Colônia (Itapetinga)",
-      "ITAMBE",
       "ITAPETINGA",
       "ITAPETINGA (BA)",
       "ITAPITANGA",
@@ -154,7 +212,13 @@ export const ROUTES: Route[] = [
   },
   {
     name: "ITORORO - ROTA 04",
-    cities: ["BANDEIRA DO COLONIA", "ITATI", "ITORORO (BA)", "ITORORÓ", "RIO DO MEIO"],
+    cities: [
+      "BANDEIRA DO COLONIA",
+      "ITATI",
+      "ITORORO (BA)",
+      "ITORORÓ",
+      "RIO DO MEIO",
+    ],
   },
   {
     name: "ITUAÇU - ROTA 03",
@@ -162,9 +226,9 @@ export const ROUTES: Route[] = [
       "ANDARAI",
       "BARRA DA ESTIVA",
       "BARRA DA ESTIVA (BA)",
+      "Caraibuna",
       "CONTENDAS DO SINCORA",
       "CONTENDAS DO SINCORA (BA)",
-      "Caraibuna",
       "IBICOARA",
       "IBICOARA (BA)",
       "ITAETE",
@@ -180,15 +244,27 @@ export const ROUTES: Route[] = [
   },
   {
     name: "IUIU - ROTA 05.4",
-    cities: ["IUIÚ", "PINDORAMA/IUIU", "Pindorama (Iuiu)"],
+    cities: [
+      "IUIÚ",
+      "PINDORAMA/IUIU",
+      "Pindorama (Iuiu)",
+    ],
   },
   {
     name: "JACARACI - ROTA 05.4",
-    cities: ["IRUNDIARA (JACARACI)", "Irundiara", "JACARACI"],
+    cities: [
+      "IRUNDIARA (JACARACI)",
+      "Irundiara",
+      "JACARACI",
+    ],
   },
   {
     name: "JUSSIAPE - ROTA 03.4",
-    cities: ["Caraguataí", "JUSSIAPE", "JUSSIAPE CARAGUATAI"],
+    cities: [
+      "Caraguataí",
+      "JUSSIAPE",
+      "JUSSIAPE CARAGUATAI",
+    ],
   },
   {
     name: "LAGOA REAL - ROTA 05.2",
@@ -196,7 +272,10 @@ export const ROUTES: Route[] = [
   },
   {
     name: "LICINIO DE ALMEIDA - ROTA 05.4",
-    cities: ["LICÍNIO DE ALMEIDA", "Tauapé"],
+    cities: [
+      "LICÍNIO DE ALMEIDA",
+      "Tauapé",
+    ],
   },
   {
     name: "LIVRAMENTO - ROTA 03.3",
@@ -210,15 +289,24 @@ export const ROUTES: Route[] = [
   },
   {
     name: "MACARANI - ROTA 04",
-    cities: ["MACARANI", "MACARANI (BA)"],
+    cities: [
+      "MACARANI",
+      "MACARANI (BA)",
+    ],
   },
   {
     name: "MAETINGA - RETIRA 05",
-    cities: ["MAETINGA", "MAETINGA (BA)"],
+    cities: [
+      "MAETINGA",
+      "MAETINGA (BA)",
+    ],
   },
   {
     name: "MAIQUENIQUE - ROTA 04",
-    cities: ["MAIQUINIQUE", "MAIQUINIWUE"],
+    cities: [
+      "MAIQUINIQUE",
+      "MAIQUINIWUE",
+    ],
   },
   {
     name: "MALHADA DE PEDRAS - ROTA 05.2",
@@ -226,7 +314,12 @@ export const ROUTES: Route[] = [
   },
   {
     name: "MALHADA - ROTA 05.4",
-    cities: ["Cana Brava", "MALHADA", "MALHADA (BA)", "Parateca"],
+    cities: [
+      "Cana Brava",
+      "MALHADA",
+      "MALHADA (BA)",
+      "Parateca",
+    ],
   },
   {
     name: "MATINA - ROTA 05.4",
@@ -238,19 +331,33 @@ export const ROUTES: Route[] = [
   },
   {
     name: "MORTUGABA - ROTA 05.4",
-    cities: ["MORTUGABA", "Mortu6"],
+    cities: [
+      "MORTUGABA",
+      "Mortu6",
+    ],
   },
   {
     name: "NOVA CANAÃ - ROTA 02",
-    cities: ["ITAJAÍ", "NOVA CANAÃ"],
+    cities: [
+      "ITAJAÍ",
+      "NOVA CANAÃ",
+    ],
   },
   {
     name: "PALMAS DE MONTE ALTO - ROTA 05.4",
-    cities: ["PALMAS DE MONTE ALTO", "PALMAS DE MONTE ALTO (BA)", "Rancho das Mães"],
+    cities: [
+      "PALMAS DE MONTE ALTO",
+      "PALMAS DE MONTE ALTO (BA)",
+      "Rancho das Mães",
+    ],
   },
   {
     name: "PARAMIRIM - ROTA 03.2",
-    cities: ["Canabravinha", "PARAMIRIM", "PARAMIRIM (BA)"],
+    cities: [
+      "Canabravinha",
+      "PARAMIRIM",
+      "PARAMIRIM (BA)",
+    ],
   },
   {
     name: "PIATÃ - ROTA 03.5",
@@ -266,19 +373,34 @@ export const ROUTES: Route[] = [
   },
   {
     name: "PINDAI - ROTA 05.4",
-    cities: ["Guirapa", "PINDAÍ"],
+    cities: [
+      "Guirapa",
+      "PINDAÍ",
+    ],
   },
   {
     name: "PIRIPA - RETIRA 03",
-    cities: ["PIRIPA (BA)", "PIRIPÁ"],
+    cities: [
+      "PIRIPA (BA)",
+      "PIRIPÁ",
+    ],
   },
   {
     name: "PLANALTO - ROTA 01",
-    cities: ["LUCAIA", "PLANALTO", "PLANALTO (BA)"],
+    cities: [
+      "LUCAIA",
+      "PLANALTO",
+      "PLANALTO (BA)",
+    ],
   },
   {
     name: "POÇÕES - ROTA 01",
-    cities: ["POCOES", "POCOES (BA)", "POÇÕES"],
+    cities: [
+      "PO??ES",
+      "POCOES",
+      "POCOES (BA)",
+      "POÇÕES",
+    ],
   },
   {
     name: "POTIRAGUA - ROTA 04",
@@ -286,7 +408,12 @@ export const ROUTES: Route[] = [
   },
   {
     name: "RIO DE CONTAS - ROTA 03.3",
-    cities: ["Arapiranga", "MARCOLINO MOURA", "Mato Grosso", "RIO DE CONTAS"],
+    cities: [
+      "Arapiranga",
+      "MARCOLINO MOURA",
+      "Mato Grosso",
+      "RIO DE CONTAS",
+    ],
   },
   {
     name: "RIO DO ANTONIO - ROTA 05.2",
@@ -295,17 +422,27 @@ export const ROUTES: Route[] = [
       "Ibitira (Rio do Antônio)",
       "Ibitira - Rio Antônio",
       "Ibitira - Rio do Antônio",
+      "RIO DO ANT?NIO",
+      "RIO DO ANTÔNIO",
       "RIO DO ANTONIO",
       "RIO DO ANTONIO (BA)",
     ],
   },
   {
     name: "SEBASTIÃO LARANJEIRAS - ROTA 05.4",
-    cities: ["Boquira", "Mandiroba", "SEBASTIAO LARANJEIRAS"],
+    cities: [
+      "Boquira",
+      "Mandiroba",
+      "SEBASTIAO LARANJEIRAS",
+    ],
   },
   {
     name: "TREMENDAL - RETIRA 03",
-    cities: ["Lagoa Preta", "TREMEDAL", "TREMEDAL (BA)"],
+    cities: [
+      "Lagoa Preta",
+      "TREMEDAL",
+      "TREMEDAL (BA)",
+    ],
   },
   {
     name: "URANDI - ROTA 05.4",
@@ -342,13 +479,16 @@ export const ROUTES: Route[] = [
       "São Manuel",
       "São Sebastião",
       "V.CONQUISTA",
+      "VIT?RIA DA CONQUISTA",
       "VITARIA DA CONQUISTA",
       "VITORIA DA CONQUISTA",
       "VITORIA DA CONQUISTA (BA)",
       "VITORIA DA CONQUISTA/BA",
       "VITÓRIA DA CONQUISTA",
+      "VITÓRIA DACONQUISTA",
       "Vitoria da Conquista",
       "Vitória da Conquista",
+      "Vitria da Conquista",
     ],
   },
 ];
