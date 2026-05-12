@@ -2,7 +2,64 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
+import fs from "fs";
+import { createRequire } from "module";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+
+const _require = createRequire(import.meta.url);
+const clerkReactPkg = _require.resolve("@clerk/react/package.json");
+const clerkSharedDir = path.dirname(
+  createRequire(clerkReactPkg).resolve("@clerk/shared/package.json"),
+);
+
+function buildClerkSharedAliases() {
+  const pkgPath = path.join(clerkSharedDir, "package.json");
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as {
+    exports?: Record<string, unknown>;
+  };
+  const exports = pkg.exports ?? {};
+  const aliases: { find: string; replacement: string }[] = [];
+
+  for (const [key, value] of Object.entries(exports)) {
+    if (key === "." || key === "./package.json" || key.includes("*")) continue;
+    const subpath = key.replace("./", "");
+    const find = `@clerk/shared/${subpath}`;
+
+    let esmFile: string | undefined;
+    if (typeof value === "string") {
+      esmFile = value;
+    } else if (value && typeof value === "object") {
+      const v = value as Record<string, unknown>;
+      const imp = v["import"];
+      if (typeof imp === "string") {
+        esmFile = imp;
+      } else if (imp && typeof imp === "object") {
+        const iv = imp as Record<string, unknown>;
+        if (typeof iv["default"] === "string") esmFile = iv["default"];
+      }
+    }
+
+    if (esmFile) {
+      aliases.push({ find, replacement: path.join(clerkSharedDir, esmFile) });
+    }
+  }
+
+  const wildcardSubpaths = [
+    "authorization", "browser", "clerkEventBus", "deprecated",
+    "deriveState", "error", "getEnvVariable", "getToken", "keys",
+    "loadClerkJsScript", "object", "telemetry", "versionCheck",
+    "jwtPayloadParser",
+  ];
+  for (const sub of wildcardSubpaths) {
+    const find = `@clerk/shared/${sub}`;
+    if (!aliases.some((a) => a.find === find)) {
+      const file = path.join(clerkSharedDir, `dist/runtime/${sub}.mjs`);
+      if (fs.existsSync(file)) aliases.push({ find, replacement: file });
+    }
+  }
+
+  return aliases;
+}
 
 const rawPort = process.env.PORT;
 
@@ -55,11 +112,18 @@ export default defineConfig({
       : []),
   ],
   resolve: {
-    alias: {
-      "@": path.resolve(import.meta.dirname, "src"),
-      "@assets": path.resolve(import.meta.dirname, "..", "..", "attached_assets"),
-    },
-    dedupe: ["react", "react-dom", "@clerk/react", "@clerk/shared"],
+    alias: [
+      {
+        find: "@",
+        replacement: path.resolve(import.meta.dirname, "src"),
+      },
+      {
+        find: "@assets",
+        replacement: path.resolve(import.meta.dirname, "..", "..", "attached_assets"),
+      },
+      ...buildClerkSharedAliases(),
+    ],
+    dedupe: ["react", "react-dom", "@clerk/react"],
   },
   root: path.resolve(import.meta.dirname),
   build: {
