@@ -7,7 +7,9 @@ export const ROUTES: Route[] = [
   {
     name: "ABAIRA - ROTA 03.4",
     cities: [
+      "ABAIRA",
       "ABAÍRA",
+      "Abaíra",
       "Catolés",
       "Catolés Abaíra",
     ],
@@ -17,6 +19,8 @@ export const ROUTES: Route[] = [
     cities: [
       "ANAGE",
       "ANAGE (BA)",
+      "ANAGÉ",
+      "Anagé",
     ],
   },
   {
