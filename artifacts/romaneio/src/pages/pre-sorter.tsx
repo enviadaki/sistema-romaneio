@@ -33,7 +33,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle2, XCircle, AlertCircle, MapPin, Route, Zap } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, MapPin, Route, Zap, Calendar } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 
@@ -528,21 +528,28 @@ export default function PreSorter() {
                   </div>
                 </DialogContent>
               </Dialog>
-              <ScrollArea className="h-[400px] pr-4">
+              <ScrollArea className="h-[500px] pr-4">
                 <div className="space-y-2">
                   {pendingPackages.map((p: any) => (
                     <div
                       key={p.id}
-                      className="flex justify-between items-center p-2 rounded border border-dashed bg-muted/30 text-sm gap-2"
+                      className="p-3 rounded border border-dashed bg-muted/30 text-sm space-y-1.5"
                     >
-                      <span className="font-mono text-muted-foreground">
+                      <span className="font-mono text-sm font-semibold break-all block">
                         {p.trackingNumber}
                       </span>
-                      {filterMode === "rota" && (
-                        <Badge variant="outline" className="text-xs flex-shrink-0">
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3 flex-shrink-0" />
                           {p.city}
-                        </Badge>
-                      )}
+                        </span>
+                        {p.promisedDeliveryDate && (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3 flex-shrink-0" />
+                            Entrega: {p.promisedDeliveryDate}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   ))}
                   {pendingPackages.length === 0 && (scans as any[])?.length > 0 && (
