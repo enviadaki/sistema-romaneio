@@ -305,35 +305,43 @@ export default function Dashboard() {
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Pacotes por Cidade</CardTitle>
+            <CardTitle>Pacotes por Rota</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Cidade</TableHead>
-                  <TableHead className="text-right">Quantidade</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {stats.packagesByCity.map((item) => (
-                  <TableRow key={item.city}>
-                    <TableCell className="font-medium">{item.city}</TableCell>
-                    <TableCell className="text-right">{item.count}</TableCell>
-                  </TableRow>
-                ))}
-                {stats.packagesByCity.length === 0 && (
+            <ScrollArea className="h-[300px] pr-2">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell
-                      colSpan={2}
-                      className="text-center py-4 text-muted-foreground"
-                    >
-                      Nenhum pacote registrado.
-                    </TableCell>
+                    <TableHead>Rota</TableHead>
+                    <TableHead className="text-right">Pacotes</TableHead>
+                    <TableHead className="text-right">Bipados hoje</TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {routeProgress.map((route) => (
+                    <TableRow key={route.name}>
+                      <TableCell className="font-medium">{route.name}</TableCell>
+                      <TableCell className="text-right">{route.totalPkgs}</TableCell>
+                      <TableCell className="text-right">
+                        <span className={route.totalScans >= route.totalPkgs ? "text-green-600 font-semibold" : ""}>
+                          {route.totalScans}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {routeProgress.length === 0 && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={3}
+                        className="text-center py-4 text-muted-foreground"
+                      >
+                        Nenhum pacote registrado.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </ScrollArea>
           </CardContent>
         </Card>
 
