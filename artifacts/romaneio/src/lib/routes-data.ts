@@ -204,7 +204,11 @@ export const ROUTES: Route[] = [
     cities: [
       "GUANAMBI",
       "GUANAMBI (BA)",
+      "GUANAMBI (Ba)",
       "Guanambi",
+      "Guanambi (BA)",
+      "Guanambi (Ba)",
+      "Guanambi (ba)",
       "Morrinhos",
       "Mutas",
       "Mutas (Guanambi)",
