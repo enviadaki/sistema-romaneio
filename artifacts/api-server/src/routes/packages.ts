@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, inArray, sql, and, gte, lt } from "drizzle-orm";
-import { db, packagesTable } from "@workspace/db";
+import { db, packagesTable, scansTable } from "@workspace/db";
 import {
   CreatePackageBody,
   BulkCreatePackagesBody,
@@ -10,6 +10,49 @@ import {
 import { requireAuth } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
+
+// GET /packages/lookup?trackingNumber=XXX — must come BEFORE /packages/:id
+router.get("/packages/lookup", requireAuth, async (req, res): Promise<void> => {
+  const trackingNumber = (req.query.trackingNumber as string | undefined)?.trim();
+  if (!trackingNumber) {
+    res.status(400).json({ error: "trackingNumber é obrigatório" });
+    return;
+  }
+
+  const [pkg] = await db
+    .select()
+    .from(packagesTable)
+    .where(eq(packagesTable.trackingNumber, trackingNumber))
+    .limit(1);
+
+  if (!pkg) {
+    res.status(404).json({ error: "Pacote não encontrado" });
+    return;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const [scan] = await db
+    .select()
+    .from(scansTable)
+    .where(
+      and(
+        eq(scansTable.trackingNumber, trackingNumber),
+        eq(scansTable.scanDate, today)
+      )
+    )
+    .limit(1);
+
+  res.json({
+    id: pkg.id,
+    trackingNumber: pkg.trackingNumber,
+    city: pkg.city,
+    promisedDeliveryDate: pkg.promisedDeliveryDate ?? null,
+    createdAt: pkg.createdAt.toISOString(),
+    scannedToday: !!scan,
+    scannedAt: scan?.scannedAt.toISOString() ?? null,
+    scannedBy: scan?.scannedBy ?? null,
+  });
+});
 
 // DELETE /packages/clear — must come BEFORE /packages/:id
 router.delete("/packages/clear", requireAuth, async (req, res): Promise<void> => {

@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Package, ScanLine, History, FileText, LogOut, User } from "lucide-react";
+import { LayoutDashboard, Package, ScanLine, History, FileText, LogOut, User, Search } from "lucide-react";
 import { useClerk, useUser } from "@clerk/react";
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -12,6 +12,7 @@ export function Layout({ children }: { children: ReactNode }) {
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/cadastro", label: "Cadastro", icon: Package },
     { href: "/pre-sorter", label: "Pré-Sorter", icon: ScanLine },
+    { href: "/consulta", label: "Consulta", icon: Search },
     { href: "/historico", label: "Histórico", icon: History },
     { href: "/romaneio", label: "Romaneio", icon: FileText },
   ];
