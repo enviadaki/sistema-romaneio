@@ -2,14 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { BrowserMultiFormatReader, NotFoundException } from "@zxing/library";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Camera, FlipHorizontal, XCircle } from "lucide-react";
+import { Camera, XCircle, Loader2 } from "lucide-react";
 
 interface CameraScannerProps {
   open: boolean;
@@ -20,91 +13,136 @@ interface CameraScannerProps {
 export function CameraScanner({ open, onClose, onScan }: CameraScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
-  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
-  const [selectedCamera, setSelectedCamera] = useState<string>("");
-  const [error, setError] = useState<string | null>(null);
-  const [scanning, setScanning] = useState(false);
-  const lastScannedRef = useRef<string>("");
+  const streamRef = useRef<MediaStream | null>(null);
   const cooldownRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastScannedRef = useRef<string>("");
+  const cancelledRef = useRef(false);
 
-  const stopScanner = useCallback(() => {
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const stopAll = useCallback(() => {
+    cancelledRef.current = true;
     if (readerRef.current) {
-      readerRef.current.reset();
+      try { readerRef.current.reset(); } catch (_) { /* ignore */ }
+      readerRef.current = null;
     }
-    setScanning(false);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    if (cooldownRef.current) clearTimeout(cooldownRef.current);
   }, []);
 
-  // Load available cameras using browser API
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      stopAll();
+      return;
+    }
 
-    navigator.mediaDevices
-      .enumerateDevices()
-      .then((devices) => {
-        const videoDevices = devices.filter((d) => d.kind === "videoinput");
-        setCameras(videoDevices);
-        if (videoDevices.length > 0) {
-          const back = videoDevices.find((d) =>
-            /back|rear|environment/i.test(d.label)
-          );
-          setSelectedCamera(
-            back?.deviceId ?? videoDevices[videoDevices.length - 1].deviceId
-          );
-        } else {
-          setError("Nenhuma câmera encontrada.");
-        }
-      })
-      .catch(() => {
-        setError("Não foi possível acessar a câmera. Verifique as permissões.");
-      });
-
-    return () => {
-      stopScanner();
-    };
-  }, [open, stopScanner]);
-
-  // Start scanning when camera is selected
-  useEffect(() => {
-    if (!open || !selectedCamera || !videoRef.current) return;
-
-    setError(null);
-    setScanning(true);
+    // Reset for new open
+    cancelledRef.current = false;
     lastScannedRef.current = "";
+    setStatus("loading");
+    setErrorMsg(null);
 
-    const reader = new BrowserMultiFormatReader();
-    readerRef.current = reader;
+    const start = async () => {
+      // Give the Dialog time to fully render the <video> element
+      await new Promise<void>((r) => setTimeout(r, 350));
+      if (cancelledRef.current) return;
 
-    reader
-      .decodeFromVideoDevice(selectedCamera, videoRef.current, (result, err) => {
-        if (result) {
-          const code = result.getText();
-          if (code === lastScannedRef.current) return;
+      const video = videoRef.current;
+      if (!video) {
+        setStatus("error");
+        setErrorMsg("Elemento de vídeo não encontrado.");
+        return;
+      }
 
-          lastScannedRef.current = code;
-          onScan(code);
-
-          if (cooldownRef.current) clearTimeout(cooldownRef.current);
-          cooldownRef.current = setTimeout(() => {
-            lastScannedRef.current = "";
-          }, 2000);
+      // Request camera — prefer back camera on mobile
+      let stream: MediaStream;
+      try {
+        try {
+          // First try environment (back camera)
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } },
+            audio: false,
+          });
+        } catch {
+          // Fallback to any camera
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         }
-        if (err && !(err instanceof NotFoundException)) {
-          // Not a NotFoundException — real error, ignore to avoid flooding
+      } catch (err) {
+        if (cancelledRef.current) return;
+        const e = err as DOMException;
+        if (e.name === "NotAllowedError" || e.name === "PermissionDeniedError") {
+          setErrorMsg("Permissão de câmera negada. Ative nas configurações do navegador.");
+        } else if (e.name === "NotFoundError" || e.name === "DevicesNotFoundError") {
+          setErrorMsg("Nenhuma câmera encontrada no dispositivo.");
+        } else {
+          setErrorMsg(`Erro ao acessar câmera: ${e.message || e.name}`);
         }
-      })
-      .catch(() => {
-        setError("Erro ao iniciar a câmera. Verifique as permissões do navegador.");
-        setScanning(false);
-      });
+        setStatus("error");
+        return;
+      }
+
+      if (cancelledRef.current) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+
+      streamRef.current = stream;
+      video.srcObject = stream;
+
+      try {
+        await video.play();
+      } catch (err) {
+        if (cancelledRef.current) return;
+        setErrorMsg("Não foi possível iniciar o vídeo da câmera.");
+        setStatus("error");
+        return;
+      }
+
+      if (cancelledRef.current) return;
+      setStatus("ready");
+
+      // Start ZXing barcode detection
+      const reader = new BrowserMultiFormatReader();
+      readerRef.current = reader;
+
+      try {
+        await reader.decodeFromStream(stream, video, (result, err) => {
+          if (cancelledRef.current) return;
+          if (result) {
+            const code = result.getText();
+            if (code === lastScannedRef.current) return;
+            lastScannedRef.current = code;
+            onScan(code);
+            // Cooldown prevents double-scan of the same label
+            if (cooldownRef.current) clearTimeout(cooldownRef.current);
+            cooldownRef.current = setTimeout(() => {
+              lastScannedRef.current = "";
+            }, 2500);
+          }
+          // NotFoundException = no barcode visible yet, safe to ignore
+          if (err && !(err instanceof NotFoundException)) {
+            console.warn("[CameraScanner] decode error:", err);
+          }
+        });
+      } catch (err) {
+        if (cancelledRef.current) return;
+        console.warn("[CameraScanner] reader error:", err);
+      }
+    };
+
+    start();
 
     return () => {
-      reader.reset();
-      if (cooldownRef.current) clearTimeout(cooldownRef.current);
+      stopAll();
     };
-  }, [open, selectedCamera, onScan]);
+  }, [open, onScan, stopAll]);
 
   const handleClose = () => {
-    stopScanner();
+    stopAll();
     onClose();
   };
 
@@ -118,6 +156,7 @@ export function CameraScanner({ open, onClose, onScan }: CameraScannerProps) {
           </DialogTitle>
         </DialogHeader>
 
+        {/* Video area — always rendered so the ref is available */}
         <div className="relative bg-black aspect-[4/3] w-full overflow-hidden">
           <video
             ref={videoRef}
@@ -127,50 +166,44 @@ export function CameraScanner({ open, onClose, onScan }: CameraScannerProps) {
             muted
           />
 
-          {/* Crosshair overlay */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="relative w-56 h-40">
-              <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-white rounded-tl-sm" />
-              <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-white rounded-tr-sm" />
-              <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-white rounded-bl-sm" />
-              <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-white rounded-br-sm" />
-              {scanning && (
-                <div className="animate-scan-line left-2 right-2 h-0.5 bg-red-400/80" />
-              )}
+          {/* Loading overlay */}
+          {status === "loading" && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 text-white">
+              <Loader2 className="h-10 w-10 animate-spin" />
+              <p className="text-sm">Iniciando câmera...</p>
             </div>
-          </div>
+          )}
 
-          {error && (
+          {/* Error overlay */}
+          {status === "error" && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 text-white px-6 text-center">
               <XCircle className="h-10 w-10 text-red-400" />
-              <p className="text-sm">{error}</p>
+              <p className="text-sm">{errorMsg}</p>
+            </div>
+          )}
+
+          {/* Aim frame — only when camera is running */}
+          {status === "ready" && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="relative w-56 h-40">
+                <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-white rounded-tl-sm" />
+                <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-white rounded-tr-sm" />
+                <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-white rounded-bl-sm" />
+                <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-white rounded-br-sm" />
+                <div className="animate-scan-line left-2 right-2 h-0.5 bg-red-400/80" />
+              </div>
             </div>
           )}
         </div>
 
         <div className="px-4 py-3 space-y-3">
           <p className="text-xs text-center text-muted-foreground">
-            Aponte a câmera para o código de barras do pacote
+            {status === "ready"
+              ? "Aponte para o código de barras do pacote"
+              : status === "loading"
+              ? "Aguardando permissão de câmera..."
+              : "Verifique as permissões e tente novamente"}
           </p>
-
-          {cameras.length > 1 && (
-            <div className="flex items-center gap-2">
-              <FlipHorizontal className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              <Select value={selectedCamera} onValueChange={setSelectedCamera}>
-                <SelectTrigger className="text-sm h-8">
-                  <SelectValue placeholder="Câmera..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {cameras.map((cam, idx) => (
-                    <SelectItem key={cam.deviceId} value={cam.deviceId}>
-                      {cam.label || `Câmera ${idx + 1}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
           <Button variant="outline" className="w-full" onClick={handleClose}>
             Fechar
           </Button>
