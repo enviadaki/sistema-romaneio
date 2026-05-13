@@ -33,9 +33,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle2, XCircle, AlertCircle, MapPin, Route, Zap, Calendar } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, MapPin, Route, Zap, Calendar, Camera } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { CameraScanner } from "@/components/camera-scanner";
 
 type FilterMode = "cidade" | "rota";
 type ScanStatus = "success" | "error" | "warning";
@@ -58,6 +59,7 @@ export default function PreSorter() {
   const [scanInput, setScanInput] = useState("");
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [autoOpen, setAutoOpen] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -163,13 +165,8 @@ export default function PreSorter() {
     else playScanError();
   };
 
-  const handleScan = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-
-    const code = scanInput.trim();
+  const processCode = (code: string) => {
     if (!code || !isReady) return;
-    setScanInput("");
 
     const expectedPkg = packages?.find((p: any) => p.trackingNumber === code);
     if (!expectedPkg) {
@@ -219,6 +216,18 @@ export default function PreSorter() {
         },
       },
     );
+  };
+
+  const handleScan = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const code = scanInput.trim();
+    setScanInput("");
+    processCode(code);
+  };
+
+  const handleCameraScan = (code: string) => {
+    processCode(code);
   };
 
   const statusConfig = {
@@ -347,21 +356,40 @@ export default function PreSorter() {
           >
             <div className="space-y-2">
               <label className="text-sm font-medium">3. Bipar Rastreador</label>
-              <Input
-                ref={inputRef}
-                value={scanInput}
-                onChange={(e) => setScanInput(e.target.value)}
-                onKeyDown={handleScan}
-                placeholder={
-                  isReady
-                    ? "Escaneie o código de barras ou digite e pressione Enter..."
-                    : `Selecione uma ${filterMode === "rota" ? "rota" : "cidade"} primeiro`
-                }
-                className="text-2xl py-8 font-mono tracking-wider"
-                disabled={!isReady || createScan.isPending}
-              />
+              <div className="flex gap-2">
+                <Input
+                  ref={inputRef}
+                  value={scanInput}
+                  onChange={(e) => setScanInput(e.target.value)}
+                  onKeyDown={handleScan}
+                  placeholder={
+                    isReady
+                      ? "Escaneie o código ou digite e pressione Enter..."
+                      : `Selecione uma ${filterMode === "rota" ? "rota" : "cidade"} primeiro`
+                  }
+                  className="text-2xl py-8 font-mono tracking-wider"
+                  disabled={!isReady || createScan.isPending}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-auto px-4 py-8 border-2 border-primary/30 hover:border-primary hover:bg-primary/5"
+                  disabled={!isReady}
+                  onClick={() => setCameraOpen(true)}
+                  title="Escanear via câmera"
+                >
+                  <Camera className="h-7 w-7" />
+                </Button>
+              </div>
             </div>
           </div>
+
+          <CameraScanner
+            open={cameraOpen}
+            onClose={() => setCameraOpen(false)}
+            onScan={handleCameraScan}
+          />
 
           {/* Feedback visual + sonoro */}
           {scanResult &&

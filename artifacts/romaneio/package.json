@@ -78,6 +78,8 @@
   "dependencies": {
     "@clerk/react": "^6.6.2",
     "@clerk/themes": "^2.4.57",
+    "@zxing/browser": "^0.2.0",
+    "@zxing/library": "^0.23.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
     "papaparse": "^5.5.3",
