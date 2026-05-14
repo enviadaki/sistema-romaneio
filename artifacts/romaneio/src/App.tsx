@@ -14,6 +14,7 @@ import PreSorter from "@/pages/pre-sorter";
 import Historico from "@/pages/historico";
 import Romaneio from "@/pages/romaneio";
 import Consulta from "@/pages/consulta";
+import Entrega from "@/pages/entrega";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -136,6 +137,7 @@ function ProtectedApp() {
             <Route path="/cadastro" component={Cadastro} />
             <Route path="/pre-sorter" component={PreSorter} />
             <Route path="/consulta" component={Consulta} />
+            <Route path="/entrega" component={Entrega} />
             <Route path="/historico" component={Historico} />
             <Route path="/romaneio" component={Romaneio} />
             <Route component={NotFound} />
