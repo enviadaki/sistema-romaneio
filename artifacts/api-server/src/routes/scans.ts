@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, gte, lte } from "drizzle-orm";
 import { db, scansTable, packagesTable } from "@workspace/db";
 import {
   CreateScanBody,
@@ -32,7 +32,12 @@ router.get("/scans", requireAuth, async (req, res): Promise<void> => {
   } else if (parsed.data.city) {
     conditions.push(eq(scansTable.city, parsed.data.city));
   }
-  if (parsed.data.date) conditions.push(eq(scansTable.scanDate, parsed.data.date));
+  if (parsed.data.date) {
+    conditions.push(eq(scansTable.scanDate, parsed.data.date));
+  } else if (parsed.data.dateFrom || parsed.data.dateTo) {
+    if (parsed.data.dateFrom) conditions.push(gte(scansTable.scanDate, parsed.data.dateFrom) as any);
+    if (parsed.data.dateTo) conditions.push(lte(scansTable.scanDate, parsed.data.dateTo) as any);
+  }
 
   query = query.where(and(...conditions));
   const scans = await query.orderBy(scansTable.scannedAt);

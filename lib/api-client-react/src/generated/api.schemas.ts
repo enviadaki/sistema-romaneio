@@ -117,6 +117,8 @@ export type ListPackagesParams = {
 export type ListScansParams = {
   city?: string;
   date?: string;
+  dateFrom?: string;
+  dateTo?: string;
 };
 
 export type GetRomaneioParams = {

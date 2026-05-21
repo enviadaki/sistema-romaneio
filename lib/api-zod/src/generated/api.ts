@@ -91,6 +91,8 @@ export const ListCitiesResponse = zod.array(ListCitiesResponseItem);
 export const ListScansQueryParams = zod.object({
   city: zod.coerce.string().optional(),
   date: zod.coerce.string().optional(),
+  dateFrom: zod.coerce.string().optional(),
+  dateTo: zod.coerce.string().optional(),
 });
 
 export const ListScansResponseItem = zod.object({

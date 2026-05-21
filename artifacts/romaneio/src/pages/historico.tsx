@@ -32,16 +32,26 @@ import {
 } from "@/components/ui/table";
 import { Trash2, User } from "lucide-react";
 
+type DateMode = "day" | "period";
+
 export default function Historico() {
   const queryClient = useQueryClient();
   const { operation } = useOperation();
   const [cityFilter, setCityFilter] = useState<string>("ALL");
+  const [dateMode, setDateMode] = useState<DateMode>("day");
   const [dateFilter, setDateFilter] = useState<string>(getTodayDateString());
+  const [dateFromFilter, setDateFromFilter] = useState<string>(getTodayDateString());
+  const [dateToFilter, setDateToFilter] = useState<string>(getTodayDateString());
   const [operatorFilter, setOperatorFilter] = useState<string>("ALL");
 
   const params: Record<string, string> = {};
   if (cityFilter !== "ALL") params.city = cityFilter;
-  if (dateFilter) params.date = dateFilter;
+  if (dateMode === "day") {
+    if (dateFilter) params.date = dateFilter;
+  } else {
+    if (dateFromFilter) params.dateFrom = dateFromFilter;
+    if (dateToFilter) params.dateTo = dateToFilter;
+  }
   params.operation = operation;
 
   const { data: allScans, isLoading } = useListScans(params, {
@@ -92,7 +102,10 @@ export default function Historico() {
   };
 
   const hasActiveFilters =
-    cityFilter !== "ALL" || dateFilter !== "" || operatorFilter !== "ALL";
+    cityFilter !== "ALL" ||
+    operatorFilter !== "ALL" ||
+    (dateMode === "day" && dateFilter !== "") ||
+    (dateMode === "period" && (dateFromFilter !== "" || dateToFilter !== ""));
 
   return (
     <div className="space-y-8">
@@ -121,13 +134,50 @@ export default function Historico() {
           </Select>
         </div>
 
-        <div className="w-full sm:w-[180px]">
+        <div className="w-full sm:w-auto">
           <label className="text-xs text-muted-foreground mb-1 block">Data</label>
-          <Input
-            type="date"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-          />
+          <div className="flex gap-1 items-center">
+            <div className="flex rounded-md border overflow-hidden text-xs h-9 shrink-0">
+              <button
+                className={`px-3 transition-colors ${dateMode === "day" ? "bg-primary text-primary-foreground font-semibold" : "hover:bg-muted"}`}
+                onClick={() => setDateMode("day")}
+                type="button"
+              >
+                Dia
+              </button>
+              <button
+                className={`px-3 border-l transition-colors ${dateMode === "period" ? "bg-primary text-primary-foreground font-semibold" : "hover:bg-muted"}`}
+                onClick={() => setDateMode("period")}
+                type="button"
+              >
+                Período
+              </button>
+            </div>
+            {dateMode === "day" ? (
+              <Input
+                type="date"
+                className="w-[160px]"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+              />
+            ) : (
+              <div className="flex items-center gap-1">
+                <Input
+                  type="date"
+                  className="w-[145px]"
+                  value={dateFromFilter}
+                  onChange={(e) => setDateFromFilter(e.target.value)}
+                />
+                <span className="text-muted-foreground text-xs px-0.5">até</span>
+                <Input
+                  type="date"
+                  className="w-[145px]"
+                  value={dateToFilter}
+                  onChange={(e) => setDateToFilter(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="w-full sm:w-[220px]">
