@@ -2,14 +2,12 @@ import { useState, useMemo } from "react";
 import {
   useListScans,
   getListScansQueryKey,
-  useListCities,
-  getListCitiesQueryKey,
   useDeleteScan,
-  customFetch,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDateTime, getTodayDateString } from "@/lib/date-utils";
 import { useOperation } from "@/contexts/operation-context";
+import { ROUTES } from "@/lib/routes-data";
 
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -37,15 +35,17 @@ type DateMode = "day" | "period";
 export default function Historico() {
   const queryClient = useQueryClient();
   const { operation } = useOperation();
-  const [cityFilter, setCityFilter] = useState<string>("ALL");
+  const [routeFilter, setRouteFilter] = useState<string>("ALL");
   const [dateMode, setDateMode] = useState<DateMode>("day");
   const [dateFilter, setDateFilter] = useState<string>(getTodayDateString());
   const [dateFromFilter, setDateFromFilter] = useState<string>(getTodayDateString());
   const [dateToFilter, setDateToFilter] = useState<string>(getTodayDateString());
   const [operatorFilter, setOperatorFilter] = useState<string>("ALL");
 
+  const selectedRoute = ROUTES.find((r) => r.name === routeFilter);
+
   const params: Record<string, string> = {};
-  if (cityFilter !== "ALL") params.city = cityFilter;
+  if (selectedRoute) params.cities = selectedRoute.cities.join(",");
   if (dateMode === "day") {
     if (dateFilter) params.date = dateFilter;
   } else {
@@ -56,13 +56,6 @@ export default function Historico() {
 
   const { data: allScans, isLoading } = useListScans(params, {
     query: { queryKey: getListScansQueryKey(params) },
-  });
-
-  const { data: cities } = useListCities({
-    query: {
-      queryKey: [...getListCitiesQueryKey(), operation],
-      queryFn: () => customFetch<string[]>(`/api/cities?operation=${operation}`),
-    },
   });
 
   const deleteScan = useDeleteScan();
@@ -102,7 +95,7 @@ export default function Historico() {
   };
 
   const hasActiveFilters =
-    cityFilter !== "ALL" ||
+    routeFilter !== "ALL" ||
     operatorFilter !== "ALL" ||
     (dateMode === "day" && dateFilter !== "") ||
     (dateMode === "period" && (dateFromFilter !== "" || dateToFilter !== ""));
@@ -117,17 +110,17 @@ export default function Historico() {
       </div>
 
       <div className="flex flex-wrap gap-4 items-end">
-        <div className="w-full sm:w-[220px]">
-          <label className="text-xs text-muted-foreground mb-1 block">Cidade</label>
-          <Select value={cityFilter} onValueChange={setCityFilter}>
+        <div className="w-full sm:w-[260px]">
+          <label className="text-xs text-muted-foreground mb-1 block">Rota</label>
+          <Select value={routeFilter} onValueChange={setRouteFilter}>
             <SelectTrigger>
-              <SelectValue placeholder="Todas as Cidades" />
+              <SelectValue placeholder="Todas as Rotas" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL">Todas as Cidades</SelectItem>
-              {cities?.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
+              <SelectItem value="ALL">Todas as Rotas</SelectItem>
+              {ROUTES.map((r) => (
+                <SelectItem key={r.name} value={r.name}>
+                  {r.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -202,8 +195,10 @@ export default function Historico() {
             <Button
               variant="outline"
               onClick={() => {
-                setCityFilter("ALL");
+                setRouteFilter("ALL");
                 setDateFilter("");
+                setDateFromFilter("");
+                setDateToFilter("");
                 setOperatorFilter("ALL");
               }}
             >
