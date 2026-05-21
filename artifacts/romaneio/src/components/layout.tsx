@@ -2,11 +2,13 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { LayoutDashboard, Package, ScanLine, History, FileText, LogOut, User, Search, Truck } from "lucide-react";
 import { useClerk, useUser } from "@clerk/react";
+import { useOperation, OPERATIONS } from "@/contexts/operation-context";
 
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { signOut } = useClerk();
   const { user } = useUser();
+  const { operation, setOperation } = useOperation();
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -23,14 +25,48 @@ export function Layout({ children }: { children: ReactNode }) {
     user?.primaryEmailAddress?.emailAddress ||
     "Usuário";
 
+  const operationColors: Record<string, { active: string; inactive: string }> = {
+    LOGGI: {
+      active: "bg-blue-600 text-white",
+      inactive: "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent",
+    },
+    AMAZON: {
+      active: "bg-orange-500 text-white",
+      inactive: "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent",
+    },
+  };
+
   return (
     <div className="min-h-[100dvh] flex flex-col md:flex-row bg-background">
       {/* Sidebar */}
       <aside className="w-full md:w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border flex flex-col flex-shrink-0 no-print">
         <div className="p-4 border-b border-sidebar-border flex items-center gap-2 font-bold text-lg">
           <Package className="h-6 w-6 text-sidebar-primary" />
-          <span>Sistema de Romaneios</span>
+          <span>Romaneios</span>
         </div>
+
+        {/* Operation Selector */}
+        <div className="px-3 py-3 border-b border-sidebar-border">
+          <p className="text-xs text-sidebar-foreground/50 font-medium uppercase tracking-wider mb-2 px-1">Operação</p>
+          <div className="flex gap-1.5">
+            {OPERATIONS.map((op) => {
+              const colors = operationColors[op];
+              const isActive = operation === op;
+              return (
+                <button
+                  key={op}
+                  onClick={() => setOperation(op)}
+                  className={`flex-1 py-2 rounded-md text-sm font-bold tracking-wide transition-all ${
+                    isActive ? colors.active + " shadow-sm" : colors.inactive
+                  }`}
+                >
+                  {op}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;

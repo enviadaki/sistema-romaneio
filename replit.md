@@ -1,6 +1,6 @@
-# [Project name]
+# Sistema de Romaneios
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Aplicativo de logística para cadastro de pacotes, bipagem pré-sorter, geração de romaneio PDF, confirmação de entregas — com suporte a múltiplas operações (LOGGI e AMAZON).
 
 ## Run & Operate
 
@@ -22,19 +22,33 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- DB schema: `lib/db/src/schema/` — packages, scans, deliveries (all with `operation` column)
+- API routes: `artifacts/api-server/src/routes/` — packages, scans, stats, romaneio, deliveries
+- Frontend pages: `artifacts/romaneio/src/pages/`
+- Operation context: `artifacts/romaneio/src/contexts/operation-context.tsx`
+- Generated types (manually extended): `lib/api-client-react/src/generated/api.schemas.ts`, `lib/api-zod/src/generated/api.ts`
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- **Multi-operation via column**: `operation TEXT DEFAULT 'LOGGI'` on all data tables. Filters applied server-side via `?operation=` query param. Scans/deliveries inherit operation from the parent package automatically.
+- **Global operation context**: React Context + localStorage persists selected operation across page reloads. Toggle visible in sidebar — blue for LOGGI, orange for AMAZON.
+- **Generated types manually extended**: Rather than re-running Orval codegen (which would overwrite the operation field), `PackageInput` and `Package` interfaces were manually extended in both `api-client-react` and `api-zod` generated files.
+- **Scan operation inheritance**: When creating a scan, the server looks up the package's operation and stores it on the scan — frontend never needs to send operation for bipagem.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- **Cadastro**: registro de pacotes por operação (LOGGI ou AMAZON), importação em lote via CSV/XLSX
+- **Pré-Sorter**: bipagem de pacotes filtrada por operação, por rota ou cidade
+- **Romaneio**: geração de PDF por operação, rota ou cidade
+- **Dashboard**: estatísticas por operação (pacotes, bipagens hoje, operadores, rotas)
+- **Histórico**: listagem de scans filtrada por operação, cidade, data, operador
+- **Consulta**: lookup de pacote por rastreador (global, sem filtro de operação)
+- **Checagem de Entrega**: confirmação de entrega por rota, filtrada por operação
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Interface em português (Brasil)
+- Sons de bipe para ambiente industrial: alto volume, distorção, square wave
 
 ## Gotchas
 

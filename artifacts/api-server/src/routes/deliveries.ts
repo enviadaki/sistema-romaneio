@@ -8,15 +8,16 @@ const router: IRouter = Router();
 router.get("/deliveries", requireAuth, async (req, res): Promise<void> => {
   const route = (req.query.route as string | undefined)?.trim();
   const date = (req.query.date as string | undefined)?.trim();
+  const operation = (req.query.operation as string | undefined)?.trim() ?? "LOGGI";
 
-  const conditions = [];
+  const conditions: ReturnType<typeof eq>[] = [eq(deliveriesTable.operation, operation)];
   if (route) conditions.push(eq(deliveriesTable.route, route));
   if (date) conditions.push(eq(deliveriesTable.deliveryDate, date));
 
   const rows = await db
     .select()
     .from(deliveriesTable)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .where(and(...conditions))
     .orderBy(deliveriesTable.deliveredAt);
 
   res.json(
@@ -27,6 +28,7 @@ router.get("/deliveries", requireAuth, async (req, res): Promise<void> => {
       route: d.route,
       deliveryDate: d.deliveryDate,
       deliveredBy: d.deliveredBy ?? null,
+      operation: d.operation,
       deliveredAt: d.deliveredAt.toISOString(),
     }))
   );
@@ -40,7 +42,7 @@ router.post("/deliveries", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  // Look up the package to get city
+  // Look up the package to get city and operation
   const [pkg] = await db
     .select()
     .from(packagesTable)
@@ -65,6 +67,7 @@ router.post("/deliveries", requireAuth, async (req, res): Promise<void> => {
         route,
         deliveryDate: today,
         deliveredBy: deliveredBy ?? null,
+        operation: pkg.operation,
       })
       .returning();
 
@@ -75,6 +78,7 @@ router.post("/deliveries", requireAuth, async (req, res): Promise<void> => {
       route: delivery.route,
       deliveryDate: delivery.deliveryDate,
       deliveredBy: delivery.deliveredBy ?? null,
+      operation: delivery.operation,
       deliveredAt: delivery.deliveredAt.toISOString(),
     });
   } catch (err: any) {
@@ -106,25 +110,26 @@ router.delete("/deliveries/:id", requireAuth, async (req, res): Promise<void> =>
   res.sendStatus(204);
 });
 
-// GET /deliveries/summary?route=XXX&date=YYYY-MM-DD
-// Returns packages for a route + which ones are confirmed delivered today
+// GET /deliveries/summary?route=XXX&date=YYYY-MM-DD&operation=LOGGI
+// Returns confirmed deliveries for a route+date+operation
 router.get("/deliveries/summary", requireAuth, async (req, res): Promise<void> => {
   const route = (req.query.route as string | undefined)?.trim();
   const date = (req.query.date as string | undefined)?.trim();
+  const operation = (req.query.operation as string | undefined)?.trim() ?? "LOGGI";
 
   if (!route || !date) {
     res.status(400).json({ error: "route e date são obrigatórios" });
     return;
   }
 
-  // Get confirmed deliveries for this route+date
   const confirmed = await db
     .select()
     .from(deliveriesTable)
     .where(
       and(
         eq(deliveriesTable.route, route),
-        eq(deliveriesTable.deliveryDate, date)
+        eq(deliveriesTable.deliveryDate, date),
+        eq(deliveriesTable.operation, operation)
       )
     );
 

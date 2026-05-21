@@ -18,13 +18,22 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ROUTES } from "@/lib/routes-data";
 import { useMemo } from "react";
+import { useOperation } from "@/contexts/operation-context";
 
 const MEDAL_COLORS = ["text-yellow-500", "text-slate-400", "text-amber-700"];
 const MEDAL_LABELS = ["🥇", "🥈", "🥉"];
 
 export default function Dashboard() {
+  const { operation } = useOperation();
   const { data: stats, isLoading } = useGetStats({
-    query: { queryKey: getGetStatsQueryKey() },
+    query: {
+      queryKey: [...getGetStatsQueryKey(), operation],
+      queryFn: async () => {
+        const res = await fetch(`/api/stats?operation=${operation}`, { credentials: "include" });
+        if (!res.ok) throw new Error("Erro ao buscar estatísticas");
+        return res.json();
+      },
+    },
   });
 
   // Build route progress from static ROUTES config + stats data

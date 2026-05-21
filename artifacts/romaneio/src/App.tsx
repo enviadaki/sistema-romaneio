@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import { Layout } from "@/components/layout";
+import { OperationProvider } from "@/contexts/operation-context";
 
 import Dashboard from "@/pages/dashboard";
 import Cadastro from "@/pages/cadastro";
@@ -191,7 +192,9 @@ const queryClient = new QueryClient();
 function App() {
   return (
     <WouterRouter base={basePath}>
-      <AppRoutes />
+      <OperationProvider>
+        <AppRoutes />
+      </OperationProvider>
     </WouterRouter>
   );
 }

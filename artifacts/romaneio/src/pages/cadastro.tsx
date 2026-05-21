@@ -13,6 +13,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { formatDate, getTodayDateString } from "@/lib/date-utils";
+import { useOperation } from "@/contexts/operation-context";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
@@ -49,6 +50,7 @@ type FilePreview = {
 export default function Cadastro() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { operation } = useOperation();
 
   const [cityFilter, setCityFilter] = useState<string>("ALL");
   const [activeTab, setActiveTab] = useState<"single" | "bulk" | "file">("single");
@@ -71,11 +73,24 @@ export default function Cadastro() {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: packages, isLoading } = useListPackages(
-    cityFilter !== "ALL" ? { city: cityFilter } : {},
-    { query: { queryKey: getListPackagesQueryKey(cityFilter !== "ALL" ? { city: cityFilter } : {}) } }
-  );
-  const { data: cities } = useListCities({ query: { queryKey: getListCitiesQueryKey() } });
+  const pkgParams = cityFilter !== "ALL"
+    ? { city: cityFilter, operation }
+    : { operation };
+
+  const { data: packages, isLoading } = useListPackages(pkgParams, {
+    query: { queryKey: getListPackagesQueryKey(pkgParams) },
+  });
+
+  const { data: cities } = useListCities({
+    query: {
+      queryKey: [...getListCitiesQueryKey(), operation],
+      queryFn: async () => {
+        const res = await fetch(`/api/cities?operation=${operation}`, { credentials: "include" });
+        if (!res.ok) throw new Error("Erro ao buscar cidades");
+        return res.json();
+      },
+    },
+  });
 
   const createPkg = useCreatePackage();
   const bulkCreate = useBulkCreatePackages();
@@ -110,7 +125,7 @@ export default function Cadastro() {
     if (!trackingNumber || !city || !promisedDeliveryDate) return;
 
     createPkg.mutate(
-      { data: { trackingNumber, city, promisedDeliveryDate } },
+      { data: { trackingNumber, city, promisedDeliveryDate, operation } },
       {
         onSuccess: () => {
           toast({ title: "Pacote registrado com sucesso!" });
@@ -133,11 +148,11 @@ export default function Cadastro() {
       const packagesData = lines.map(line => {
         const parts = line.split("\t");
         if (parts.length >= 3) {
-          return { trackingNumber: parts[0].trim(), city: parts[1].trim(), promisedDeliveryDate: parts[2].trim() };
+          return { trackingNumber: parts[0].trim(), city: parts[1].trim(), promisedDeliveryDate: parts[2].trim(), operation };
         }
         const csvParts = line.split(",");
         if (csvParts.length >= 3) {
-          return { trackingNumber: csvParts[0].trim(), city: csvParts[1].trim(), promisedDeliveryDate: csvParts[2].trim() };
+          return { trackingNumber: csvParts[0].trim(), city: csvParts[1].trim(), promisedDeliveryDate: csvParts[2].trim(), operation };
         }
         throw new Error("Formato inválido. Use: Rastreador, Cidade, Data (YYYY-MM-DD)");
       });

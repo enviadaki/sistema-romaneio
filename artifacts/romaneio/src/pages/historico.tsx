@@ -8,6 +8,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDateTime, getTodayDateString } from "@/lib/date-utils";
+import { useOperation } from "@/contexts/operation-context";
 
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,7 @@ import { Trash2, User } from "lucide-react";
 
 export default function Historico() {
   const queryClient = useQueryClient();
+  const { operation } = useOperation();
   const [cityFilter, setCityFilter] = useState<string>("ALL");
   const [dateFilter, setDateFilter] = useState<string>(getTodayDateString());
   const [operatorFilter, setOperatorFilter] = useState<string>("ALL");
@@ -39,13 +41,21 @@ export default function Historico() {
   const params: Record<string, string> = {};
   if (cityFilter !== "ALL") params.city = cityFilter;
   if (dateFilter) params.date = dateFilter;
+  params.operation = operation;
 
   const { data: allScans, isLoading } = useListScans(params, {
     query: { queryKey: getListScansQueryKey(params) },
   });
 
   const { data: cities } = useListCities({
-    query: { queryKey: getListCitiesQueryKey() },
+    query: {
+      queryKey: [...getListCitiesQueryKey(), operation],
+      queryFn: async () => {
+        const res = await fetch(`/api/cities?operation=${operation}`, { credentials: "include" });
+        if (!res.ok) throw new Error("Erro ao buscar cidades");
+        return res.json();
+      },
+    },
   });
 
   const deleteScan = useDeleteScan();

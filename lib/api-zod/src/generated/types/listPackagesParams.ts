@@ -8,4 +8,5 @@
 
 export type ListPackagesParams = {
   city?: string;
+  operation?: string;
 };

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and } from "drizzle-orm";
 import { db, packagesTable, scansTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 
@@ -7,23 +7,27 @@ const router: IRouter = Router();
 
 router.get("/stats", requireAuth, async (req, res): Promise<void> => {
   const today = new Date().toISOString().slice(0, 10);
+  const operation = (req.query.operation as string | undefined)?.trim() ?? "LOGGI";
 
   const [totalPackagesResult] = await db
     .select({ count: sql<number>`count(*)::int` })
-    .from(packagesTable);
+    .from(packagesTable)
+    .where(eq(packagesTable.operation, operation));
 
   const [totalScansResult] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(scansTable)
-    .where(eq(scansTable.scanDate, today));
+    .where(and(eq(scansTable.scanDate, today), eq(scansTable.operation, operation)));
 
   const totalCitiesResult = await db
     .selectDistinct({ city: packagesTable.city })
-    .from(packagesTable);
+    .from(packagesTable)
+    .where(eq(packagesTable.operation, operation));
 
   const recentScans = await db
     .select()
     .from(scansTable)
+    .where(eq(scansTable.operation, operation))
     .orderBy(sql`${scansTable.scannedAt} desc`)
     .limit(10);
 
@@ -33,6 +37,7 @@ router.get("/stats", requireAuth, async (req, res): Promise<void> => {
       count: sql<number>`count(*)::int`,
     })
     .from(packagesTable)
+    .where(eq(packagesTable.operation, operation))
     .groupBy(packagesTable.city)
     .orderBy(sql`count(*) desc`);
 
@@ -42,7 +47,7 @@ router.get("/stats", requireAuth, async (req, res): Promise<void> => {
       count: sql<number>`count(*)::int`,
     })
     .from(scansTable)
-    .where(eq(scansTable.scanDate, today))
+    .where(and(eq(scansTable.scanDate, today), eq(scansTable.operation, operation)))
     .groupBy(scansTable.scannedBy)
     .orderBy(sql`count(*) desc`);
 
@@ -57,7 +62,7 @@ router.get("/stats", requireAuth, async (req, res): Promise<void> => {
       count: sql<number>`count(*)::int`,
     })
     .from(scansTable)
-    .where(eq(scansTable.scanDate, today))
+    .where(and(eq(scansTable.scanDate, today), eq(scansTable.operation, operation)))
     .groupBy(scansTable.city);
 
   res.json({

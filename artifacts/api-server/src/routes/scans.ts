@@ -18,18 +18,23 @@ router.get("/scans", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  const operation = (req.query.operation as string | undefined)?.trim() ?? "LOGGI";
+
   let query = db.select().from(scansTable).$dynamic();
-  const conditions = [];
+  const conditions: ReturnType<typeof eq>[] = [];
+
+  conditions.push(eq(scansTable.operation, operation));
+
   const citiesParam = (req.query as any).cities as string | undefined;
   if (citiesParam) {
     const cityList = citiesParam.split(",").map((c: string) => c.trim()).filter(Boolean);
-    if (cityList.length > 0) conditions.push(inArray(scansTable.city, cityList));
+    if (cityList.length > 0) conditions.push(inArray(scansTable.city, cityList) as any);
   } else if (parsed.data.city) {
     conditions.push(eq(scansTable.city, parsed.data.city));
   }
   if (parsed.data.date) conditions.push(eq(scansTable.scanDate, parsed.data.date));
-  if (conditions.length > 0) query = query.where(and(...conditions));
 
+  query = query.where(and(...conditions));
   const scans = await query.orderBy(scansTable.scannedAt);
   res.json(
     scans.map((s) => ({
@@ -38,6 +43,7 @@ router.get("/scans", requireAuth, async (req, res): Promise<void> => {
       city: s.city,
       scanDate: s.scanDate,
       scannedBy: s.scannedBy ?? null,
+      operation: s.operation,
       scannedAt: s.scannedAt.toISOString(),
     }))
   );
@@ -82,6 +88,7 @@ router.post("/scans/bulk", requireAuth, async (req, res): Promise<void> => {
         city: pkg.city,
         scanDate: today,
         scannedBy: userFullName,
+        operation: pkg.operation,
       })
       .onConflictDoNothing()
       .returning();
@@ -120,6 +127,7 @@ router.post("/scans", requireAuth, async (req, res): Promise<void> => {
       city: pkg.city,
       scanDate: today,
       scannedBy: userFullName,
+      operation: pkg.operation,
     })
     .onConflictDoNothing()
     .returning();
@@ -135,6 +143,7 @@ router.post("/scans", requireAuth, async (req, res): Promise<void> => {
     city: scan.city,
     scanDate: scan.scanDate,
     scannedBy: scan.scannedBy ?? null,
+    operation: scan.operation,
     scannedAt: scan.scannedAt.toISOString(),
   });
 });

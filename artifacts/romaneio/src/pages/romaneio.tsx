@@ -3,6 +3,7 @@ import {
   useListCities,
   getListCitiesQueryKey,
 } from "@workspace/api-client-react";
+import { useOperation } from "@/contexts/operation-context";
 import { formatDate, getTodayDateString } from "@/lib/date-utils";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -53,12 +54,14 @@ async function fetchRomaneio(params: {
   cities?: string;
   label?: string;
   date: string;
+  operation: string;
 }): Promise<RomaneioData> {
   const url = new URL("/api/romaneio", window.location.origin);
   if (params.city) url.searchParams.set("city", params.city);
   if (params.cities) url.searchParams.set("cities", params.cities);
   if (params.label) url.searchParams.set("label", params.label);
   url.searchParams.set("date", params.date);
+  url.searchParams.set("operation", params.operation);
 
   const res = await fetch(url.toString(), { credentials: "include" });
   if (!res.ok) throw new Error("Erro ao buscar romaneio");
@@ -66,6 +69,7 @@ async function fetchRomaneio(params: {
 }
 
 export default function Romaneio() {
+  const { operation } = useOperation();
   const [filterMode, setFilterMode] = useState<FilterMode>("cidade");
   const [city, setCity] = useState<string>("");
   const [selectedRoute, setSelectedRoute] = useState<string>("");
@@ -83,7 +87,16 @@ export default function Romaneio() {
     setSettingsOpen(false);
   };
 
-  const { data: cities } = useListCities({ query: { queryKey: getListCitiesQueryKey() } });
+  const { data: cities } = useListCities({
+    query: {
+      queryKey: [...getListCitiesQueryKey(), operation],
+      queryFn: async () => {
+        const res = await fetch(`/api/cities?operation=${operation}`, { credentials: "include" });
+        if (!res.ok) throw new Error("Erro ao buscar cidades");
+        return res.json();
+      },
+    },
+  });
 
   const isReady =
     !!date && (filterMode === "cidade" ? !!city : !!selectedRoute);
@@ -91,16 +104,17 @@ export default function Romaneio() {
   const routeObj = ROUTES.find((r) => r.name === selectedRoute);
 
   const { data: romaneio, isLoading } = useQuery({
-    queryKey: ["romaneio", filterMode, filterMode === "cidade" ? city : selectedRoute, date],
+    queryKey: ["romaneio", filterMode, filterMode === "cidade" ? city : selectedRoute, date, operation],
     enabled: isReady,
     queryFn: () => {
       if (filterMode === "cidade") {
-        return fetchRomaneio({ city, date });
+        return fetchRomaneio({ city, date, operation });
       } else {
         return fetchRomaneio({
           cities: routeObj?.cities.join(",") ?? "",
           label: selectedRoute,
           date,
+          operation,
         });
       }
     },

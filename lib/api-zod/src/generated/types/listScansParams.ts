@@ -9,4 +9,5 @@
 export type ListScansParams = {
   city?: string;
   date?: string;
+  operation?: string;
 };

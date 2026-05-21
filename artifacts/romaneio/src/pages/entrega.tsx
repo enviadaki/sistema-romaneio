@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { ROUTES } from "@/lib/routes-data";
 import { CameraScanner } from "@/components/camera-scanner";
 import { getTodayDateString } from "@/lib/date-utils";
+import { useOperation } from "@/contexts/operation-context";
 import { playScanSuccess, playScanError, playScanWarning } from "@/lib/scan-sounds";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -52,6 +53,7 @@ interface PackageInfo {
 
 export default function Entrega() {
   const today = getTodayDateString();
+  const { operation } = useOperation();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [selectedRoute, setSelectedRoute] = useState("");
@@ -74,11 +76,11 @@ export default function Entrega() {
     setLoadingData(true);
     try {
       const [pkgRes, delivRes] = await Promise.all([
-        fetch(`/api/packages?cities=${encodeURIComponent(cities.join(","))}`, {
+        fetch(`/api/packages?cities=${encodeURIComponent(cities.join(","))}&operation=${operation}`, {
           credentials: "include",
         }),
         fetch(
-          `/api/deliveries/summary?route=${encodeURIComponent(route)}&date=${today}`,
+          `/api/deliveries/summary?route=${encodeURIComponent(route)}&date=${today}&operation=${operation}`,
           { credentials: "include" }
         ),
       ]);
@@ -90,7 +92,7 @@ export default function Entrega() {
     } finally {
       setLoadingData(false);
     }
-  }, [today]);
+  }, [today, operation]);
 
   useEffect(() => {
     if (selectedRoute && routeCities.length > 0) {

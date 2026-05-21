@@ -11,6 +11,7 @@ export const deliveriesTable = pgTable(
     route: text("route").notNull(),
     deliveryDate: text("delivery_date").notNull(),
     deliveredBy: text("delivered_by"),
+    operation: text("operation").notNull().default("LOGGI"),
     deliveredAt: timestamp("delivered_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

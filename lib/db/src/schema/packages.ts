@@ -7,6 +7,7 @@ export const packagesTable = pgTable("packages", {
   trackingNumber: text("tracking_number").notNull().unique(),
   city: text("city").notNull(),
   promisedDeliveryDate: text("promised_delivery_date").notNull(),
+  operation: text("operation").notNull().default("LOGGI"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

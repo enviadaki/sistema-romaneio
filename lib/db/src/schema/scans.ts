@@ -10,6 +10,7 @@ export const scansTable = pgTable(
     city: text("city").notNull(),
     scanDate: text("scan_date").notNull(),
     scannedBy: text("scanned_by"),
+    operation: text("operation").notNull().default("LOGGI"),
     scannedAt: timestamp("scanned_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

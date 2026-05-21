@@ -14,6 +14,7 @@ export interface Package {
   trackingNumber: string;
   city: string;
   promisedDeliveryDate: string;
+  operation: string;
   createdAt: string;
 }
 
@@ -24,6 +25,7 @@ export interface PackageInput {
   city: string;
   /** @minLength 1 */
   promisedDeliveryDate: string;
+  operation?: string;
 }
 
 export interface PackageBulkInput {

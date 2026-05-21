@@ -34,6 +34,7 @@ export const ClearPackagesResponse = zod.object({
  */
 export const ListPackagesQueryParams = zod.object({
   city: zod.coerce.string().optional(),
+  operation: zod.coerce.string().optional(),
 });
 
 export const ListPackagesResponseItem = zod.object({
@@ -53,6 +54,7 @@ export const CreatePackageBody = zod.object({
   trackingNumber: zod.string().min(1),
   city: zod.string().min(1),
   promisedDeliveryDate: zod.string().min(1),
+  operation: zod.string().optional().default("LOGGI"),
 });
 
 /**
@@ -65,6 +67,7 @@ export const BulkCreatePackagesBody = zod.object({
       trackingNumber: zod.string().min(1),
       city: zod.string().min(1),
       promisedDeliveryDate: zod.string().min(1),
+      operation: zod.string().optional().default("LOGGI"),
     }),
   ),
 });

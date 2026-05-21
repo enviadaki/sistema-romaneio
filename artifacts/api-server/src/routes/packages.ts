@@ -47,6 +47,7 @@ router.get("/packages/lookup", requireAuth, async (req, res): Promise<void> => {
     trackingNumber: pkg.trackingNumber,
     city: pkg.city,
     promisedDeliveryDate: pkg.promisedDeliveryDate ?? null,
+    operation: pkg.operation,
     createdAt: pkg.createdAt.toISOString(),
     scannedToday: !!scan,
     scannedAt: scan?.scannedAt.toISOString() ?? null,
@@ -57,21 +58,23 @@ router.get("/packages/lookup", requireAuth, async (req, res): Promise<void> => {
 // DELETE /packages/clear — must come BEFORE /packages/:id
 router.delete("/packages/clear", requireAuth, async (req, res): Promise<void> => {
   const date = (req.query.date as string | undefined)?.trim();
+  const operation = (req.query.operation as string | undefined)?.trim();
 
-  let deleted: { id: number }[];
+  const conditions = [];
   if (date) {
-    // Delete packages created on that specific calendar date
     const startOfDay = new Date(`${date}T00:00:00.000Z`);
     const endOfDay   = new Date(`${date}T23:59:59.999Z`);
-    deleted = await db
-      .delete(packagesTable)
-      .where(and(gte(packagesTable.createdAt, startOfDay), lt(packagesTable.createdAt, endOfDay)))
-      .returning({ id: packagesTable.id });
-  } else {
-    deleted = await db
-      .delete(packagesTable)
-      .returning({ id: packagesTable.id });
+    conditions.push(gte(packagesTable.createdAt, startOfDay));
+    conditions.push(lt(packagesTable.createdAt, endOfDay));
   }
+  if (operation) {
+    conditions.push(eq(packagesTable.operation, operation));
+  }
+
+  const deleted = await db
+    .delete(packagesTable)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .returning({ id: packagesTable.id });
 
   res.json({ deleted: deleted.length });
 });
@@ -83,17 +86,21 @@ router.get("/packages", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  const operation = parsed.data.operation ?? "LOGGI";
   let query = db.select().from(packagesTable).$dynamic();
+  const conditions: ReturnType<typeof eq>[] = [];
+
+  conditions.push(eq(packagesTable.operation, operation));
+
   const citiesParam = (req.query as any).cities as string | undefined;
   if (citiesParam) {
     const cityList = citiesParam.split(",").map((c: string) => c.trim()).filter(Boolean);
-    if (cityList.length > 0) {
-      query = query.where(inArray(packagesTable.city, cityList));
-    }
+    if (cityList.length > 0) conditions.push(inArray(packagesTable.city, cityList) as any);
   } else if (parsed.data.city) {
-    query = query.where(eq(packagesTable.city, parsed.data.city));
+    conditions.push(eq(packagesTable.city, parsed.data.city));
   }
 
+  query = query.where(and(...conditions));
   const packages = await query.orderBy(packagesTable.createdAt);
   res.json(
     packages.map((p) => ({
@@ -101,6 +108,7 @@ router.get("/packages", requireAuth, async (req, res): Promise<void> => {
       trackingNumber: p.trackingNumber,
       city: p.city,
       promisedDeliveryDate: p.promisedDeliveryDate,
+      operation: p.operation,
       createdAt: p.createdAt.toISOString(),
     }))
   );
@@ -112,6 +120,8 @@ router.post("/packages", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+
+  const operation = parsed.data.operation ?? "LOGGI";
 
   const existing = await db
     .select()
@@ -129,6 +139,7 @@ router.post("/packages", requireAuth, async (req, res): Promise<void> => {
       trackingNumber: parsed.data.trackingNumber,
       city: parsed.data.city,
       promisedDeliveryDate: parsed.data.promisedDeliveryDate,
+      operation,
     })
     .returning();
 
@@ -137,6 +148,7 @@ router.post("/packages", requireAuth, async (req, res): Promise<void> => {
     trackingNumber: pkg.trackingNumber,
     city: pkg.city,
     promisedDeliveryDate: pkg.promisedDeliveryDate,
+    operation: pkg.operation,
     createdAt: pkg.createdAt.toISOString(),
   });
 });
@@ -147,6 +159,9 @@ router.post("/packages/bulk", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+
+  // Top-level operation override (all packages in the bulk use the same operation)
+  const bulkOperation = (req.body?.operation as string | undefined) ?? "LOGGI";
 
   let imported = 0;
   let skipped = 0;
@@ -168,6 +183,7 @@ router.post("/packages/bulk", requireAuth, async (req, res): Promise<void> => {
         trackingNumber: pkg.trackingNumber,
         city: pkg.city,
         promisedDeliveryDate: pkg.promisedDeliveryDate,
+        operation: pkg.operation ?? bulkOperation,
       });
       imported++;
     } catch {
@@ -199,10 +215,12 @@ router.delete("/packages/:id", requireAuth, async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
-router.get("/cities", requireAuth, async (_req, res): Promise<void> => {
+router.get("/cities", requireAuth, async (req, res): Promise<void> => {
+  const operation = (req.query.operation as string | undefined)?.trim() ?? "LOGGI";
   const rows = await db
     .selectDistinct({ city: packagesTable.city })
     .from(packagesTable)
+    .where(eq(packagesTable.operation, operation))
     .orderBy(packagesTable.city);
   res.json(rows.map((r) => r.city));
 });

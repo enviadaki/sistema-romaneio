@@ -13,6 +13,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { getTodayDateString } from "@/lib/date-utils";
+import { useOperation } from "@/contexts/operation-context";
 import { playScanSuccess, playScanError, playScanWarning } from "@/lib/scan-sounds";
 import { ROUTES } from "@/lib/routes-data";
 
@@ -51,6 +52,7 @@ interface ScanResult {
 export default function PreSorter() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { operation } = useOperation();
   const today = getTodayDateString();
 
   const [filterMode, setFilterMode] = useState<FilterMode>("rota");
@@ -64,7 +66,14 @@ export default function PreSorter() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { data: cities } = useListCities({
-    query: { queryKey: getListCitiesQueryKey() },
+    query: {
+      queryKey: [...getListCitiesQueryKey(), operation],
+      queryFn: async () => {
+        const res = await fetch(`/api/cities?operation=${operation}`, { credentials: "include" });
+        if (!res.ok) throw new Error("Erro ao buscar cidades");
+        return res.json();
+      },
+    },
   });
 
   // Derived: cities for the selected route
@@ -83,17 +92,17 @@ export default function PreSorter() {
 
   // Fetch packages for all cities in route (or single city)
   const { data: packages } = useListPackages(
-    filterMode === "rota" ? ({} as any) : { city: selectedCity },
+    filterMode === "rota" ? ({} as any) : { city: selectedCity, operation },
     {
       query: {
-        queryKey: [...getListPackagesQueryKey(), citiesParam],
+        queryKey: [...getListPackagesQueryKey(), citiesParam, operation],
         enabled: isReady,
         queryFn: async ({ queryKey: _key }: any) => {
           if (!citiesParam) return [];
           const url =
             filterMode === "rota"
-              ? `/api/packages?cities=${encodeURIComponent(citiesParam)}`
-              : `/api/packages?city=${encodeURIComponent(selectedCity)}`;
+              ? `/api/packages?cities=${encodeURIComponent(citiesParam)}&operation=${operation}`
+              : `/api/packages?city=${encodeURIComponent(selectedCity)}&operation=${operation}`;
           const res = await fetch(url, { credentials: "include" });
           if (!res.ok) throw new Error("Erro ao buscar pacotes");
           return res.json();
@@ -104,17 +113,17 @@ export default function PreSorter() {
 
   // Fetch scans for all cities in route (or single city) + today
   const { data: scans } = useListScans(
-    filterMode === "cidade" ? { city: selectedCity, date: today } : ({} as any),
+    filterMode === "cidade" ? { city: selectedCity, date: today, operation } : ({} as any),
     {
       query: {
-        queryKey: [...getListScansQueryKey(), citiesParam, today],
+        queryKey: [...getListScansQueryKey(), citiesParam, today, operation],
         enabled: isReady,
         queryFn: async ({ queryKey: _key }: any) => {
           if (!citiesParam) return [];
           const url =
             filterMode === "rota"
-              ? `/api/scans?cities=${encodeURIComponent(citiesParam)}&date=${today}`
-              : `/api/scans?city=${encodeURIComponent(selectedCity)}&date=${today}`;
+              ? `/api/scans?cities=${encodeURIComponent(citiesParam)}&date=${today}&operation=${operation}`
+              : `/api/scans?city=${encodeURIComponent(selectedCity)}&date=${today}&operation=${operation}`;
           const res = await fetch(url, { credentials: "include" });
           if (!res.ok) throw new Error("Erro ao buscar scans");
           return res.json();

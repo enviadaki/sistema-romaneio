@@ -13,4 +13,5 @@ export interface PackageInput {
   city: string;
   /** @minLength 1 */
   promisedDeliveryDate: string;
+  operation?: string;
 }
