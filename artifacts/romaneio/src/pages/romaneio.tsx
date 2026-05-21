@@ -171,36 +171,46 @@ export default function Romaneio() {
     doc.text(emitidoText, pageWidth - margin - emitW, 21);
 
     // ── Info block ──
+    const infoH = 28;
+    const infoTop = 38;
     doc.setFillColor(240, 244, 250);
-    doc.rect(0, 38, pageWidth, 18, "F");
+    doc.rect(0, infoTop, pageWidth, infoH, "F");
 
-    doc.setTextColor(15, 40, 80);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-
-    const destinoLabel = isRouteMode ? "ROTA:" : "CIDADE DESTINO:";
-    doc.text(destinoLabel, margin, 47);
-    doc.setFont("helvetica", "normal");
-    doc.text(romaneio.city.toUpperCase(), margin + doc.getTextWidth(destinoLabel) + 2, 47);
-
-    doc.setFont("helvetica", "bold");
-    doc.text("DATA DE BIPAGEM:", margin + 80, 47);
-    doc.setFont("helvetica", "normal");
-    doc.text(formatDate(romaneio.date), margin + 80 + doc.getTextWidth("DATA DE BIPAGEM:") + 2, 47);
-
-    // Total volumes box
+    // Total volumes box — right side, spans full info block
+    const boxW = 54;
+    const boxX = pageWidth - margin - boxW;
     doc.setFillColor(15, 40, 80);
-    const boxX = pageWidth - margin - 60;
-    doc.roundedRect(boxX, 39, 60, 16, 2, 2, "F");
+    doc.roundedRect(boxX, infoTop + 1, boxW, infoH - 2, 2, 2, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.text("TOTAL DE VOLUMES", boxX + 30, 46, { align: "center" });
-    doc.setFontSize(16);
-    doc.text(String(romaneio.totalCount), boxX + 30, 53, { align: "center" });
+    doc.setFontSize(7.5);
+    doc.text("TOTAL DE VOLUMES", boxX + boxW / 2, infoTop + 9, { align: "center" });
+    doc.setFontSize(20);
+    doc.text(String(romaneio.totalCount), boxX + boxW / 2, infoTop + 21, { align: "center" });
+
+    // Left text — two rows, bounded so they never reach the box
+    const textMaxX = boxX - 6;
+    doc.setTextColor(15, 40, 80);
+    doc.setFontSize(9.5);
+
+    // Row 1: destination
+    const destinoLabel = isRouteMode ? "ROTA:" : "CIDADE DESTINO:";
+    doc.setFont("helvetica", "bold");
+    doc.text(destinoLabel, margin, infoTop + 9);
+    doc.setFont("helvetica", "normal");
+    const destinoX = margin + doc.getTextWidth(destinoLabel) + 2;
+    doc.text(romaneio.city.toUpperCase(), destinoX, infoTop + 9, {
+      maxWidth: textMaxX - destinoX,
+    });
+
+    // Row 2: date
+    doc.setFont("helvetica", "bold");
+    doc.text("DATA DE BIPAGEM:", margin, infoTop + 19);
+    doc.setFont("helvetica", "normal");
+    doc.text(formatDate(romaneio.date), margin + doc.getTextWidth("DATA DE BIPAGEM:") + 2, infoTop + 19);
 
     // ── Table ──
-    const tableStartY = 62;
+    const tableStartY = infoTop + infoH + 4;
 
     if (isRouteMode) {
       // Route mode: include CIDADE column
