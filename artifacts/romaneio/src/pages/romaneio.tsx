@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import {
   useListCities,
   getListCitiesQueryKey,
+  customFetch,
 } from "@workspace/api-client-react";
 import { useOperation } from "@/contexts/operation-context";
 import { formatDate, getTodayDateString } from "@/lib/date-utils";
@@ -63,9 +64,7 @@ async function fetchRomaneio(params: {
   url.searchParams.set("date", params.date);
   url.searchParams.set("operation", params.operation);
 
-  const res = await fetch(url.toString(), { credentials: "include" });
-  if (!res.ok) throw new Error("Erro ao buscar romaneio");
-  return res.json();
+  return customFetch<RomaneioData>(url.toString());
 }
 
 export default function Romaneio() {
@@ -90,11 +89,7 @@ export default function Romaneio() {
   const { data: cities } = useListCities({
     query: {
       queryKey: [...getListCitiesQueryKey(), operation],
-      queryFn: async () => {
-        const res = await fetch(`/api/cities?operation=${operation}`, { credentials: "include" });
-        if (!res.ok) throw new Error("Erro ao buscar cidades");
-        return res.json();
-      },
+      queryFn: () => customFetch<string[]>(`/api/cities?operation=${operation}`),
     },
   });
 

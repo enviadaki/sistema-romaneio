@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from "react";
+import { customFetch } from "@workspace/api-client-react";
 import { ROUTES } from "@/lib/routes-data";
 import { CameraScanner } from "@/components/camera-scanner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,17 +55,10 @@ export default function Consulta() {
     setResult(null);
 
     try {
-      const res = await fetch(
-        `/api/packages/lookup?trackingNumber=${encodeURIComponent(code)}`,
-        { credentials: "include" }
+      const data = await customFetch<LookupResult>(
+        `/api/packages/lookup?trackingNumber=${encodeURIComponent(code)}`
       );
-      if (res.status === 404) {
-        setResult("not_found");
-      } else if (res.ok) {
-        setResult(await res.json());
-      } else {
-        setResult("not_found");
-      }
+      setResult(data);
     } catch {
       setResult("not_found");
     } finally {

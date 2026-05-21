@@ -5,6 +5,7 @@ import {
   useListCities,
   getListCitiesQueryKey,
   useDeleteScan,
+  customFetch,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDateTime, getTodayDateString } from "@/lib/date-utils";
@@ -50,11 +51,7 @@ export default function Historico() {
   const { data: cities } = useListCities({
     query: {
       queryKey: [...getListCitiesQueryKey(), operation],
-      queryFn: async () => {
-        const res = await fetch(`/api/cities?operation=${operation}`, { credentials: "include" });
-        if (!res.ok) throw new Error("Erro ao buscar cidades");
-        return res.json();
-      },
+      queryFn: () => customFetch<string[]>(`/api/cities?operation=${operation}`),
     },
   });
 

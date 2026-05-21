@@ -9,6 +9,7 @@ import {
   useListPackages,
   getListPackagesQueryKey,
   getGetStatsQueryKey,
+  customFetch,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -68,11 +69,7 @@ export default function PreSorter() {
   const { data: cities } = useListCities({
     query: {
       queryKey: [...getListCitiesQueryKey(), operation],
-      queryFn: async () => {
-        const res = await fetch(`/api/cities?operation=${operation}`, { credentials: "include" });
-        if (!res.ok) throw new Error("Erro ao buscar cidades");
-        return res.json();
-      },
+      queryFn: () => customFetch<string[]>(`/api/cities?operation=${operation}`),
     },
   });
 
@@ -97,15 +94,13 @@ export default function PreSorter() {
       query: {
         queryKey: [...getListPackagesQueryKey(), citiesParam, operation],
         enabled: isReady,
-        queryFn: async ({ queryKey: _key }: any) => {
+        queryFn: async () => {
           if (!citiesParam) return [];
           const url =
             filterMode === "rota"
               ? `/api/packages?cities=${encodeURIComponent(citiesParam)}&operation=${operation}`
               : `/api/packages?city=${encodeURIComponent(selectedCity)}&operation=${operation}`;
-          const res = await fetch(url, { credentials: "include" });
-          if (!res.ok) throw new Error("Erro ao buscar pacotes");
-          return res.json();
+          return customFetch<any[]>(url);
         },
       },
     },
@@ -118,15 +113,13 @@ export default function PreSorter() {
       query: {
         queryKey: [...getListScansQueryKey(), citiesParam, today, operation],
         enabled: isReady,
-        queryFn: async ({ queryKey: _key }: any) => {
+        queryFn: async () => {
           if (!citiesParam) return [];
           const url =
             filterMode === "rota"
               ? `/api/scans?cities=${encodeURIComponent(citiesParam)}&date=${today}&operation=${operation}`
               : `/api/scans?city=${encodeURIComponent(selectedCity)}&date=${today}&operation=${operation}`;
-          const res = await fetch(url, { credentials: "include" });
-          if (!res.ok) throw new Error("Erro ao buscar scans");
-          return res.json();
+          return customFetch<any[]>(url);
         },
       },
     },

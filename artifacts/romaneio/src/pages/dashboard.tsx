@@ -1,6 +1,7 @@
 import {
   useGetStats,
   getGetStatsQueryKey,
+  customFetch,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, ScanLine, MapPin, Trophy, User, Route } from "lucide-react";
@@ -28,11 +29,7 @@ export default function Dashboard() {
   const { data: stats, isLoading } = useGetStats({
     query: {
       queryKey: [...getGetStatsQueryKey(), operation],
-      queryFn: async () => {
-        const res = await fetch(`/api/stats?operation=${operation}`, { credentials: "include" });
-        if (!res.ok) throw new Error("Erro ao buscar estatísticas");
-        return res.json();
-      },
+      queryFn: () => customFetch<any>(`/api/stats?operation=${operation}`),
     },
   });
 

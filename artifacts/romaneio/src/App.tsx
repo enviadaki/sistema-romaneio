@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
 import { Switch, Route, Router as WouterRouter, Redirect, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import { ClerkProvider, SignIn, Show, useClerk } from "@clerk/react";
+import { ClerkProvider, SignIn, Show, useClerk, useAuth } from "@clerk/react";
 import { shadcn } from "@clerk/themes";
+import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
@@ -106,6 +107,17 @@ function SignInPage() {
 }
 
 
+function ClerkAuthTokenSetter() {
+  const { getToken } = useAuth();
+
+  useEffect(() => {
+    setAuthTokenGetter(() => getToken());
+    return () => setAuthTokenGetter(null);
+  }, [getToken]);
+
+  return null;
+}
+
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
   const queryClient = useQueryClient();
@@ -174,6 +186,7 @@ function AppRoutes() {
     >
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
+          <ClerkAuthTokenSetter />
           <ClerkQueryClientCacheInvalidator />
           <Switch>
             <Route path="/sign-in/*?" component={SignInPage} />

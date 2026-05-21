@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { customFetch } from "@workspace/api-client-react";
 import { ROUTES } from "@/lib/routes-data";
 import { CameraScanner } from "@/components/camera-scanner";
 import { getTodayDateString } from "@/lib/date-utils";
@@ -75,20 +76,16 @@ export default function Entrega() {
     if (!route || cities.length === 0) return;
     setLoadingData(true);
     try {
-      const [pkgRes, delivRes] = await Promise.all([
-        fetch(`/api/packages?cities=${encodeURIComponent(cities.join(","))}&operation=${operation}`, {
-          credentials: "include",
-        }),
-        fetch(
-          `/api/deliveries/summary?route=${encodeURIComponent(route)}&date=${today}&operation=${operation}`,
-          { credentials: "include" }
+      const [pkgs, deliv] = await Promise.all([
+        customFetch<PackageInfo[]>(
+          `/api/packages?cities=${encodeURIComponent(cities.join(","))}&operation=${operation}`
+        ),
+        customFetch<{ confirmed: ConfirmedDelivery[] }>(
+          `/api/deliveries/summary?route=${encodeURIComponent(route)}&date=${today}&operation=${operation}`
         ),
       ]);
-      if (pkgRes.ok) setRoutePackages(await pkgRes.json());
-      if (delivRes.ok) {
-        const data = await delivRes.json();
-        setConfirmed(data.confirmed ?? []);
-      }
+      setRoutePackages(pkgs);
+      setConfirmed(deliv.confirmed ?? []);
     } finally {
       setLoadingData(false);
     }
@@ -152,34 +149,10 @@ export default function Entrega() {
       }
 
       try {
-        const res = await fetch("/api/deliveries", {
+        const delivery = await customFetch<ConfirmedDelivery>("/api/deliveries", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
           body: JSON.stringify({ trackingNumber: code, route: selectedRoute }),
         });
-
-        if (res.status === 409) {
-          triggerResult({
-            status: "warning",
-            message: "Entrega já confirmada para este pacote hoje",
-            trackingNumber: code,
-            city: pkg.city,
-          });
-          return;
-        }
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          triggerResult({
-            status: "error",
-            message: err.error ?? "Erro ao confirmar entrega",
-            trackingNumber: code,
-          });
-          return;
-        }
-
-        const delivery: ConfirmedDelivery = await res.json();
         setConfirmed((prev) => [...prev, delivery]);
         triggerResult({
           status: "success",
@@ -188,12 +161,21 @@ export default function Entrega() {
           city: pkg.city,
         });
         setTimeout(() => inputRef.current?.focus(), 100);
-      } catch {
-        triggerResult({
-          status: "error",
-          message: "Erro de conexão. Tente novamente.",
-          trackingNumber: code,
-        });
+      } catch (err: any) {
+        if (err?.status === 409) {
+          triggerResult({
+            status: "warning",
+            message: "Entrega já confirmada para este pacote hoje",
+            trackingNumber: code,
+            city: pkg.city,
+          });
+        } else {
+          triggerResult({
+            status: "error",
+            message: err?.data?.error ?? "Erro ao confirmar entrega",
+            trackingNumber: code,
+          });
+        }
       }
     },
     [selectedRoute, routePackages, confirmedSet]
