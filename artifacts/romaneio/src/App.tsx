@@ -110,7 +110,7 @@ function MotoristaLoginForm() {
         return;
       }
       login(data.token);
-      navigate("/romaneio");
+      navigate("/entrega");
     } catch {
       setError("Erro de conexão. Tente novamente.");
     } finally {

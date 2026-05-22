@@ -5,7 +5,7 @@ import { useClerk, useUser } from "@clerk/react";
 import { useOperation, OPERATIONS } from "@/contexts/operation-context";
 import { useMotoristaAuth } from "@/contexts/motorista-auth-context";
 
-const ALL_MOTORISTA_PATHS = ["/romaneio", "/romaneio-motorista"];
+const ALL_MOTORISTA_PATHS = ["/entrega"];
 
 export function Layout({ children }: { children: ReactNode }) {
   const [location, navigate] = useLocation();
@@ -55,8 +55,7 @@ export function Layout({ children }: { children: ReactNode }) {
   ];
 
   const motoristaNavItems = [
-    { href: "/romaneio", label: "Romaneio", icon: FileText },
-    { href: "/romaneio-motorista", label: "Romaneio Motorista", icon: ClipboardList },
+    { href: "/entrega", label: "Checagem de Entrega", icon: Truck },
   ];
 
   const navItems = isMotorista ? motoristaNavItems : allNavItems;
