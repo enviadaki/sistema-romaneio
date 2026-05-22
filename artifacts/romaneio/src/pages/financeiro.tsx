@@ -6,7 +6,6 @@ import { getTodayDateString } from "@/lib/date-utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -30,7 +29,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { DollarSign, Truck, CheckCircle, Clock, Loader2, Trash2 } from "lucide-react";
+import {
+  DollarSign, Truck, CheckCircle, Clock, Loader2, Trash2, Eye, FileDown,
+} from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 function formatDateBR(isoDate: string | null | undefined): string {
   if (!isoDate) return "—";
@@ -38,9 +41,9 @@ function formatDateBR(isoDate: string | null | undefined): string {
   return `${d}/${m}/${y}`;
 }
 
-function formatCurrencyBR(val: string | null | undefined): string {
-  if (!val) return "—";
-  return parseFloat(val).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+function formatCurrencyBR(val: string | number | null | undefined): string {
+  if (val === null || val === undefined || val === "") return "—";
+  return parseFloat(String(val)).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; next: string | null }> = {
@@ -59,6 +62,277 @@ function useManifests(params: Record<string, string>) {
   });
 }
 
+// ── Visualizador completo do romaneio ─────────────────────────────────────────
+function ManifestViewer({ manifest, onClose }: { manifest: DeliveryManifest; onClose: () => void }) {
+  const totalSacas = manifest.items.reduce((s, it) => s + it.sacas, 0);
+  const totalAvulsos = manifest.items.reduce((s, it) => s + it.avulsos, 0);
+  const totalVolumes = totalSacas + totalAvulsos;
+
+  const km = manifest.km ? parseFloat(String(manifest.km)) : null;
+  const valorPorKm = manifest.valorPorKm ? parseFloat(String(manifest.valorPorKm)) : null;
+  const valorCalculado = km && valorPorKm ? km * valorPorKm : null;
+
+  function handleExportPDF() {
+    const numero = manifest.numero ?? "—";
+    const dataStr = formatDateBR(manifest.createdAt);
+
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const W = doc.internal.pageSize.getWidth();
+    const H = doc.internal.pageSize.getHeight();
+    const mg = 8;
+
+    // Header
+    doc.setFillColor(15, 40, 80);
+    doc.rect(0, 0, W, 12, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.text("ROMANEIO DE ENTREGA", W / 2, 8, { align: "center" });
+    doc.setFontSize(10);
+    doc.text(`Nº: ${numero}`, W - mg, 8, { align: "right" });
+
+    // Info block
+    doc.setFillColor(240, 244, 250);
+    doc.rect(0, 13, W, 22, "F");
+    doc.setTextColor(15, 40, 80);
+    doc.setFontSize(8.5);
+    const c1 = mg, c2 = W * 0.22, c3 = W * 0.45, c4 = W * 0.66, c5 = W * 0.83;
+    const r1 = 20, r2 = 29;
+    const bf = (label: string, val: string, x: number, y: number) => {
+      doc.setFont("helvetica", "bold");
+      doc.text(label, x, y);
+      doc.setFont("helvetica", "normal");
+      doc.text(val, x + doc.getTextWidth(label) + 1.5, y);
+    };
+    bf("DATA:", dataStr, c1, r1);
+    bf("CONFERENTE:", (manifest.conferente ?? "").toUpperCase(), c2, r1);
+    bf("MOTORISTA:", manifest.motorista.toUpperCase(), c2, r2);
+    bf("CONTATO:", manifest.contatoMotorista ?? "—", c3, r1);
+    bf("ROTA PORTA A PORTA:", String(manifest.rotaPortaAPorta ?? 0), c3, r2);
+    if (km !== null) bf("KM:", String(km), c4, r1);
+    if (valorPorKm !== null) {
+      bf("VALOR/KM:", `R$ ${valorPorKm.toFixed(4).replace(".", ",")}`, c4, r2);
+    }
+    if (valorCalculado !== null) {
+      bf("VALOR MOTORISTA:", formatCurrencyBR(valorCalculado), c5, r1);
+    }
+    bf("ROTA:", manifest.rota, c5, r2);
+
+    // Table
+    const tableRows = manifest.items.map((it) => [
+      it.empresa ?? "",
+      it.sacas > 0 ? String(it.sacas) : "",
+      it.avulsos > 0 ? String(it.avulsos) : "",
+      String(it.sacas + it.avulsos),
+      it.cidade.toUpperCase(),
+      (it.responsavel ?? "").toUpperCase(),
+      it.contato ?? "",
+      "",
+    ]);
+    while (tableRows.length < 20) tableRows.push(["", "", "", "", "", "", "", ""]);
+
+    autoTable(doc, {
+      startY: 37,
+      head: [["EMPRESA", "SACAS", "AVULSOS", "TOTAL", "CIDADES", "RESPONSÁVEL RECEBIMENTO", "CONTATO", "ASSINATURA DO ENTREGADOR"]],
+      body: tableRows,
+      margin: { left: mg, right: mg },
+      theme: "grid",
+      styles: { fontSize: 7.5, cellPadding: 1.5, valign: "middle" },
+      headStyles: { fillColor: [15, 40, 80], textColor: [255, 255, 255], fontStyle: "bold", halign: "center", fontSize: 7 },
+      columnStyles: {
+        0: { halign: "center", cellWidth: 18 },
+        1: { halign: "center", cellWidth: 13 },
+        2: { halign: "center", cellWidth: 14 },
+        3: { halign: "center", cellWidth: 13 },
+        4: { cellWidth: 30 },
+        5: { cellWidth: 52 },
+        6: { cellWidth: 30 },
+        7: { cellWidth: 38 },
+      },
+    });
+
+    const finalY = (doc as any).lastAutoTable?.finalY ?? H - 20;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(15, 40, 80);
+    doc.text(`TOTAL: ${totalVolumes} volumes  (${totalSacas} sacas + ${totalAvulsos} avulsos)`, mg, finalY + 6);
+    if (km && valorPorKm && valorCalculado) {
+      doc.text(
+        `${km} km × R$ ${valorPorKm.toFixed(4).replace(".", ",")} = ${formatCurrencyBR(valorCalculado)}`,
+        W - mg,
+        finalY + 6,
+        { align: "right" }
+      );
+    }
+
+    const fy = H - 12;
+    doc.setDrawColor(15, 40, 80);
+    doc.setLineWidth(0.4);
+    doc.line(mg, fy, mg + 70, fy);
+    doc.setFontSize(7.5);
+    doc.setFont("helvetica", "normal");
+    doc.text("ASSINATURA CONFERENTE", mg + 35, fy + 4, { align: "center" });
+    doc.line(W - mg - 70, fy, W - mg, fy);
+    doc.text("ASSINATURA MOTORISTA", W - mg - 35, fy + 4, { align: "center" });
+
+    doc.save(`romaneio-${numero}-${manifest.createdAt?.slice(0, 10) ?? "data"}.pdf`);
+  }
+
+  const cfg = STATUS_CONFIG[manifest.status] ?? STATUS_CONFIG.ABERTO;
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-lg flex items-center gap-3">
+            <span>Romaneio <span className="text-primary font-extrabold">#{manifest.numero}</span></span>
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${cfg.color}`}>
+              {cfg.label}
+            </span>
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* Header info */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 rounded-lg bg-muted/50 p-4 text-sm">
+          <div>
+            <p className="text-xs text-muted-foreground">Data</p>
+            <p className="font-medium">{formatDateBR(manifest.createdAt)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Motorista</p>
+            <p className="font-semibold">{manifest.motorista}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Contato</p>
+            <p className="font-medium">{manifest.contatoMotorista || "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Conferente</p>
+            <p className="font-medium">{manifest.conferente || "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Rota</p>
+            <p className="font-medium">{manifest.rota}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Rota Porta a Porta</p>
+            <p className="font-medium">{manifest.rotaPortaAPorta ?? 0}</p>
+          </div>
+          {km !== null && (
+            <div>
+              <p className="text-xs text-muted-foreground">Quilômetros</p>
+              <p className="font-medium">{km} km</p>
+            </div>
+          )}
+          {valorPorKm !== null && (
+            <div>
+              <p className="text-xs text-muted-foreground">Valor por km</p>
+              <p className="font-medium">R$ {valorPorKm.toFixed(4).replace(".", ",")}</p>
+            </div>
+          )}
+          {valorCalculado !== null && (
+            <div className="col-span-1 sm:col-span-1">
+              <p className="text-xs text-muted-foreground">Valor Motorista</p>
+              <p className="text-base font-bold text-primary">{formatCurrencyBR(valorCalculado)}</p>
+            </div>
+          )}
+          {manifest.valorPagamento && (
+            <div>
+              <p className="text-xs text-muted-foreground">Valor Pago</p>
+              <p className="font-bold text-green-700">{formatCurrencyBR(manifest.valorPagamento)}</p>
+            </div>
+          )}
+          {manifest.dataPagamento && (
+            <div>
+              <p className="text-xs text-muted-foreground">Data Pagamento</p>
+              <p className="font-medium">{formatDateBR(manifest.dataPagamento)}</p>
+            </div>
+          )}
+          {manifest.observacoes && (
+            <div className="col-span-2 sm:col-span-3">
+              <p className="text-xs text-muted-foreground">Observações</p>
+              <p className="font-medium">{manifest.observacoes}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Totals summary */}
+        <div className="flex gap-3 flex-wrap">
+          <div className="rounded-md bg-primary/10 px-4 py-2 text-center min-w-[90px]">
+            <p className="text-xs text-muted-foreground">Volumes</p>
+            <p className="text-xl font-bold text-primary">{totalVolumes}</p>
+          </div>
+          <div className="rounded-md bg-muted px-4 py-2 text-center min-w-[90px]">
+            <p className="text-xs text-muted-foreground">Sacas</p>
+            <p className="text-xl font-bold">{totalSacas}</p>
+          </div>
+          <div className="rounded-md bg-muted px-4 py-2 text-center min-w-[90px]">
+            <p className="text-xs text-muted-foreground">Avulsos</p>
+            <p className="text-xl font-bold">{totalAvulsos}</p>
+          </div>
+          <div className="rounded-md bg-muted px-4 py-2 text-center min-w-[90px]">
+            <p className="text-xs text-muted-foreground">Cidades</p>
+            <p className="text-xl font-bold">{manifest.items.length}</p>
+          </div>
+        </div>
+
+        {/* Items table */}
+        <div className="rounded-md border overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead className="w-[50px] text-center">#</TableHead>
+                <TableHead className="w-[90px]">Empresa</TableHead>
+                <TableHead className="w-[70px] text-center">Sacas</TableHead>
+                <TableHead className="w-[70px] text-center">Avulsos</TableHead>
+                <TableHead className="w-[60px] text-center font-bold">Total</TableHead>
+                <TableHead>Cidade</TableHead>
+                <TableHead>Responsável</TableHead>
+                <TableHead>Contato</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {manifest.items.map((it, i) => (
+                <TableRow key={i} className={i % 2 === 0 ? "bg-background" : "bg-muted/20"}>
+                  <TableCell className="text-center text-xs text-muted-foreground">{i + 1}</TableCell>
+                  <TableCell>
+                    <span className="text-xs font-medium bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                      {it.empresa ?? "—"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-center">{it.sacas > 0 ? it.sacas : <span className="text-muted-foreground/40">—</span>}</TableCell>
+                  <TableCell className="text-center">{it.avulsos > 0 ? it.avulsos : <span className="text-muted-foreground/40">—</span>}</TableCell>
+                  <TableCell className="text-center font-bold">{it.sacas + it.avulsos}</TableCell>
+                  <TableCell className="font-medium">{it.cidade}</TableCell>
+                  <TableCell className="text-sm">{it.responsavel || <span className="text-muted-foreground/50">—</span>}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{it.contato || "—"}</TableCell>
+                </TableRow>
+              ))}
+              {/* Totals row */}
+              <TableRow className="bg-primary/5 font-bold border-t-2">
+                <TableCell colSpan={2} className="text-right text-xs text-muted-foreground">TOTAL</TableCell>
+                <TableCell className="text-center">{totalSacas}</TableCell>
+                <TableCell className="text-center">{totalAvulsos}</TableCell>
+                <TableCell className="text-center text-primary">{totalVolumes}</TableCell>
+                <TableCell colSpan={3} />
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose}>Fechar</Button>
+          <Button onClick={handleExportPDF}>
+            <FileDown className="h-4 w-4 mr-2" /> Exportar PDF
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function Financeiro() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -69,6 +343,7 @@ export default function Financeiro() {
   const [dateTo, setDateTo] = useState("");
 
   const [selected, setSelected] = useState<DeliveryManifest | null>(null);
+  const [viewing, setViewing] = useState<DeliveryManifest | null>(null);
   const [editValor, setEditValor] = useState("");
   const [editDataPagamento, setEditDataPagamento] = useState(getTodayDateString());
   const [editStatus, setEditStatus] = useState("");
@@ -285,7 +560,7 @@ export default function Financeiro() {
               <TableHead className="text-right">Valor</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Pgto em</TableHead>
-              <TableHead className="w-[80px]"></TableHead>
+              <TableHead className="w-[100px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -330,13 +605,23 @@ export default function Financeiro() {
                       {formatDateBR(m.dataPagamento)}
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteMutation.mutate(m.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Visualizar romaneio completo"
+                          onClick={(e) => { e.stopPropagation(); setViewing(m); }}
+                        >
+                          <Eye className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteMutation.mutate(m.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -385,7 +670,7 @@ export default function Financeiro() {
         </Card>
       )}
 
-      {/* Modal de atualização */}
+      {/* Modal de atualização de status */}
       {selected && (
         <Dialog open onOpenChange={() => setSelected(null)}>
           <DialogContent className="max-w-md">
@@ -451,7 +736,13 @@ export default function Financeiro() {
                 )}
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="gap-2">
+              <Button
+                variant="outline"
+                onClick={() => { setSelected(null); setViewing(selected); }}
+              >
+                <Eye className="h-4 w-4 mr-2" /> Ver Completo
+              </Button>
               <Button variant="outline" onClick={() => setSelected(null)}>Cancelar</Button>
               <Button onClick={handleUpdateStatus} disabled={updatingStatus}>
                 {updatingStatus ? (
@@ -461,6 +752,11 @@ export default function Financeiro() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* Visualizador completo */}
+      {viewing && (
+        <ManifestViewer manifest={viewing} onClose={() => setViewing(null)} />
       )}
     </div>
   );
