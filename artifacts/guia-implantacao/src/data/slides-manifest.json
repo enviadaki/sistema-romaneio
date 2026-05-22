@@ -1,1 +1,74 @@
-[]
+[
+  {
+    "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+    "position": 1,
+    "filepath": "src/pages/slides/Slide1Capa.tsx",
+    "title": "Guia de Implantação",
+    "description": "Capa — manual técnico para instalação em servidor do cliente",
+    "speakerNotes": ""
+  },
+  {
+    "id": "b2c3d4e5-f6a7-8901-bcde-f12345678902",
+    "position": 2,
+    "filepath": "src/pages/slides/Slide2Arquitetura.tsx",
+    "title": "Arquitetura do Sistema",
+    "description": "Visão geral dos 3 componentes: BD + API + Frontend",
+    "speakerNotes": ""
+  },
+  {
+    "id": "b2c3d4e5-f6a7-8901-bcde-f12345678903",
+    "position": 3,
+    "filepath": "src/pages/slides/Slide3Prereqs.tsx",
+    "title": "Pré-requisitos",
+    "description": "Servidor, software, portas e domínio necessários",
+    "speakerNotes": ""
+  },
+  {
+    "id": "b2c3d4e5-f6a7-8901-bcde-f12345678904",
+    "position": 4,
+    "filepath": "src/pages/slides/Slide4BancoDados.tsx",
+    "title": "Passo 1 — Banco de Dados",
+    "description": "Export, criação e import do PostgreSQL",
+    "speakerNotes": ""
+  },
+  {
+    "id": "b2c3d4e5-f6a7-8901-bcde-f12345678905",
+    "position": 5,
+    "filepath": "src/pages/slides/Slide5ApiServer.tsx",
+    "title": "Passo 2 — API Server",
+    "description": "Instalação, build e execução com PM2",
+    "speakerNotes": ""
+  },
+  {
+    "id": "b2c3d4e5-f6a7-8901-bcde-f12345678906",
+    "position": 6,
+    "filepath": "src/pages/slides/Slide6Frontend.tsx",
+    "title": "Passo 3 — Frontend",
+    "description": "Build React, Nginx e certificado HTTPS",
+    "speakerNotes": ""
+  },
+  {
+    "id": "b2c3d4e5-f6a7-8901-bcde-f12345678907",
+    "position": 7,
+    "filepath": "src/pages/slides/Slide7Clerk.tsx",
+    "title": "Passo 4 — Autenticação",
+    "description": "Configuração do Clerk para o cliente",
+    "speakerNotes": ""
+  },
+  {
+    "id": "b2c3d4e5-f6a7-8901-bcde-f12345678908",
+    "position": 8,
+    "filepath": "src/pages/slides/Slide8EnvVars.tsx",
+    "title": "Variáveis de Ambiente",
+    "description": "Lista completa de todas as variáveis necessárias",
+    "speakerNotes": ""
+  },
+  {
+    "id": "b2c3d4e5-f6a7-8901-bcde-f12345678909",
+    "position": 9,
+    "filepath": "src/pages/slides/Slide9Verificacao.tsx",
+    "title": "Checklist Final",
+    "description": "Verificação pós-deploy e informações de suporte",
+    "speakerNotes": ""
+  }
+]

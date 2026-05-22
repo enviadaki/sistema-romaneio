@@ -6,3 +6,9 @@ id = "3sVYjw0JdQvvr6tHqRfa0"
 uri = "file://.local/outputs/Sistema-de-Romaneios---Apresenta--o-de-Vendas.pptx"
 type = "slides"
 title = "Sistema de Romaneios — Apresentação de Vendas (PPTX)"
+
+[[outputs]]
+id = "B9_2v4CHcShavjUBv-viE"
+uri = "file://.local/outputs/Guia-de-Implantacao---Sistema-de-Romaneios.pdf"
+type = "pdf"
+title = "Guia de Implantação — Sistema de Romaneios (PDF)"
