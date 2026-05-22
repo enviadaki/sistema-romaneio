@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Package, ScanLine, History, FileText, LogOut, User, Search, Truck } from "lucide-react";
+import { LayoutDashboard, Package, ScanLine, History, FileText, LogOut, User, Search, Truck, ClipboardList, DollarSign } from "lucide-react";
 import { useClerk, useUser } from "@clerk/react";
 import { useOperation, OPERATIONS } from "@/contexts/operation-context";
 
@@ -18,6 +18,8 @@ export function Layout({ children }: { children: ReactNode }) {
     { href: "/entrega", label: "Checagem Entrega", icon: Truck },
     { href: "/historico", label: "Histórico", icon: History },
     { href: "/romaneio", label: "Romaneio", icon: FileText },
+    { href: "/romaneio-motorista", label: "Romaneio Motorista", icon: ClipboardList },
+    { href: "/financeiro", label: "Financeiro", icon: DollarSign },
   ];
 
   const displayName =

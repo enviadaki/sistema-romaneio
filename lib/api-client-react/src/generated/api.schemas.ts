@@ -133,3 +133,53 @@ export type GetRomaneioParams = {
   label?: string;
   date: string;
 };
+
+export interface CityContact {
+  id: number;
+  city: string;
+  responsavel: string;
+  contato: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DeliveryManifestItem {
+  id: number;
+  manifestId: number;
+  cidade: string;
+  empresa: string;
+  sacas: number;
+  avulsos: number;
+  responsavel: string;
+  contato: string;
+}
+
+export interface DeliveryManifest {
+  id: number;
+  numero: number;
+  motorista: string;
+  conferente: string;
+  contatoMotorista: string;
+  rota: string;
+  rotaPortaAPorta: number;
+  valorPagamento: string | null;
+  status: string;
+  dataPagamento: string | null;
+  observacoes: string | null;
+  createdAt: string;
+  items: DeliveryManifestItem[];
+}
+
+export interface ManifestPreviewItem {
+  cidade: string;
+  empresa: string;
+  sacas: number;
+  avulsos: number;
+}
+
+export type ListDeliveryManifestsParams = {
+  motorista?: string;
+  status?: string;
+  dateFrom?: string;
+  dateTo?: string;
+};

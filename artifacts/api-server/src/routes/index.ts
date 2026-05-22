@@ -5,6 +5,8 @@ import scansRouter from "./scans";
 import romaneioRouter from "./romaneio";
 import statsRouter from "./stats";
 import deliveriesRouter from "./deliveries";
+import cityContactsRouter from "./city-contacts";
+import deliveryManifestsRouter from "./delivery-manifests";
 
 const router: IRouter = Router();
 
@@ -14,5 +16,7 @@ router.use(scansRouter);
 router.use(romaneioRouter);
 router.use(statsRouter);
 router.use(deliveriesRouter);
+router.use(cityContactsRouter);
+router.use(deliveryManifestsRouter);
 
 export default router;
