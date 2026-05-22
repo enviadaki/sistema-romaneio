@@ -1,1 +1,74 @@
-[]
+[
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567801",
+    "position": 1,
+    "filepath": "src/pages/slides/Slide1Title.tsx",
+    "title": "Sistema de Romaneios",
+    "description": "Slide de título — apresentação do sistema",
+    "speakerNotes": ""
+  },
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567802",
+    "position": 2,
+    "filepath": "src/pages/slides/Slide2Problema.tsx",
+    "title": "O Problema",
+    "description": "Diagnóstico — 5 falhas operacionais do processo manual",
+    "speakerNotes": ""
+  },
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567803",
+    "position": 3,
+    "filepath": "src/pages/slides/Slide3Solucao.tsx",
+    "title": "A Solução",
+    "description": "Arquitetura da solução — 5 capacidades principais",
+    "speakerNotes": ""
+  },
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567804",
+    "position": 4,
+    "filepath": "src/pages/slides/Slide4Funcionalidades.tsx",
+    "title": "Funcionalidades",
+    "description": "6 módulos do sistema em grid",
+    "speakerNotes": ""
+  },
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567805",
+    "position": 5,
+    "filepath": "src/pages/slides/Slide5Dados.tsx",
+    "title": "74 Cidades · 21 Motoristas · 4 Operações",
+    "description": "Dados reais integrados — métricas em destaque",
+    "speakerNotes": ""
+  },
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567806",
+    "position": 6,
+    "filepath": "src/pages/slides/Slide6Stack.tsx",
+    "title": "Stack Tecnológica",
+    "description": "Especificações técnicas completas",
+    "speakerNotes": ""
+  },
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567807",
+    "position": 7,
+    "filepath": "src/pages/slides/Slide7Tempo.tsx",
+    "title": "Tempo de Desenvolvimento",
+    "description": "Comparativo: dev humano vs IA — entregáveis listados",
+    "speakerNotes": ""
+  },
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567808",
+    "position": 8,
+    "filepath": "src/pages/slides/Slide8Valor.tsx",
+    "title": "Valor de Mercado",
+    "description": "4 faixas de precificação + ROI estimado",
+    "speakerNotes": ""
+  },
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567809",
+    "position": 9,
+    "filepath": "src/pages/slides/Slide9Contato.tsx",
+    "title": "Vamos Conversar?",
+    "description": "Encerramento — próximos passos",
+    "speakerNotes": ""
+  }
+]
