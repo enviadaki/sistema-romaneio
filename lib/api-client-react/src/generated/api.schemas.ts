@@ -162,6 +162,8 @@ export interface DeliveryManifest {
   contatoMotorista: string;
   rota: string;
   rotaPortaAPorta: number;
+  km: string | null;
+  valorPorKm: string | null;
   valorPagamento: string | null;
   status: string;
   dataPagamento: string | null;

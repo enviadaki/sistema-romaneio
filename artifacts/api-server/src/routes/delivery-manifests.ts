@@ -23,6 +23,8 @@ function buildManifestResponse(manifest: any, items: any[]) {
     contatoMotorista: manifest.contatoMotorista,
     rota: manifest.rota,
     rotaPortaAPorta: manifest.rotaPortaAPorta,
+    km: manifest.km ? String(manifest.km) : null,
+    valorPorKm: manifest.valorPorKm ? String(manifest.valorPorKm) : null,
     valorPagamento: manifest.valorPagamento ? String(manifest.valorPagamento) : null,
     status: manifest.status,
     dataPagamento: manifest.dataPagamento ?? null,
@@ -134,7 +136,7 @@ router.get("/delivery-manifests/:id", requireAuth, async (req, res): Promise<voi
 
 // POST /delivery-manifests
 router.post("/delivery-manifests", requireAuth, async (req, res): Promise<void> => {
-  const { motorista, conferente, contatoMotorista, rota, rotaPortaAPorta, valorPagamento, observacoes, items } =
+  const { motorista, conferente, contatoMotorista, rota, rotaPortaAPorta, km, valorPorKm, valorPagamento, observacoes, items } =
     req.body;
 
   if (!motorista || !conferente || !rota) {
@@ -153,6 +155,8 @@ router.post("/delivery-manifests", requireAuth, async (req, res): Promise<void> 
       contatoMotorista: contatoMotorista ?? "",
       rota,
       rotaPortaAPorta: rotaPortaAPorta ?? 0,
+      km: km ?? null,
+      valorPorKm: valorPorKm ?? null,
       valorPagamento: valorPagamento ?? null,
       status: "ABERTO",
       observacoes: observacoes ?? null,

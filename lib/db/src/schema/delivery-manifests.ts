@@ -10,6 +10,8 @@ export const deliveryManifestsTable = pgTable("delivery_manifests", {
   contatoMotorista: text("contato_motorista").notNull().default(""),
   rota: text("rota").notNull(),
   rotaPortaAPorta: integer("rota_porta_a_porta").notNull().default(0),
+  km: numeric("km", { precision: 10, scale: 2 }),
+  valorPorKm: numeric("valor_por_km", { precision: 10, scale: 4 }),
   valorPagamento: numeric("valor_pagamento", { precision: 10, scale: 2 }),
   status: text("status").notNull().default("ABERTO"),
   dataPagamento: text("data_pagamento"),
