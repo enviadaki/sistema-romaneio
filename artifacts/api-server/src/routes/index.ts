@@ -8,6 +8,7 @@ import deliveriesRouter from "./deliveries";
 import cityContactsRouter from "./city-contacts";
 import deliveryManifestsRouter from "./delivery-manifests";
 import motoristasRouter from "./motoristas";
+import motoristaAuthRouter from "./motorista-auth";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(deliveriesRouter);
 router.use(cityContactsRouter);
 router.use(deliveryManifestsRouter);
 router.use(motoristasRouter);
+router.use(motoristaAuthRouter);
 
 export default router;

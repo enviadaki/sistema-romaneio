@@ -5,3 +5,4 @@ export * from "./city-contacts";
 export * from "./delivery-manifests";
 export * from "./motoristas";
 export * from "./conferentes";
+export * from "./motorista-users";
