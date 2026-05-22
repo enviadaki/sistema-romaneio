@@ -7,6 +7,7 @@ import statsRouter from "./stats";
 import deliveriesRouter from "./deliveries";
 import cityContactsRouter from "./city-contacts";
 import deliveryManifestsRouter from "./delivery-manifests";
+import motoristasRouter from "./motoristas";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(statsRouter);
 router.use(deliveriesRouter);
 router.use(cityContactsRouter);
 router.use(deliveryManifestsRouter);
+router.use(motoristasRouter);
 
 export default router;

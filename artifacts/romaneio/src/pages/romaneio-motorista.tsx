@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { customFetch } from "@workspace/api-client-react";
-import type { DeliveryManifest, CityContact } from "@workspace/api-client-react";
+import type { DeliveryManifest, CityContact, Motorista, Conferente } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import { ROUTES } from "@/lib/routes-data";
 import { getTodayDateString } from "@/lib/date-utils";
@@ -24,17 +24,26 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useToast } from "@/hooks/use-toast";
 import {
-  Loader2,
-  FileDown,
-  Save,
-  Plus,
-  Trash2,
-  ClipboardList,
-} from "lucide-react";
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2, FileDown, Save, Plus, Trash2, ChevronsUpDown, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+
+const OPERACOES = ["LOGGI", "AMAZON", "SHOPEE", "IMILE"];
 
 interface ManualItem {
   empresa: string;
@@ -63,39 +72,111 @@ function formatDateBR(iso: string): string {
   return `${d}/${m}/${y}`;
 }
 
+// Combobox de cidade com busca
+function CidadeCombobox({
+  value,
+  onChange,
+  cities,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  cities: CityContact[];
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          className="h-8 w-full justify-between font-normal text-xs px-2"
+        >
+          <span className="truncate">{value || "Cidade..."}</span>
+          <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[280px] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Buscar cidade..." className="h-8 text-xs" />
+          <CommandList>
+            <CommandEmpty>Nenhuma cidade encontrada.</CommandEmpty>
+            <CommandGroup>
+              {cities.map((c) => (
+                <CommandItem
+                  key={c.city}
+                  value={c.city}
+                  onSelect={(val) => {
+                    onChange(val.toUpperCase());
+                    setOpen(false);
+                  }}
+                  className="text-xs"
+                >
+                  <Check className={cn("mr-2 h-3 w-3", value === c.city ? "opacity-100" : "opacity-0")} />
+                  {c.city}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export default function RomaneioMotorista() {
   const { toast } = useToast();
 
-  // Header fields
+  // ── Dados de referência do BD ──────────────────────────────────────────────
+  const { data: motoristas = [] } = useQuery<Motorista[]>({
+    queryKey: ["motoristas"],
+    queryFn: () => customFetch<Motorista[]>("/api/motoristas"),
+  });
+  const { data: conferentes = [] } = useQuery<Conferente[]>({
+    queryKey: ["conferentes"],
+    queryFn: () => customFetch<Conferente[]>("/api/conferentes"),
+  });
+  const { data: cityContacts = [] } = useQuery<CityContact[]>({
+    queryKey: ["city-contacts"],
+    queryFn: () => customFetch<CityContact[]>("/api/city-contacts"),
+  });
+
+  const contactMap = useMemo(
+    () => new Map(cityContacts.map((c) => [c.city.toUpperCase(), c])),
+    [cityContacts]
+  );
+  const motoristaMap = useMemo(
+    () => new Map(motoristas.map((m) => [m.nome, m])),
+    [motoristas]
+  );
+
+  // ── Campos do cabeçalho ────────────────────────────────────────────────────
   const [rota, setRota] = useState("");
   const [data, setData] = useState(getTodayDateString());
-  const [motorista, setMotorista] = useState("");
-  const [conferente, setConferente] = useState("");
+  const [motoristaSelected, setMotoristaSelected] = useState("");
   const [contatoMotorista, setContatoMotorista] = useState("");
+  const [conferenteSelected, setConferenteSelected] = useState("");
   const [rotaPortaAPorta, setRotaPortaAPorta] = useState(0);
   const [km, setKm] = useState("");
   const [valorPorKm, setValorPorKm] = useState("");
   const [observacoes, setObservacoes] = useState("");
 
-  // Derived payment value
   const valorPagamento = parseDec(km) * parseDec(valorPorKm);
 
-  // Manual rows
+  // ── Linhas manuais ────────────────────────────────────────────────────────
   const [items, setItems] = useState<ManualItem[]>([emptyItem()]);
-
-  // City contacts for auto-fill
-  const { data: cityContacts = [] } = useQuery<CityContact[]>({
-    queryKey: ["city-contacts"],
-    queryFn: () => customFetch<CityContact[]>("/api/city-contacts"),
-  });
-  const contactMap = new Map(cityContacts.map((c) => [c.city.toLowerCase(), c]));
-
   const [saving, setSaving] = useState(false);
   const [savedManifest, setSavedManifest] = useState<DeliveryManifest | null>(null);
 
-  // Auto-fill responsavel/contato when cidade changes
+  // Seleciona motorista → auto-preenche contato
+  function handleMotoristaChange(nome: string) {
+    setMotoristaSelected(nome);
+    const m = motoristaMap.get(nome);
+    if (m) setContatoMotorista(m.contato);
+  }
+
+  // Seleciona cidade → auto-preenche responsavel e contato
   function handleCidadeChange(index: number, cidade: string) {
-    const contact = contactMap.get(cidade.toLowerCase());
+    const contact = contactMap.get(cidade.toUpperCase());
     setItems((prev) => {
       const next = [...prev];
       next[index] = {
@@ -103,6 +184,9 @@ export default function RomaneioMotorista() {
         cidade,
         responsavel: contact?.responsavel ?? next[index].responsavel,
         contato: contact?.contato ?? next[index].contato,
+        empresa: contact?.operacao && OPERACOES.includes(contact.operacao)
+          ? contact.operacao
+          : next[index].empresa,
       };
       return next;
     });
@@ -127,10 +211,18 @@ export default function RomaneioMotorista() {
   function resetForm() {
     setItems([emptyItem()]);
     setSavedManifest(null);
+    setMotoristaSelected("");
+    setContatoMotorista("");
+    setConferenteSelected("");
+    setRota("");
+    setKm("");
+    setValorPorKm("");
+    setObservacoes("");
   }
 
+  // ── Salvar ────────────────────────────────────────────────────────────────
   async function handleSave() {
-    if (!motorista || !conferente || !rota) {
+    if (!motoristaSelected || !conferenteSelected || !rota) {
       toast({ title: "Preencha motorista, conferente e rota.", variant: "destructive" });
       return;
     }
@@ -144,8 +236,8 @@ export default function RomaneioMotorista() {
       const manifest = await customFetch<DeliveryManifest>("/api/delivery-manifests", {
         method: "POST",
         body: JSON.stringify({
-          motorista,
-          conferente,
+          motorista: motoristaSelected,
+          conferente: conferenteSelected,
           contatoMotorista,
           rota,
           rotaPortaAPorta,
@@ -157,7 +249,7 @@ export default function RomaneioMotorista() {
         }),
       });
       setSavedManifest(manifest);
-      toast({ title: `Romaneio Nº ${manifest.numero} salvo!` });
+      toast({ title: `Romaneio Nº ${manifest.numero} salvo com sucesso!` });
     } catch {
       toast({ title: "Erro ao salvar romaneio.", variant: "destructive" });
     } finally {
@@ -165,10 +257,10 @@ export default function RomaneioMotorista() {
     }
   }
 
+  // ── Exportar PDF ──────────────────────────────────────────────────────────
   function handleExportPDF() {
     const numero = savedManifest?.numero ?? "RASCUNHO";
-    const now = new Date();
-    const horaFormatada = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    const horaFormatada = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
     const validItems = items.filter((it) => it.cidade.trim() !== "");
 
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -176,7 +268,7 @@ export default function RomaneioMotorista() {
     const H = doc.internal.pageSize.getHeight();
     const mg = 8;
 
-    // Header bar
+    // Header
     doc.setFillColor(15, 40, 80);
     doc.rect(0, 0, W, 12, "F");
     doc.setTextColor(255, 255, 255);
@@ -191,27 +283,24 @@ export default function RomaneioMotorista() {
     doc.rect(0, 13, W, 22, "F");
     doc.setTextColor(15, 40, 80);
     doc.setFontSize(8.5);
-
     const c1 = mg, c2 = W * 0.22, c3 = W * 0.45, c4 = W * 0.66, c5 = W * 0.83;
     const r1 = 20, r2 = 29;
-
     const bf = (label: string, val: string, x: number, y: number) => {
       doc.setFont("helvetica", "bold");
       doc.text(label, x, y);
       doc.setFont("helvetica", "normal");
       doc.text(val, x + doc.getTextWidth(label) + 1.5, y);
     };
-
     bf("DATA:", formatDateBR(data), c1, r1);
     bf("HORA:", horaFormatada, c1, r2);
-    bf("CONFERENTE:", conferente.toUpperCase(), c2, r1);
-    bf("MOTORISTA:", motorista.toUpperCase(), c2, r2);
+    bf("CONFERENTE:", conferenteSelected.toUpperCase(), c2, r1);
+    bf("MOTORISTA:", motoristaSelected.toUpperCase(), c2, r2);
     bf("CONTATO:", contatoMotorista || "( ) -", c3, r1);
     bf("ROTA PORTA A PORTA:", String(rotaPortaAPorta), c3, r2);
     bf("KM:", km || "0", c4, r1);
     bf("VALOR/KM:", `R$ ${parseDec(valorPorKm).toFixed(4).replace(".", ",")}`, c4, r2);
     bf("VALOR MOTORISTA:", valorPagamento > 0 ? formatBRL(valorPagamento) : "—", c5, r1);
-    bf("ROTA:", rota, c5, r2, );
+    bf("ROTA:", rota, c5, r2);
 
     // Table
     const tableRows = validItems.map((it) => [
@@ -233,13 +322,7 @@ export default function RomaneioMotorista() {
       margin: { left: mg, right: mg },
       theme: "grid",
       styles: { fontSize: 7.5, cellPadding: 1.5, valign: "middle" },
-      headStyles: {
-        fillColor: [15, 40, 80],
-        textColor: [255, 255, 255],
-        fontStyle: "bold",
-        halign: "center",
-        fontSize: 7,
-      },
+      headStyles: { fillColor: [15, 40, 80], textColor: [255, 255, 255], fontStyle: "bold", halign: "center", fontSize: 7 },
       columnStyles: {
         0: { halign: "center", cellWidth: 18 },
         1: { halign: "center", cellWidth: 13 },
@@ -253,8 +336,6 @@ export default function RomaneioMotorista() {
     });
 
     const finalY = (doc as any).lastAutoTable?.finalY ?? H - 20;
-
-    // Totals summary
     const ts = validItems.reduce((s, i) => s + i.sacas, 0);
     const ta = validItems.reduce((s, i) => s + i.avulsos, 0);
     doc.setFont("helvetica", "bold");
@@ -265,7 +346,6 @@ export default function RomaneioMotorista() {
       doc.text(`${km} km × R$ ${parseDec(valorPorKm).toFixed(4).replace(".", ",")} = ${formatBRL(valorPagamento)}`, W - mg, finalY + 6, { align: "right" });
     }
 
-    // Footer signatures
     const fy = H - 12;
     doc.setDrawColor(15, 40, 80);
     doc.setLineWidth(0.4);
@@ -279,7 +359,6 @@ export default function RomaneioMotorista() {
     doc.save(`romaneio-motorista-${numero}-${data}.pdf`);
   }
 
-  // Totals
   const validItems = items.filter((it) => it.cidade.trim() !== "");
   const totalSacas = validItems.reduce((s, i) => s + i.sacas, 0);
   const totalAvulsos = validItems.reduce((s, i) => s + i.avulsos, 0);
@@ -288,16 +367,58 @@ export default function RomaneioMotorista() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Romaneio Motorista</h1>
-        <p className="text-muted-foreground mt-2">Preencha manualmente os dados e gere o romaneio de entrega.</p>
+        <p className="text-muted-foreground mt-2">Preencha os dados e gere o romaneio de entrega.</p>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-6">
-        {/* ── Dados do cabeçalho ── */}
+        {/* ── Painel de dados ── */}
         <Card className="h-fit">
           <CardHeader>
             <CardTitle className="text-base">Dados do Romaneio</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+
+            {/* Motorista */}
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Motorista *</label>
+              <Select value={motoristaSelected} onValueChange={handleMotoristaChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o motorista" />
+                </SelectTrigger>
+                <SelectContent>
+                  {motoristas.map((m) => (
+                    <SelectItem key={m.id} value={m.nome}>{m.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Contato motorista — preenchido automaticamente, editável */}
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Contato do Motorista</label>
+              <Input
+                placeholder="Auto-preenchido"
+                value={contatoMotorista}
+                onChange={(e) => setContatoMotorista(e.target.value)}
+              />
+            </div>
+
+            {/* Conferente */}
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Conferente *</label>
+              <Select value={conferenteSelected} onValueChange={setConferenteSelected}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o conferente" />
+                </SelectTrigger>
+                <SelectContent>
+                  {conferentes.map((c) => (
+                    <SelectItem key={c.id} value={c.nome}>{c.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Rota */}
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Rota *</label>
               <Select value={rota} onValueChange={setRota}>
@@ -312,26 +433,13 @@ export default function RomaneioMotorista() {
               </Select>
             </div>
 
+            {/* Data */}
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Data *</label>
               <Input type="date" value={data} onChange={(e) => setData(e.target.value)} />
             </div>
 
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Motorista *</label>
-              <Input placeholder="Nome do motorista" value={motorista} onChange={(e) => setMotorista(e.target.value)} />
-            </div>
-
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Conferente *</label>
-              <Input placeholder="Nome do conferente" value={conferente} onChange={(e) => setConferente(e.target.value)} />
-            </div>
-
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Contato do Motorista</label>
-              <Input placeholder="(XX) XXXXX-XXXX" value={contatoMotorista} onChange={(e) => setContatoMotorista(e.target.value)} />
-            </div>
-
+            {/* Rota porta a porta */}
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Rota Porta a Porta</label>
               <Input
@@ -341,25 +449,17 @@ export default function RomaneioMotorista() {
               />
             </div>
 
-            {/* KM + Valor/km */}
+            {/* Cálculo km */}
             <div className="rounded-lg border bg-muted/40 p-3 space-y-3">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cálculo de Pagamento</p>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Quilômetros (km)</label>
-                  <Input
-                    placeholder="0"
-                    value={km}
-                    onChange={(e) => setKm(e.target.value)}
-                  />
+                  <Input placeholder="0" value={km} onChange={(e) => setKm(e.target.value)} />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Valor por km (R$)</label>
-                  <Input
-                    placeholder="0,0000"
-                    value={valorPorKm}
-                    onChange={(e) => setValorPorKm(e.target.value)}
-                  />
+                  <Input placeholder="0,0000" value={valorPorKm} onChange={(e) => setValorPorKm(e.target.value)} />
                 </div>
               </div>
               <div className="flex items-center justify-between rounded-md bg-primary/10 px-3 py-2">
@@ -370,6 +470,7 @@ export default function RomaneioMotorista() {
               </div>
             </div>
 
+            {/* Observações */}
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Observações</label>
               <Textarea placeholder="Observações opcionais..." rows={2} value={observacoes} onChange={(e) => setObservacoes(e.target.value)} />
@@ -377,13 +478,11 @@ export default function RomaneioMotorista() {
           </CardContent>
         </Card>
 
-        {/* ── Tabela manual de itens ── */}
+        {/* ── Tabela de cidades ── */}
         <div className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex gap-2 flex-wrap">
-              <Badge variant="outline" className="text-sm">
-                {totalSacas + totalAvulsos} volumes
-              </Badge>
+              <Badge variant="outline" className="text-sm">{totalSacas + totalAvulsos} volumes</Badge>
               {totalSacas > 0 && <Badge variant="secondary">{totalSacas} sacas</Badge>}
               {totalAvulsos > 0 && <Badge variant="secondary">{totalAvulsos} avulsos</Badge>}
               <Badge variant="secondary">{validItems.length} {validItems.length === 1 ? "cidade" : "cidades"}</Badge>
@@ -393,7 +492,9 @@ export default function RomaneioMotorista() {
                 <FileDown className="h-4 w-4 mr-2" /> PDF
               </Button>
               <Button onClick={handleSave} disabled={saving}>
-                {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvando...</> : <><Save className="h-4 w-4 mr-2" />Salvar</>}
+                {saving
+                  ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvando...</>
+                  : <><Save className="h-4 w-4 mr-2" />Salvar</>}
               </Button>
             </div>
           </div>
@@ -401,7 +502,7 @@ export default function RomaneioMotorista() {
           {savedManifest && (
             <div className="flex items-center gap-3 rounded-md bg-green-50 border border-green-200 px-4 py-2 text-sm text-green-800">
               <span className="font-semibold">Romaneio Nº {savedManifest.numero} salvo.</span>
-              <Button size="sm" variant="outline" className="ml-auto" onClick={() => { setSavedManifest(null); resetForm(); }}>
+              <Button size="sm" variant="outline" className="ml-auto" onClick={resetForm}>
                 Novo Romaneio
               </Button>
             </div>
@@ -416,8 +517,8 @@ export default function RomaneioMotorista() {
                     <TableHead className="w-[72px] text-center">Sacas</TableHead>
                     <TableHead className="w-[72px] text-center">Avulsos</TableHead>
                     <TableHead className="w-[60px] text-center">Total</TableHead>
-                    <TableHead className="min-w-[140px]">Cidade</TableHead>
-                    <TableHead className="min-w-[180px]">Responsável</TableHead>
+                    <TableHead className="min-w-[180px]">Cidade</TableHead>
+                    <TableHead className="min-w-[200px]">Responsável</TableHead>
                     <TableHead className="min-w-[130px]">Contato</TableHead>
                     <TableHead className="w-[40px]"></TableHead>
                   </TableRow>
@@ -431,8 +532,9 @@ export default function RomaneioMotorista() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="LOGGI">LOGGI</SelectItem>
-                            <SelectItem value="AMAZON">AMAZON</SelectItem>
+                            {OPERACOES.map((op) => (
+                              <SelectItem key={op} value={op}>{op}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </TableCell>
@@ -456,16 +558,15 @@ export default function RomaneioMotorista() {
                         {item.sacas + item.avulsos}
                       </TableCell>
                       <TableCell className="px-1">
-                        <Input
-                          className="h-8"
-                          placeholder="Cidade"
+                        <CidadeCombobox
                           value={item.cidade}
-                          onChange={(e) => handleCidadeChange(idx, e.target.value)}
+                          onChange={(v) => handleCidadeChange(idx, v)}
+                          cities={cityContacts}
                         />
                       </TableCell>
                       <TableCell className="px-1">
                         <Input
-                          className="h-8"
+                          className="h-8 text-xs"
                           placeholder="Nome do responsável"
                           value={item.responsavel}
                           onChange={(e) => updateItem(idx, "responsavel", e.target.value)}
@@ -473,7 +574,7 @@ export default function RomaneioMotorista() {
                       </TableCell>
                       <TableCell className="px-1">
                         <Input
-                          className="h-8"
+                          className="h-8 text-xs"
                           placeholder="(XX) XXXXX-XXXX"
                           value={item.contato}
                           onChange={(e) => updateItem(idx, "contato", e.target.value)}
@@ -494,20 +595,12 @@ export default function RomaneioMotorista() {
                 </TableBody>
               </Table>
             </div>
-
             <div className="p-3 border-t">
               <Button variant="outline" size="sm" onClick={addRow} className="w-full">
-                <Plus className="h-4 w-4 mr-2" /> Adicionar Linha
+                <Plus className="h-4 w-4 mr-2" /> Adicionar Cidade
               </Button>
             </div>
           </Card>
-
-          {validItems.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-6 text-center text-muted-foreground text-sm">
-              <ClipboardList className="h-8 w-8 mb-2 opacity-30" />
-              <p>Preencha ao menos uma cidade na tabela acima.</p>
-            </div>
-          )}
         </div>
       </div>
     </div>

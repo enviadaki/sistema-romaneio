@@ -154,6 +154,19 @@ export interface MotoristaSummary {
   contatoMotorista: string;
 }
 
+export interface Motorista {
+  id: number;
+  nome: string;
+  contato: string;
+  createdAt: string;
+}
+
+export interface Conferente {
+  id: number;
+  nome: string;
+  createdAt: string;
+}
+
 export interface DeliveryManifestItem {
   id: number;
   manifestId: number;
