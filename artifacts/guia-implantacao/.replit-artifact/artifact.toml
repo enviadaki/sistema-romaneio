@@ -1,0 +1,31 @@
+kind = "slides"
+previewPath = "/guia-implantacao/"
+title = "Guia de Implantação — Sistema de Romaneios"
+version = "1.0.0"
+id = "artifacts/guia-implantacao"
+router = "path"
+
+[[integratedSkills]]
+name = "slides"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/guia-implantacao/" ]
+localPort = 22498
+
+[services.development]
+run = "pnpm --filter @workspace/guia-implantacao run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/guia-implantacao", "run", "build" ]
+publicDir = "artifacts/guia-implantacao/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22498"
+BASE_PATH = "/guia-implantacao/"
