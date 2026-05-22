@@ -6,9 +6,9 @@ const clerkClient = createClerkClient({
 });
 
 // Roles permitted to access the system. Override via ALLOWED_ROLES env var
-// (comma-separated, e.g. "operator,admin"). Defaults to "operator,admin".
+// (comma-separated, e.g. "operator,admin,motorista"). Defaults to "operator,admin,motorista".
 const ALLOWED_ROLES = new Set(
-  (process.env.ALLOWED_ROLES ?? "operator,admin")
+  (process.env.ALLOWED_ROLES ?? "operator,admin,motorista")
     .split(",")
     .map((r) => r.trim())
     .filter(Boolean)

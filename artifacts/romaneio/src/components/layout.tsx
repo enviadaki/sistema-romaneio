@@ -1,16 +1,27 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { LayoutDashboard, Package, ScanLine, History, FileText, LogOut, User, Search, Truck, ClipboardList, DollarSign } from "lucide-react";
 import { useClerk, useUser } from "@clerk/react";
 import { useOperation, OPERATIONS } from "@/contexts/operation-context";
 
+const MOTORISTA_PATHS = ["/romaneio", "/romaneio-motorista"];
+
 export function Layout({ children }: { children: ReactNode }) {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const { signOut } = useClerk();
   const { user } = useUser();
   const { operation, setOperation } = useOperation();
 
-  const navItems = [
+  const role = user?.publicMetadata?.role as string | undefined;
+  const isMotorista = role === "motorista";
+
+  useEffect(() => {
+    if (isMotorista && !MOTORISTA_PATHS.some((p) => location === p)) {
+      navigate("/romaneio");
+    }
+  }, [isMotorista, location, navigate]);
+
+  const allNavItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/cadastro", label: "Cadastro", icon: Package },
     { href: "/pre-sorter", label: "Pré-Sorter", icon: ScanLine },
@@ -21,6 +32,13 @@ export function Layout({ children }: { children: ReactNode }) {
     { href: "/romaneio-motorista", label: "Romaneio Motorista", icon: ClipboardList },
     { href: "/financeiro", label: "Financeiro", icon: DollarSign },
   ];
+
+  const motoristaNavItems = [
+    { href: "/romaneio", label: "Romaneio", icon: FileText },
+    { href: "/romaneio-motorista", label: "Romaneio Motorista", icon: ClipboardList },
+  ];
+
+  const navItems = isMotorista ? motoristaNavItems : allNavItems;
 
   const displayName =
     user?.fullName ||

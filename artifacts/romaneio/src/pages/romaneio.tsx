@@ -10,6 +10,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { ROUTES } from "@/lib/routes-data";
 import { useQuery } from "@tanstack/react-query";
+import { useUser } from "@clerk/react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -69,10 +70,16 @@ async function fetchRomaneio(params: {
 
 export default function Romaneio() {
   const { operation } = useOperation();
+  const { user } = useUser();
   const [filterMode, setFilterMode] = useState<FilterMode>("cidade");
   const [city, setCity] = useState<string>("");
   const [selectedRoute, setSelectedRoute] = useState<string>("");
   const [date, setDate] = useState<string>(getTodayDateString());
+
+  const allowedRouteCodes = user?.publicMetadata?.allowedRoutes as string[] | undefined;
+  const filteredRoutes = allowedRouteCodes
+    ? ROUTES.filter((r) => allowedRouteCodes.some((code) => r.name.includes(code)))
+    : ROUTES;
 
   const [empresa, setEmpresa] = useState(() => localStorage.getItem("romaneio_empresa") || "");
   const [cnpj, setCnpj] = useState(() => localStorage.getItem("romaneio_cnpj") || "");
@@ -96,7 +103,7 @@ export default function Romaneio() {
   const isReady =
     !!date && (filterMode === "cidade" ? !!city : !!selectedRoute);
 
-  const routeObj = ROUTES.find((r) => r.name === selectedRoute);
+  const routeObj = filteredRoutes.find((r) => r.name === selectedRoute);
 
   const { data: romaneio, isLoading } = useQuery({
     queryKey: ["romaneio", filterMode, filterMode === "cidade" ? city : selectedRoute, date, operation],
@@ -433,7 +440,7 @@ export default function Romaneio() {
                   <SelectValue placeholder="Selecione a rota..." />
                 </SelectTrigger>
                 <SelectContent className="max-h-[300px]">
-                  {ROUTES.map(r => (
+                  {filteredRoutes.map(r => (
                     <SelectItem key={r.name} value={r.name}>
                       <span className="font-medium">{r.name}</span>
                       <span className="ml-2 text-xs text-muted-foreground">({r.cities.length} cidades)</span>
