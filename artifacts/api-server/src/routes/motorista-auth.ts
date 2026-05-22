@@ -2,6 +2,8 @@ import { Router } from "express";
 import { getAuth, createClerkClient } from "@clerk/express";
 import { db, motoristaUsersTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 
 const router = Router();
 
@@ -28,6 +30,61 @@ async function requireAdminClerk(req: any, res: any, next: any): Promise<void> {
   }
 }
 
+// POST /api/motorista/login — public, no auth required
+router.post("/motorista/login", async (req, res): Promise<void> => {
+  const { username, password } = req.body as { username?: unknown; password?: unknown };
+  if (typeof username !== "string" || typeof password !== "string") {
+    res.status(400).json({ error: "username e password são obrigatórios" });
+    return;
+  }
+  try {
+    const [user] = await db
+      .select()
+      .from(motoristaUsersTable)
+      .where(eq(motoristaUsersTable.username, username.trim().toLowerCase()));
+
+    if (!user || !user.isActive) {
+      res.status(401).json({ error: "Usuário ou senha inválidos" });
+      return;
+    }
+
+    if (!user.passwordHash) {
+      res.status(401).json({ error: "Conta sem senha configurada. Contate o administrador." });
+      return;
+    }
+
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) {
+      res.status(401).json({ error: "Usuário ou senha inválidos" });
+      return;
+    }
+
+    const secret = process.env.SESSION_SECRET;
+    if (!secret) {
+      res.status(500).json({ error: "Configuração de segurança ausente" });
+      return;
+    }
+
+    const token = jwt.sign(
+      {
+        id: user.id,
+        username: user.username,
+        fullName: user.fullName,
+        allowedRoutes: user.allowedRoutes,
+        role: "motorista",
+      },
+      secret,
+      { expiresIn: "24h" }
+    );
+
+    res.json({ token, username: user.username, fullName: user.fullName, allowedRoutes: user.allowedRoutes });
+  } catch (err) {
+    req.log?.error({ err }, "motorista/login error");
+    res.status(500).json({ error: "Erro interno" });
+  }
+});
+
+// GET /api/motorista/identifier?username=X — public, used as fallback
 router.get("/motorista/identifier", async (req, res): Promise<void> => {
   const { username } = req.query;
   if (!username || typeof username !== "string") {
@@ -51,6 +108,7 @@ router.get("/motorista/identifier", async (req, res): Promise<void> => {
   }
 });
 
+// GET /api/admin/motorista-users — admin only
 router.get("/admin/motorista-users", requireAdminClerk, async (req, res): Promise<void> => {
   try {
     const users = await db
@@ -71,6 +129,7 @@ router.get("/admin/motorista-users", requireAdminClerk, async (req, res): Promis
   }
 });
 
+// POST /api/admin/motorista-users — admin only
 router.post("/admin/motorista-users", requireAdminClerk, async (req, res): Promise<void> => {
   const { username, fullName, password, allowedRoutes } = req.body as {
     username: unknown;
@@ -91,8 +150,9 @@ router.post("/admin/motorista-users", requireAdminClerk, async (req, res): Promi
     res.status(400).json({ error: "Senha deve ter no mínimo 6 caracteres" });
     return;
   }
-  const routes: string[] = Array.isArray(allowedRoutes) ? (allowedRoutes as string[]).filter((r) => typeof r === "string") : [];
-  const clerkEmail = `motorista-${username}@sistema.com`;
+  const routes: string[] = Array.isArray(allowedRoutes)
+    ? (allowedRoutes as string[]).filter((r) => typeof r === "string")
+    : [];
 
   try {
     const existing = await db
@@ -104,40 +164,26 @@ router.post("/admin/motorista-users", requireAdminClerk, async (req, res): Promi
       return;
     }
 
-    const nameParts = fullName.trim().split(" ");
-    const firstName = nameParts[0];
-    const lastName = nameParts.slice(1).join(" ") || "";
-
-    const clerkUser = await clerkClient.users.createUser({
-      emailAddress: [clerkEmail],
-      username,
-      password,
-      skipPasswordChecks: true,
-      firstName,
-      lastName,
-      publicMetadata: {
-        role: "motorista",
-        allowedRoutes: routes,
-      },
-    });
+    const passwordHash = await bcrypt.hash(password, 10);
 
     await db.insert(motoristaUsersTable).values({
       username,
-      clerkUserId: clerkUser.id,
-      clerkEmail,
+      passwordHash,
+      clerkUserId: "",
+      clerkEmail: "",
       fullName,
       allowedRoutes: routes,
       isActive: true,
     });
 
-    res.status(201).json({ id: clerkUser.id, username, fullName });
+    res.status(201).json({ username, fullName });
   } catch (err: any) {
     req.log?.error({ err }, "admin/motorista-users POST error");
-    const msg = err?.errors?.[0]?.longMessage ?? err?.message ?? "Erro ao criar usuário";
-    res.status(500).json({ error: msg });
+    res.status(500).json({ error: err?.message ?? "Erro ao criar usuário" });
   }
 });
 
+// DELETE /api/admin/motorista-users/:id — admin only
 router.delete("/admin/motorista-users/:id", requireAdminClerk, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) {
@@ -153,7 +199,14 @@ router.delete("/admin/motorista-users/:id", requireAdminClerk, async (req, res):
       res.status(404).json({ error: "Usuário não encontrado" });
       return;
     }
-    await clerkClient.users.deleteUser(user.clerkUserId);
+    // Also delete from Clerk if we have a Clerk user ID
+    if (user.clerkUserId) {
+      try {
+        await clerkClient.users.deleteUser(user.clerkUserId);
+      } catch {
+        // Non-fatal: might not exist in Clerk
+      }
+    }
     await db.delete(motoristaUsersTable).where(eq(motoristaUsersTable.id, id));
     res.json({ success: true });
   } catch (err: any) {

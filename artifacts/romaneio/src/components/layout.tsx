@@ -3,25 +3,43 @@ import { Link, useLocation } from "wouter";
 import { LayoutDashboard, Package, ScanLine, History, FileText, LogOut, User, Search, Truck, ClipboardList, DollarSign, Users } from "lucide-react";
 import { useClerk, useUser } from "@clerk/react";
 import { useOperation, OPERATIONS } from "@/contexts/operation-context";
+import { useMotoristaAuth } from "@/contexts/motorista-auth-context";
 
-const MOTORISTA_PATHS = ["/romaneio", "/romaneio-motorista"];
+const ALL_MOTORISTA_PATHS = ["/romaneio", "/romaneio-motorista"];
 
 export function Layout({ children }: { children: ReactNode }) {
   const [location, navigate] = useLocation();
   const { signOut } = useClerk();
-  const { user } = useUser();
+  const { user: clerkUser } = useUser();
+  const { user: motoristaUser, logout: motoristaLogout } = useMotoristaAuth();
   const { operation, setOperation } = useOperation();
 
-  const role = user?.publicMetadata?.role as string | undefined;
-  const isMotorista = role === "motorista";
+  const isMotorista =
+    motoristaUser !== null || (clerkUser?.publicMetadata?.role as string | undefined) === "motorista";
+
+  const role = motoristaUser?.role ?? (clerkUser?.publicMetadata?.role as string | undefined);
+  const isAdmin = role === "admin" || role === "operator";
+
+  const displayName =
+    motoristaUser?.fullName ||
+    clerkUser?.fullName ||
+    clerkUser?.primaryEmailAddress?.emailAddress ||
+    "Usuário";
+
+  const handleSignOut = () => {
+    if (motoristaUser) {
+      motoristaLogout();
+      navigate("/sign-in");
+    } else {
+      signOut();
+    }
+  };
 
   useEffect(() => {
-    if (isMotorista && !MOTORISTA_PATHS.some((p) => location === p)) {
+    if (isMotorista && !ALL_MOTORISTA_PATHS.some((p) => location === p)) {
       navigate("/romaneio");
     }
   }, [isMotorista, location, navigate]);
-
-  const isAdmin = role === "admin" || role === "operator";
 
   const allNavItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -42,11 +60,6 @@ export function Layout({ children }: { children: ReactNode }) {
   ];
 
   const navItems = isMotorista ? motoristaNavItems : allNavItems;
-
-  const displayName =
-    user?.fullName ||
-    user?.primaryEmailAddress?.emailAddress ||
-    "Usuário";
 
   const operationColors: Record<string, { active: string; inactive: string }> = {
     LOGGI: {
@@ -119,14 +132,17 @@ export function Layout({ children }: { children: ReactNode }) {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{displayName}</p>
-              {user?.primaryEmailAddress && user?.fullName && (
+              {motoristaUser && (
+                <p className="text-xs text-sidebar-foreground/60 truncate">motorista</p>
+              )}
+              {!motoristaUser && clerkUser?.primaryEmailAddress && clerkUser?.fullName && (
                 <p className="text-xs text-sidebar-foreground/60 truncate">
-                  {user.primaryEmailAddress.emailAddress}
+                  {clerkUser.primaryEmailAddress.emailAddress}
                 </p>
               )}
             </div>
             <button
-              onClick={() => signOut()}
+              onClick={handleSignOut}
               className="flex-shrink-0 p-1.5 rounded-md text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
               title="Sair"
             >

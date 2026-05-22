@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { Switch, Route, Router as WouterRouter, Redirect, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import { ClerkProvider, SignIn, Show, useClerk, useAuth, useSignIn } from "@clerk/react";
+import { ClerkProvider, SignIn, useClerk, useAuth } from "@clerk/react";
 import { shadcn } from "@clerk/themes";
-import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import { Layout } from "@/components/layout";
 import { OperationProvider } from "@/contexts/operation-context";
+import { MotoristaAuthProvider, useMotoristaAuth } from "@/contexts/motorista-auth-context";
 
 import Dashboard from "@/pages/dashboard";
 import Cadastro from "@/pages/cadastro";
@@ -87,7 +87,8 @@ const clerkAppearance = {
 };
 
 function MotoristaLoginForm() {
-  const { signIn, setActive, isLoaded } = useSignIn();
+  const { login } = useMotoristaAuth();
+  const [, navigate] = useLocation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -95,27 +96,23 @@ function MotoristaLoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isLoaded || !signIn) return;
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(
-        `/api/motorista/identifier?username=${encodeURIComponent(username.trim().toLowerCase())}`
-      );
+      const res = await fetch("/api/motorista/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: username.trim().toLowerCase(), password }),
+      });
+      const data = await res.json();
       if (!res.ok) {
-        setError("Usuário não encontrado");
-        setLoading(false);
+        setError(data.error ?? "Usuário ou senha inválidos");
         return;
       }
-      const { identifier } = await res.json();
-      const result = await signIn.create({ identifier, password });
-      if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
-      } else {
-        setError("Falha no login. Tente novamente.");
-      }
+      login(data.token);
+      navigate("/romaneio");
     } catch {
-      setError("Usuário ou senha inválidos");
+      setError("Erro de conexão. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -228,18 +225,37 @@ function SignInPage() {
 }
 
 
-function ClerkAuthTokenSetter() {
-  const { getToken } = useAuth();
+function ProtectedApp() {
+  const { isSignedIn, isLoaded: clerkLoaded } = useAuth();
+  const { isAuthenticated: isMotoristaAuth } = useMotoristaAuth();
 
-  useEffect(() => {
-    setAuthTokenGetter(() => getToken());
-    return () => setAuthTokenGetter(null);
-  }, [getToken]);
+  if (!clerkLoaded) return null;
 
-  return null;
+  if (isSignedIn || isMotoristaAuth) {
+    return (
+      <Layout>
+        <Switch>
+          <Route path="/" component={Dashboard} />
+          <Route path="/cadastro" component={Cadastro} />
+          <Route path="/pre-sorter" component={PreSorter} />
+          <Route path="/consulta" component={Consulta} />
+          <Route path="/entrega" component={Entrega} />
+          <Route path="/historico" component={Historico} />
+          <Route path="/romaneio" component={Romaneio} />
+          <Route path="/romaneio-motorista" component={RomaneioMotorista} />
+          <Route path="/financeiro" component={Financeiro} />
+          <Route path="/usuarios" component={MotoristaUsuarios} />
+          <Route component={NotFound} />
+        </Switch>
+      </Layout>
+    );
+  }
+
+  return <Redirect to="/sign-in" />;
 }
 
-function ClerkQueryClientCacheInvalidator() {
+function AppInner() {
+  const { getToken } = useAuth();
   const { addListener } = useClerk();
   const queryClient = useQueryClient();
   const prevUserIdRef = useRef<string | null | undefined>(undefined);
@@ -247,10 +263,7 @@ function ClerkQueryClientCacheInvalidator() {
   useEffect(() => {
     const unsubscribe = addListener(({ user }) => {
       const userId = user?.id ?? null;
-      if (
-        prevUserIdRef.current !== undefined &&
-        prevUserIdRef.current !== userId
-      ) {
+      if (prevUserIdRef.current !== undefined && prevUserIdRef.current !== userId) {
         queryClient.clear();
       }
       prevUserIdRef.current = userId;
@@ -258,33 +271,15 @@ function ClerkQueryClientCacheInvalidator() {
     return unsubscribe;
   }, [addListener, queryClient]);
 
-  return null;
-}
-
-function ProtectedApp() {
   return (
-    <>
-      <Show when="signed-in">
-        <Layout>
-          <Switch>
-            <Route path="/" component={Dashboard} />
-            <Route path="/cadastro" component={Cadastro} />
-            <Route path="/pre-sorter" component={PreSorter} />
-            <Route path="/consulta" component={Consulta} />
-            <Route path="/entrega" component={Entrega} />
-            <Route path="/historico" component={Historico} />
-            <Route path="/romaneio" component={Romaneio} />
-            <Route path="/romaneio-motorista" component={RomaneioMotorista} />
-            <Route path="/financeiro" component={Financeiro} />
-            <Route path="/usuarios" component={MotoristaUsuarios} />
-            <Route component={NotFound} />
-          </Switch>
-        </Layout>
-      </Show>
-      <Show when="signed-out">
-        <Redirect to="/sign-in" />
-      </Show>
-    </>
+    <MotoristaAuthProvider clerkGetToken={getToken}>
+      <Switch>
+        <Route path="/sign-in/*?" component={SignInPage} />
+        <Route path="/sign-up/*?" component={() => <Redirect to="/sign-in" />} />
+        <Route path="/*?" component={ProtectedApp} />
+      </Switch>
+      <Toaster />
+    </MotoristaAuthProvider>
   );
 }
 
@@ -310,14 +305,7 @@ function AppRoutes() {
     >
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <ClerkAuthTokenSetter />
-          <ClerkQueryClientCacheInvalidator />
-          <Switch>
-            <Route path="/sign-in/*?" component={SignInPage} />
-            <Route path="/sign-up/*?" component={() => <Redirect to="/sign-in" />} />
-            <Route path="/*?" component={ProtectedApp} />
-          </Switch>
-          <Toaster />
+          <AppInner />
         </TooltipProvider>
       </QueryClientProvider>
     </ClerkProvider>

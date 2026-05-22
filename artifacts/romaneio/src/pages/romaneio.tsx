@@ -11,6 +11,7 @@ import autoTable from "jspdf-autotable";
 import { ROUTES } from "@/lib/routes-data";
 import { useQuery } from "@tanstack/react-query";
 import { useUser } from "@clerk/react";
+import { useMotoristaAuth } from "@/contexts/motorista-auth-context";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -71,13 +72,17 @@ async function fetchRomaneio(params: {
 export default function Romaneio() {
   const { operation } = useOperation();
   const { user } = useUser();
+  const { user: motoristaUser } = useMotoristaAuth();
   const [filterMode, setFilterMode] = useState<FilterMode>("cidade");
   const [city, setCity] = useState<string>("");
   const [selectedRoute, setSelectedRoute] = useState<string>("");
   const [date, setDate] = useState<string>(getTodayDateString());
 
-  const allowedRouteCodes = user?.publicMetadata?.allowedRoutes as string[] | undefined;
-  const filteredRoutes = allowedRouteCodes
+  const allowedRouteCodes: string[] | undefined =
+    motoristaUser?.allowedRoutes?.length
+      ? motoristaUser.allowedRoutes
+      : (user?.publicMetadata?.allowedRoutes as string[] | undefined);
+  const filteredRoutes = allowedRouteCodes?.length
     ? ROUTES.filter((r) => allowedRouteCodes.some((code) => r.name.includes(code)))
     : ROUTES;
 

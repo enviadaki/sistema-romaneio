@@ -1,5 +1,6 @@
 import { getAuth, createClerkClient } from "@clerk/express";
 import type { Request, Response, NextFunction } from "express";
+import jwt from "jsonwebtoken";
 
 const clerkClient = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY,
@@ -15,9 +16,6 @@ const ALLOWED_ROLES = new Set(
 );
 
 // Emails that automatically receive admin role (comma-separated).
-// Used as a bootstrap mechanism so the first authorized user doesn't
-// need manual role assignment in Clerk metadata — particularly useful
-// across dev/prod Clerk instance boundaries (Replit swaps keys on publish).
 const ADMIN_EMAILS = new Set(
   (process.env.ADMIN_EMAILS ?? "")
     .split(",")
@@ -49,22 +47,17 @@ async function resolveUser(userId: string): Promise<{ name: string | null; autho
 
     let authorized = ALLOWED_ROLES.has(role ?? "");
 
-    // If not authorized via role, check if their primary email is in ADMIN_EMAILS.
-    // This bootstraps access across Clerk instance boundaries (dev→prod key swap)
-    // and auto-promotes the user to admin so future logins also work.
     if (!authorized && ADMIN_EMAILS.size > 0) {
       const primaryEmail = user.emailAddresses[0]?.emailAddress?.toLowerCase();
       if (primaryEmail && ADMIN_EMAILS.has(primaryEmail)) {
         authorized = true;
-        // Auto-set the role in Clerk metadata so this path is only needed once
         try {
           await clerkClient.users.updateUser(userId, {
             publicMetadata: { ...((user.publicMetadata as object) ?? {}), role: "admin" },
           });
-          // Bust cache so next request uses fresh metadata
           userCache.delete(userId);
         } catch {
-          // Non-fatal: user is still authorized this request; role persists next time
+          // Non-fatal
         }
       }
     }
@@ -76,29 +69,51 @@ async function resolveUser(userId: string): Promise<{ name: string | null; autho
   }
 }
 
+function tryMotoristaJwt(req: Request): boolean {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) return false;
+  const token = authHeader.slice(7);
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) return false;
+  try {
+    const payload = jwt.verify(token, secret) as Record<string, unknown>;
+    if (payload.role !== "motorista") return false;
+    (req as any).userId = `motorista_${payload.id}`;
+    (req as any).userFullName = payload.fullName ?? payload.username;
+    (req as any).isMotorista = true;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+  // Try Clerk auth first
   const auth = getAuth(req);
   const userId = auth?.userId;
-  if (!userId) {
-    res.status(401).json({ error: "Não autorizado. Faça login para continuar." });
+
+  if (userId) {
+    (req as any).userId = userId;
+    resolveUser(userId)
+      .then(({ name, authorized }) => {
+        if (!authorized) {
+          res.status(403).json({ error: "Acesso negado. Conta não autorizada para este sistema." });
+          return;
+        }
+        (req as any).userFullName = name;
+        next();
+      })
+      .catch(() => {
+        res.status(403).json({ error: "Acesso negado. Conta não autorizada para este sistema." });
+      });
     return;
   }
-  (req as any).userId = userId;
 
-  resolveUser(userId)
-    .then(({ name, authorized }) => {
-      if (!authorized) {
-        res
-          .status(403)
-          .json({ error: "Acesso negado. Conta não autorizada para este sistema." });
-        return;
-      }
-      (req as any).userFullName = name;
-      next();
-    })
-    .catch(() => {
-      res
-        .status(403)
-        .json({ error: "Acesso negado. Conta não autorizada para este sistema." });
-    });
+  // Fall back to motorista JWT
+  if (tryMotoristaJwt(req)) {
+    next();
+    return;
+  }
+
+  res.status(401).json({ error: "Não autorizado. Faça login para continuar." });
 }

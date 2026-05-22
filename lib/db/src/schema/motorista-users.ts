@@ -5,8 +5,9 @@ import { z } from "zod/v4";
 export const motoristaUsersTable = pgTable("motorista_users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
-  clerkUserId: text("clerk_user_id").notNull().unique(),
-  clerkEmail: text("clerk_email").notNull(),
+  passwordHash: text("password_hash").notNull().default(""),
+  clerkUserId: text("clerk_user_id").default(""),
+  clerkEmail: text("clerk_email").default(""),
   fullName: text("full_name").notNull().default(""),
   allowedRoutes: text("allowed_routes").array().notNull().default([]),
   isActive: boolean("is_active").notNull().default(true),
