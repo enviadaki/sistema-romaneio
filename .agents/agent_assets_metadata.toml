@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "3sVYjw0JdQvvr6tHqRfa0"
+uri = "file://.local/outputs/Sistema-de-Romaneios---Apresenta--o-de-Vendas.pptx"
+type = "slides"
+title = "Sistema de Romaneios — Apresentação de Vendas (PPTX)"
