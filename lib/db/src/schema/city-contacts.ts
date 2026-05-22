@@ -7,6 +7,11 @@ export const cityContactsTable = pgTable("city_contacts", {
   city: text("city").notNull().unique(),
   responsavel: text("responsavel").notNull(),
   contato: text("contato").notNull().default(""),
+  entregador: text("entregador").notNull().default(""),
+  motorista: text("motorista").notNull().default(""),
+  contatoMotorista: text("contato_motorista").notNull().default(""),
+  conferente: text("conferente").notNull().default(""),
+  operacao: text("operacao").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()

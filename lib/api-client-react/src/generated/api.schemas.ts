@@ -139,8 +139,19 @@ export interface CityContact {
   city: string;
   responsavel: string;
   contato: string;
+  entregador: string;
+  motorista: string;
+  contatoMotorista: string;
+  conferente: string;
+  operacao: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface MotoristaSummary {
+  motorista: string;
+  conferente: string;
+  contatoMotorista: string;
 }
 
 export interface DeliveryManifestItem {
