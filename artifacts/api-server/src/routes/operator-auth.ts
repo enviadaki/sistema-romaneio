@@ -67,12 +67,13 @@ router.post("/operator/login", async (req, res): Promise<void> => {
         username: user.username,
         fullName: user.fullName,
         allowedOperations: user.allowedOperations,
+        allowedPages: user.allowedPages,
         role: "operator",
       },
       secret,
       { expiresIn: "24h" }
     );
-    res.json({ token, username: user.username, fullName: user.fullName, allowedOperations: user.allowedOperations });
+    res.json({ token, username: user.username, fullName: user.fullName, allowedOperations: user.allowedOperations, allowedPages: user.allowedPages });
   } catch (err) {
     req.log?.error({ err }, "operator/login error");
     res.status(500).json({ error: "Erro interno" });
@@ -102,8 +103,8 @@ router.get("/admin/operator-users", requireAdminClerk, async (req, res): Promise
 
 // POST /api/admin/operator-users — admin only
 router.post("/admin/operator-users", requireAdminClerk, async (req, res): Promise<void> => {
-  const { username, fullName, password, allowedOperations } = req.body as {
-    username: unknown; fullName: unknown; password: unknown; allowedOperations: unknown;
+  const { username, fullName, password, allowedOperations, allowedPages } = req.body as {
+    username: unknown; fullName: unknown; password: unknown; allowedOperations: unknown; allowedPages: unknown;
   };
   if (typeof username !== "string" || username.length < 3 || username.length > 32 || !/^[a-z0-9_]+$/.test(username)) {
     res.status(400).json({ error: "username inválido (3-32 chars, apenas letras minúsculas, números e _)" });
@@ -120,6 +121,10 @@ router.post("/admin/operator-users", requireAdminClerk, async (req, res): Promis
   const operations: string[] = Array.isArray(allowedOperations)
     ? (allowedOperations as string[]).filter((o) => o === "LOGGI" || o === "AMAZON")
     : [];
+  const VALID_PAGES = ["dashboard","cadastro","pre-sorter","consulta","entrega","historico","romaneio","romaneio-motorista","financeiro"];
+  const pages: string[] = Array.isArray(allowedPages)
+    ? (allowedPages as string[]).filter((p) => VALID_PAGES.includes(p))
+    : [];
 
   try {
     const existing = await db.select({ id: operatorUsersTable.id })
@@ -135,6 +140,7 @@ router.post("/admin/operator-users", requireAdminClerk, async (req, res): Promis
       passwordHash,
       fullName,
       allowedOperations: operations,
+      allowedPages: pages,
       isActive: true,
     });
     res.status(201).json({ username, fullName });

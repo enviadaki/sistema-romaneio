@@ -6,6 +6,7 @@ interface OperatorUser {
   username: string;
   fullName: string;
   allowedOperations: string[];
+  allowedPages: string[];
   role: "operator";
 }
 
@@ -40,6 +41,7 @@ function parseOperatorJwt(token: string): OperatorUser | null {
       username: payload.username,
       fullName: payload.fullName,
       allowedOperations: payload.allowedOperations ?? [],
+      allowedPages: payload.allowedPages ?? [],
       role: "operator",
     };
   } catch {

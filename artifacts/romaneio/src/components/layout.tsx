@@ -8,6 +8,7 @@ import { useClerk, useUser } from "@clerk/react";
 import { useOperation, OPERATIONS } from "@/contexts/operation-context";
 import { useMotoristaAuth } from "@/contexts/motorista-auth-context";
 import { useOperatorAuth } from "@/contexts/operator-auth-context";
+import { isPageAllowed } from "@/lib/operator-pages";
 
 const ALL_MOTORISTA_PATHS = ["/entrega"];
 
@@ -73,6 +74,8 @@ export function Layout({ children }: { children: ReactNode }) {
     }
   }, [isCustomOperator, operatorUser, setOperation]);
 
+  const operatorAllowedPages = isCustomOperator ? (operatorUser!.allowedPages ?? []) : [];
+
   const allNavItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/cadastro", label: "Cadastro", icon: Package },
@@ -95,7 +98,12 @@ export function Layout({ children }: { children: ReactNode }) {
     { href: "/entrega", label: "Checagem de Entrega", icon: Truck },
   ];
 
-  const navItems = isMotorista ? motoristaNavItems : allNavItems;
+  // For custom operators, filter nav items to only allowed pages
+  const filteredNavItems = isCustomOperator
+    ? allNavItems.filter((item) => isPageAllowed(operatorAllowedPages, item.href))
+    : allNavItems;
+
+  const navItems = isMotorista ? motoristaNavItems : filteredNavItems;
 
   const operationColors: Record<string, { active: string; inactive: string }> = {
     LOGGI: {

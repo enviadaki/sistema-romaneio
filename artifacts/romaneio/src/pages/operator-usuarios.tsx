@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { useUser } from "@clerk/react";
-import { Plus, Trash2, User, Shield } from "lucide-react";
+import { Plus, Trash2, User, Shield, ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { OPERATOR_PAGES, groupedPages, type PageDef } from "@/lib/operator-pages";
 
 const OPERATION_OPTIONS = ["LOGGI", "AMAZON"];
 
@@ -36,6 +37,7 @@ interface OperatorUser {
   username: string;
   fullName: string;
   allowedOperations: string[];
+  allowedPages: string[];
   isActive: boolean;
   createdAt: string;
 }
@@ -45,6 +47,7 @@ interface CreateForm {
   fullName: string;
   password: string;
   allowedOperations: string[];
+  allowedPages: string[];
 }
 
 const emptyForm: CreateForm = {
@@ -52,7 +55,37 @@ const emptyForm: CreateForm = {
   fullName: "",
   password: "",
   allowedOperations: [],
+  allowedPages: [],
 };
+
+const PAGE_GROUPS = groupedPages();
+
+function PageCheckboxGroup({
+  pages,
+  selected,
+  onToggle,
+}: {
+  pages: PageDef[];
+  selected: string[];
+  onToggle: (key: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-1.5">
+      {pages.map((p) => (
+        <label
+          key={p.key}
+          className="flex items-center gap-2 cursor-pointer select-none rounded-md px-2 py-1.5 hover:bg-muted transition-colors"
+        >
+          <Checkbox
+            checked={selected.includes(p.key)}
+            onCheckedChange={() => onToggle(p.key)}
+          />
+          <span className="text-sm">{p.label}</span>
+        </label>
+      ))}
+    </div>
+  );
+}
 
 export default function OperatorUsuarios() {
   const { user } = useUser();
@@ -61,6 +94,7 @@ export default function OperatorUsuarios() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<CreateForm>(emptyForm);
   const [creating, setCreating] = useState(false);
+  const [expandedUser, setExpandedUser] = useState<number | null>(null);
 
   const role = user?.publicMetadata?.role as string | undefined;
   const isAdmin = role === "admin" || role === "operator";
@@ -93,6 +127,23 @@ export default function OperatorUsuarios() {
         : [...f.allowedOperations, op],
     }));
   };
+
+  const togglePage = (key: string) => {
+    setForm((f) => ({
+      ...f,
+      allowedPages: f.allowedPages.includes(key)
+        ? f.allowedPages.filter((p) => p !== key)
+        : [...f.allowedPages, key],
+    }));
+  };
+
+  const toggleAllPages = () => {
+    const allKeys = OPERATOR_PAGES.map((p) => p.key);
+    const allSelected = allKeys.every((k) => form.allowedPages.includes(k));
+    setForm((f) => ({ ...f, allowedPages: allSelected ? [] : allKeys }));
+  };
+
+  const allPagesSelected = OPERATOR_PAGES.every((p) => form.allowedPages.includes(p.key));
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,7 +191,7 @@ export default function OperatorUsuarios() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Usuários Operadores</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Gerencie as contas de acesso dos operadores. Login sem e-mail — só usuário e senha.
+            Gerencie as contas de acesso dos operadores — operações e módulos permitidos.
           </p>
         </div>
 
@@ -156,6 +207,7 @@ export default function OperatorUsuarios() {
               <DialogTitle>Criar conta de operador</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleCreate} className="space-y-4 pt-2">
+              {/* Username */}
               <div className="space-y-1.5">
                 <Label htmlFor="op-username">
                   Username <span className="text-destructive">*</span>
@@ -171,6 +223,7 @@ export default function OperatorUsuarios() {
                 <p className="text-xs text-muted-foreground">Apenas letras minúsculas, números e _</p>
               </div>
 
+              {/* Full name */}
               <div className="space-y-1.5">
                 <Label htmlFor="op-fullName">
                   Nome completo <span className="text-destructive">*</span>
@@ -183,6 +236,7 @@ export default function OperatorUsuarios() {
                 />
               </div>
 
+              {/* Password */}
               <div className="space-y-1.5">
                 <Label htmlFor="op-password">
                   Senha <span className="text-destructive">*</span>
@@ -196,6 +250,7 @@ export default function OperatorUsuarios() {
                 />
               </div>
 
+              {/* Operations */}
               <div className="space-y-2">
                 <Label>
                   Operações permitidas <span className="text-destructive">*</span>
@@ -214,10 +269,35 @@ export default function OperatorUsuarios() {
                     </label>
                   ))}
                 </div>
+              </div>
+
+              {/* Pages */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Módulos permitidos</Label>
+                  <button
+                    type="button"
+                    onClick={toggleAllPages}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    {allPagesSelected ? "Desmarcar todos" : "Selecionar todos"}
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground -mt-1">
+                  Deixe em branco para liberar acesso a todos os módulos.
+                </p>
+                <div className="rounded-md border divide-y">
+                  {PAGE_GROUPS.map(({ group, pages }) => (
+                    <div key={group} className="p-3 space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group}</p>
+                      <PageCheckboxGroup pages={pages} selected={form.allowedPages} onToggle={togglePage} />
+                    </div>
+                  ))}
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  {form.allowedOperations.length === 0
-                    ? "Nenhuma operação selecionada"
-                    : `${form.allowedOperations.length} operação(ões) selecionada(s)`}
+                  {form.allowedPages.length === 0
+                    ? "Sem restrição de módulos (acesso total)"
+                    : `${form.allowedPages.length} módulo(s) selecionado(s)`}
                 </p>
               </div>
 
@@ -248,76 +328,114 @@ export default function OperatorUsuarios() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {users.map((u) => (
-            <Card key={u.id}>
-              <CardContent className="py-4 px-5">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 flex-shrink-0">
-                      <User className="h-4 w-4 text-primary" />
+          {users.map((u) => {
+            const isExpanded = expandedUser === u.id;
+            return (
+              <Card key={u.id}>
+                <CardContent className="py-4 px-5">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 flex-shrink-0">
+                        <User className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm truncate">{u.fullName}</p>
+                        <p className="text-xs text-muted-foreground">@{u.username}</p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="font-medium text-sm truncate">{u.fullName}</p>
-                      <p className="text-xs text-muted-foreground">@{u.username}</p>
+
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {/* Operation badges */}
+                      <div className="flex gap-1.5 flex-wrap justify-end">
+                        {u.allowedOperations.length === 0 ? (
+                          <Badge variant="outline" className="text-xs text-muted-foreground">
+                            Sem operações
+                          </Badge>
+                        ) : (
+                          u.allowedOperations.map((op) => (
+                            <Badge
+                              key={op}
+                              variant="secondary"
+                              className={`text-xs font-bold ${
+                                op === "LOGGI"
+                                  ? "bg-blue-100 text-blue-700 border-blue-200"
+                                  : "bg-orange-100 text-orange-700 border-orange-200"
+                              }`}
+                            >
+                              {op}
+                            </Badge>
+                          ))
+                        )}
+                      </div>
+
+                      {/* Expand/collapse modules */}
+                      <button
+                        onClick={() => setExpandedUser(isExpanded ? null : u.id)}
+                        className="p-1.5 rounded-md text-muted-foreground hover:bg-muted transition-colors"
+                        title="Ver módulos"
+                      >
+                        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </button>
+
+                      {/* Delete */}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:bg-destructive/10 flex-shrink-0"
+                            disabled={deleteMutation.isPending}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Remover operador?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              O acesso de <strong>@{u.username}</strong> será removido permanentemente.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-destructive hover:bg-destructive/90"
+                              onClick={() => deleteMutation.mutate(u.id)}
+                            >
+                              Remover
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <div className="flex gap-1.5 flex-wrap justify-end">
-                      {u.allowedOperations.length === 0 ? (
-                        <Badge variant="outline" className="text-xs text-muted-foreground">
-                          Sem operações
-                        </Badge>
+                  {/* Expanded modules view */}
+                  {isExpanded && (
+                    <div className="mt-3 pt-3 border-t">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                        Módulos permitidos
+                      </p>
+                      {u.allowedPages.length === 0 ? (
+                        <p className="text-xs text-muted-foreground italic">Acesso total (sem restrição de módulos)</p>
                       ) : (
-                        u.allowedOperations.map((op) => (
-                          <Badge
-                            key={op}
-                            variant="secondary"
-                            className={`text-xs font-bold ${
-                              op === "LOGGI"
-                                ? "bg-blue-100 text-blue-700 border-blue-200"
-                                : "bg-orange-100 text-orange-700 border-orange-200"
-                            }`}
-                          >
-                            {op}
-                          </Badge>
-                        ))
+                        <div className="flex flex-wrap gap-1.5">
+                          {u.allowedPages.map((key) => {
+                            const page = OPERATOR_PAGES.find((p) => p.key === key);
+                            return (
+                              <Badge key={key} variant="outline" className="text-xs">
+                                {page?.label ?? key}
+                              </Badge>
+                            );
+                          })}
+                        </div>
                       )}
                     </div>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:bg-destructive/10 flex-shrink-0"
-                          disabled={deleteMutation.isPending}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Remover operador?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            O acesso de <strong>@{u.username}</strong> será removido permanentemente.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction
-                            className="bg-destructive hover:bg-destructive/90"
-                            onClick={() => deleteMutation.mutate(u.id)}
-                          >
-                            Remover
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

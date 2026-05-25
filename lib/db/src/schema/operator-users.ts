@@ -8,6 +8,7 @@ export const operatorUsersTable = pgTable("operator_users", {
   passwordHash: text("password_hash").notNull().default(""),
   fullName: text("full_name").notNull().default(""),
   allowedOperations: text("allowed_operations").array().notNull().default([]),
+  allowedPages: text("allowed_pages").array().notNull().default([]),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
