@@ -4,6 +4,8 @@ import { ROUTES } from "@/lib/routes-data";
 import { CameraScanner } from "@/components/camera-scanner";
 import { getTodayDateString } from "@/lib/date-utils";
 import { useOperation } from "@/contexts/operation-context";
+import { useMotoristaAuth } from "@/contexts/motorista-auth-context";
+import { useUser } from "@clerk/react";
 import { playScanSuccess, playScanError, playScanWarning } from "@/lib/scan-sounds";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -55,9 +57,22 @@ interface PackageInfo {
 export default function Entrega() {
   const today = getTodayDateString();
   const { operation } = useOperation();
+  const { user: motoristaUser } = useMotoristaAuth();
+  const { user: clerkUser } = useUser();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const [selectedRoute, setSelectedRoute] = useState("");
+  // Filter routes to only those the motorista is allowed to access
+  const allowedRouteCodes: string[] | undefined =
+    motoristaUser?.allowedRoutes?.length
+      ? motoristaUser.allowedRoutes
+      : (clerkUser?.publicMetadata?.allowedRoutes as string[] | undefined);
+  const availableRoutes = allowedRouteCodes?.length
+    ? ROUTES.filter((r) => allowedRouteCodes.some((code) => r.name.includes(code)))
+    : ROUTES;
+
+  const [selectedRoute, setSelectedRoute] = useState(() =>
+    availableRoutes.length === 1 ? availableRoutes[0].name : ""
+  );
   const [scanInput, setScanInput] = useState("");
   const [cameraOpen, setCameraOpen] = useState(false);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
@@ -252,7 +267,7 @@ export default function Entrega() {
                 <SelectValue placeholder="Selecione a rota..." />
               </SelectTrigger>
               <SelectContent className="max-h-[300px]">
-                {ROUTES.map((r) => (
+                {availableRoutes.map((r) => (
                   <SelectItem key={r.name} value={r.name}>
                     <span className="font-medium">{r.name}</span>
                   </SelectItem>
