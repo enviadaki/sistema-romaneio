@@ -9,6 +9,7 @@ import NotFound from "@/pages/not-found";
 import { Layout } from "@/components/layout";
 import { OperationProvider } from "@/contexts/operation-context";
 import { MotoristaAuthProvider, useMotoristaAuth } from "@/contexts/motorista-auth-context";
+import { OperatorAuthProvider, useOperatorAuth } from "@/contexts/operator-auth-context";
 
 import Dashboard from "@/pages/dashboard";
 import Cadastro from "@/pages/cadastro";
@@ -20,6 +21,7 @@ import Entrega from "@/pages/entrega";
 import RomaneioMotorista from "@/pages/romaneio-motorista";
 import Financeiro from "@/pages/financeiro";
 import MotoristaUsuarios from "@/pages/motorista-usuarios";
+import OperatorUsuarios from "@/pages/operator-usuarios";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -86,9 +88,17 @@ const clerkAppearance = {
   },
 };
 
-function MotoristaLoginForm() {
-  const { login } = useMotoristaAuth();
-  const [, navigate] = useLocation();
+function CustomLoginForm({
+  title,
+  subtitle,
+  endpoint,
+  onSuccess,
+}: {
+  title: string;
+  subtitle: string;
+  endpoint: string;
+  onSuccess: (data: any) => void;
+}) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -99,7 +109,7 @@ function MotoristaLoginForm() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/motorista/login", {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: username.trim().toLowerCase(), password }),
@@ -109,8 +119,7 @@ function MotoristaLoginForm() {
         setError(data.error ?? "Usuário ou senha inválidos");
         return;
       }
-      login(data.token);
-      navigate("/entrega");
+      onSuccess(data);
     } catch {
       setError("Erro de conexão. Tente novamente.");
     } finally {
@@ -121,15 +130,15 @@ function MotoristaLoginForm() {
   return (
     <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
       <div className="p-8">
-        <h2 className="text-xl font-bold text-slate-900 mb-1">Acesso do Motorista</h2>
-        <p className="text-sm text-slate-500 mb-6">Entre com seu nome de usuário e senha</p>
+        <h2 className="text-xl font-bold text-slate-900 mb-1">{title}</h2>
+        <p className="text-sm text-slate-500 mb-6">{subtitle}</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-slate-700" htmlFor="moto-username">
+            <label className="text-sm font-medium text-slate-700" htmlFor={`${endpoint}-username`}>
               Usuário
             </label>
             <input
-              id="moto-username"
+              id={`${endpoint}-username`}
               type="text"
               autoComplete="username"
               placeholder="ex: joaosilva"
@@ -139,11 +148,11 @@ function MotoristaLoginForm() {
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-slate-700" htmlFor="moto-password">
+            <label className="text-sm font-medium text-slate-700" htmlFor={`${endpoint}-password`}>
               Senha
             </label>
             <input
-              id="moto-password"
+              id={`${endpoint}-password`}
               type="password"
               autoComplete="current-password"
               placeholder="••••••"
@@ -170,8 +179,40 @@ function MotoristaLoginForm() {
   );
 }
 
+function MotoristaLoginForm() {
+  const { login } = useMotoristaAuth();
+  const [, navigate] = useLocation();
+  return (
+    <CustomLoginForm
+      title="Acesso do Motorista"
+      subtitle="Entre com seu nome de usuário e senha"
+      endpoint="/api/motorista/login"
+      onSuccess={(data) => { login(data.token); navigate("/entrega"); }}
+    />
+  );
+}
+
+function OperatorLoginForm() {
+  const { login } = useOperatorAuth();
+  const [, navigate] = useLocation();
+  return (
+    <CustomLoginForm
+      title="Acesso do Operador"
+      subtitle="Entre com seu nome de usuário e senha"
+      endpoint="/api/operator/login"
+      onSuccess={(data) => { login(data.token); navigate("/"); }}
+    />
+  );
+}
+
 function SignInPage() {
-  const [mode, setMode] = useState<"operador" | "motorista">("operador");
+  const [mode, setMode] = useState<"operador" | "motorista" | "admin">("operador");
+
+  const tabs: { key: typeof mode; label: string }[] = [
+    { key: "operador", label: "Operador" },
+    { key: "motorista", label: "Motorista" },
+    { key: "admin", label: "Admin" },
+  ];
 
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-gradient-to-br from-slate-900 via-[#0f2850] to-slate-800 px-4">
@@ -186,38 +227,30 @@ function SignInPage() {
           <p className="mt-1 text-sm text-slate-400">Gestão logística de entregas</p>
         </div>
 
-        {/* Mode tabs */}
         <div className="flex bg-white/10 backdrop-blur-sm rounded-xl mb-5 p-1 gap-1">
-          <button
-            onClick={() => setMode("operador")}
-            className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-              mode === "operador"
-                ? "bg-white text-slate-900 shadow"
-                : "text-white/70 hover:text-white"
-            }`}
-          >
-            Operador
-          </button>
-          <button
-            onClick={() => setMode("motorista")}
-            className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-              mode === "motorista"
-                ? "bg-white text-slate-900 shadow"
-                : "text-white/70 hover:text-white"
-            }`}
-          >
-            Motorista
-          </button>
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setMode(t.key)}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                mode === t.key
+                  ? "bg-white text-slate-900 shadow"
+                  : "text-white/70 hover:text-white"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
 
-        {mode === "operador" ? (
+        {mode === "operador" && <OperatorLoginForm />}
+        {mode === "motorista" && <MotoristaLoginForm />}
+        {mode === "admin" && (
           <SignIn
             routing="path"
             path={`${basePath}/sign-in`}
             appearance={clerkAppearance}
           />
-        ) : (
-          <MotoristaLoginForm />
         )}
       </div>
     </div>
@@ -228,10 +261,11 @@ function SignInPage() {
 function ProtectedApp() {
   const { isSignedIn, isLoaded: clerkLoaded } = useAuth();
   const { isAuthenticated: isMotoristaAuth } = useMotoristaAuth();
+  const { isAuthenticated: isOperatorAuth } = useOperatorAuth();
 
   if (!clerkLoaded) return null;
 
-  if (isSignedIn || isMotoristaAuth) {
+  if (isSignedIn || isMotoristaAuth || isOperatorAuth) {
     return (
       <Layout>
         <Switch>
@@ -245,6 +279,7 @@ function ProtectedApp() {
           <Route path="/romaneio-motorista" component={RomaneioMotorista} />
           <Route path="/financeiro" component={Financeiro} />
           <Route path="/usuarios" component={MotoristaUsuarios} />
+          <Route path="/operadores" component={OperatorUsuarios} />
           <Route component={NotFound} />
         </Switch>
       </Layout>
@@ -272,13 +307,15 @@ function AppInner() {
   }, [addListener, queryClient]);
 
   return (
-    <MotoristaAuthProvider clerkGetToken={getToken}>
-      <Switch>
-        <Route path="/sign-in/*?" component={SignInPage} />
-        <Route path="/sign-up/*?" component={() => <Redirect to="/sign-in" />} />
-        <Route path="/*?" component={ProtectedApp} />
-      </Switch>
-      <Toaster />
+    <MotoristaAuthProvider>
+      <OperatorAuthProvider clerkGetToken={getToken}>
+        <Switch>
+          <Route path="/sign-in/*?" component={SignInPage} />
+          <Route path="/sign-up/*?" component={() => <Redirect to="/sign-in" />} />
+          <Route path="/*?" component={ProtectedApp} />
+        </Switch>
+        <Toaster />
+      </OperatorAuthProvider>
     </MotoristaAuthProvider>
   );
 }

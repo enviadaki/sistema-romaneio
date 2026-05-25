@@ -1,5 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
-import { setAuthTokenGetter } from "@workspace/api-client-react";
+import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
 
 interface MotoristaUser {
   id: number;
@@ -32,8 +31,8 @@ function parseJwtPayload(token: string): MotoristaUser | null {
     const parts = token.split(".");
     if (parts.length !== 3) return null;
     const payload = JSON.parse(atob(parts[1]));
-    // Check expiry
     if (payload.exp && payload.exp * 1000 < Date.now()) return null;
+    if (payload.role !== "motorista") return null;
     return {
       id: payload.id,
       username: payload.username,
@@ -46,13 +45,7 @@ function parseJwtPayload(token: string): MotoristaUser | null {
   }
 }
 
-export function MotoristaAuthProvider({
-  children,
-  clerkGetToken,
-}: {
-  children: ReactNode;
-  clerkGetToken: (() => Promise<string | null>) | null;
-}) {
+export function MotoristaAuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored && parseJwtPayload(stored)) return stored;
@@ -72,17 +65,6 @@ export function MotoristaAuthProvider({
     localStorage.removeItem(STORAGE_KEY);
     setToken(null);
   }, []);
-
-  // Keep token getter in sync: motorista JWT takes priority over Clerk
-  useEffect(() => {
-    setAuthTokenGetter(async () => {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored && parseJwtPayload(stored)) return stored;
-      if (clerkGetToken) return clerkGetToken();
-      return null;
-    });
-    return () => setAuthTokenGetter(null);
-  }, [clerkGetToken]);
 
   return (
     <MotoristaAuthContext.Provider value={{ isAuthenticated, user, token, login, logout }}>

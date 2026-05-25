@@ -69,7 +69,7 @@ async function resolveUser(userId: string): Promise<{ name: string | null; autho
   }
 }
 
-function tryMotoristaJwt(req: Request): boolean {
+function tryCustomJwt(req: Request): boolean {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) return false;
   const token = authHeader.slice(7);
@@ -77,10 +77,11 @@ function tryMotoristaJwt(req: Request): boolean {
   if (!secret) return false;
   try {
     const payload = jwt.verify(token, secret) as Record<string, unknown>;
-    if (payload.role !== "motorista") return false;
-    (req as any).userId = `motorista_${payload.id}`;
+    const role = payload.role as string | undefined;
+    if (role !== "motorista" && role !== "operator") return false;
+    (req as any).userId = `${role}_${payload.id}`;
     (req as any).userFullName = payload.fullName ?? payload.username;
-    (req as any).isMotorista = true;
+    (req as any).customRole = role;
     return true;
   } catch {
     return false;
@@ -109,8 +110,8 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     return;
   }
 
-  // Fall back to motorista JWT
-  if (tryMotoristaJwt(req)) {
+  // Fall back to custom JWT (motorista or operator)
+  if (tryCustomJwt(req)) {
     next();
     return;
   }

@@ -1,9 +1,13 @@
 import { ReactNode, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Package, ScanLine, History, FileText, LogOut, User, Search, Truck, ClipboardList, DollarSign, Users } from "lucide-react";
+import {
+  LayoutDashboard, Package, ScanLine, History, FileText, LogOut, User,
+  Search, Truck, ClipboardList, DollarSign, Users, Shield,
+} from "lucide-react";
 import { useClerk, useUser } from "@clerk/react";
 import { useOperation, OPERATIONS } from "@/contexts/operation-context";
 import { useMotoristaAuth } from "@/contexts/motorista-auth-context";
+import { useOperatorAuth } from "@/contexts/operator-auth-context";
 
 const ALL_MOTORISTA_PATHS = ["/entrega"];
 
@@ -12,34 +16,62 @@ export function Layout({ children }: { children: ReactNode }) {
   const { signOut } = useClerk();
   const { user: clerkUser } = useUser();
   const { user: motoristaUser, logout: motoristaLogout } = useMotoristaAuth();
+  const { user: operatorUser, logout: operatorLogout } = useOperatorAuth();
   const { operation, setOperation } = useOperation();
 
-  const isMotorista =
-    motoristaUser !== null || (clerkUser?.publicMetadata?.role as string | undefined) === "motorista";
+  const isMotorista = motoristaUser !== null || (clerkUser?.publicMetadata?.role as string) === "motorista";
+  const isCustomOperator = operatorUser !== null;
 
-  const role = motoristaUser?.role ?? (clerkUser?.publicMetadata?.role as string | undefined);
-  const isAdmin = role === "admin" || role === "operator";
+  const clerkRole = clerkUser?.publicMetadata?.role as string | undefined;
+  const isAdmin = clerkRole === "admin" || clerkRole === "operator";
 
   const displayName =
+    operatorUser?.fullName ||
     motoristaUser?.fullName ||
     clerkUser?.fullName ||
     clerkUser?.primaryEmailAddress?.emailAddress ||
     "Usuário";
 
+  const userTag = operatorUser
+    ? "operador"
+    : motoristaUser
+    ? "motorista"
+    : clerkRole ?? undefined;
+
+  // Allowed operations: operator users only see their allowed ones; everyone else sees all
+  const allowedOps: readonly string[] =
+    isCustomOperator && operatorUser!.allowedOperations.length > 0
+      ? operatorUser!.allowedOperations
+      : OPERATIONS;
+
   const handleSignOut = () => {
     if (motoristaUser) {
       motoristaLogout();
+      navigate("/sign-in");
+    } else if (operatorUser) {
+      operatorLogout();
       navigate("/sign-in");
     } else {
       signOut();
     }
   };
 
+  // Restrict motorista to their allowed paths
   useEffect(() => {
     if (isMotorista && !ALL_MOTORISTA_PATHS.some((p) => location === p)) {
-      navigate("/romaneio");
+      navigate("/entrega");
     }
   }, [isMotorista, location, navigate]);
+
+  // If operator only has access to one operation, lock to it
+  useEffect(() => {
+    if (isCustomOperator && operatorUser!.allowedOperations.length === 1) {
+      const only = operatorUser!.allowedOperations[0];
+      if (only === "LOGGI" || only === "AMAZON") {
+        setOperation(only);
+      }
+    }
+  }, [isCustomOperator, operatorUser, setOperation]);
 
   const allNavItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -51,7 +83,12 @@ export function Layout({ children }: { children: ReactNode }) {
     { href: "/romaneio", label: "Romaneio", icon: FileText },
     { href: "/romaneio-motorista", label: "Romaneio Motorista", icon: ClipboardList },
     { href: "/financeiro", label: "Financeiro", icon: DollarSign },
-    ...(isAdmin ? [{ href: "/usuarios", label: "Usuários Motoristas", icon: Users }] : []),
+    ...(isAdmin
+      ? [
+          { href: "/usuarios", label: "Usuários Motoristas", icon: Users },
+          { href: "/operadores", label: "Usuários Operadores", icon: Shield },
+        ]
+      : []),
   ];
 
   const motoristaNavItems = [
@@ -80,27 +117,30 @@ export function Layout({ children }: { children: ReactNode }) {
           <span>Romaneios</span>
         </div>
 
-        {/* Operation Selector */}
-        <div className="px-3 py-3 border-b border-sidebar-border">
-          <p className="text-xs text-sidebar-foreground/50 font-medium uppercase tracking-wider mb-2 px-1">Operação</p>
-          <div className="flex gap-1.5">
-            {OPERATIONS.map((op) => {
-              const colors = operationColors[op];
-              const isActive = operation === op;
-              return (
-                <button
-                  key={op}
-                  onClick={() => setOperation(op)}
-                  className={`flex-1 py-2 rounded-md text-sm font-bold tracking-wide transition-all ${
-                    isActive ? colors.active + " shadow-sm" : colors.inactive
-                  }`}
-                >
-                  {op}
-                </button>
-              );
-            })}
+        {/* Operation Selector — hidden for motoristas */}
+        {!isMotorista && (
+          <div className="px-3 py-3 border-b border-sidebar-border">
+            <p className="text-xs text-sidebar-foreground/50 font-medium uppercase tracking-wider mb-2 px-1">Operação</p>
+            <div className="flex gap-1.5">
+              {OPERATIONS.filter((op) => allowedOps.includes(op)).map((op) => {
+                const colors = operationColors[op];
+                const isActive = operation === op;
+                return (
+                  <button
+                    key={op}
+                    onClick={() => setOperation(op)}
+                    disabled={allowedOps.length === 1}
+                    className={`flex-1 py-2 rounded-md text-sm font-bold tracking-wide transition-all ${
+                      isActive ? colors.active + " shadow-sm" : colors.inactive
+                    } disabled:cursor-default`}
+                  >
+                    {op}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
         <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-1">
           {navItems.map((item) => {
@@ -131,13 +171,8 @@ export function Layout({ children }: { children: ReactNode }) {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{displayName}</p>
-              {motoristaUser && (
-                <p className="text-xs text-sidebar-foreground/60 truncate">motorista</p>
-              )}
-              {!motoristaUser && clerkUser?.primaryEmailAddress && clerkUser?.fullName && (
-                <p className="text-xs text-sidebar-foreground/60 truncate">
-                  {clerkUser.primaryEmailAddress.emailAddress}
-                </p>
+              {userTag && (
+                <p className="text-xs text-sidebar-foreground/60 truncate">{userTag}</p>
               )}
             </div>
             <button

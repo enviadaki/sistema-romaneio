@@ -9,6 +9,7 @@ import cityContactsRouter from "./city-contacts";
 import deliveryManifestsRouter from "./delivery-manifests";
 import motoristasRouter from "./motoristas";
 import motoristaAuthRouter from "./motorista-auth";
+import operatorAuthRouter from "./operator-auth";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(cityContactsRouter);
 router.use(deliveryManifestsRouter);
 router.use(motoristasRouter);
 router.use(motoristaAuthRouter);
+router.use(operatorAuthRouter);
 
 export default router;
