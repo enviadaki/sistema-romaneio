@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, inArray, sql, and, gte, lt } from "drizzle-orm";
+import { eq, inArray, sql, and, gte, lt, SQL } from "drizzle-orm";
 import { db, packagesTable, scansTable } from "@workspace/db";
 import {
   CreatePackageBody,
@@ -94,10 +94,16 @@ router.get("/packages", requireAuth, async (req, res): Promise<void> => {
 
   const citiesParam = (req.query as any).cities as string | undefined;
   if (citiesParam) {
-    const cityList = citiesParam.split(",").map((c: string) => c.trim()).filter(Boolean);
-    if (cityList.length > 0) conditions.push(inArray(packagesTable.city, cityList) as any);
+    const cityList = citiesParam.split(",").map((c: string) => c.trim().toLowerCase()).filter(Boolean);
+    if (cityList.length > 0) {
+      conditions.push(
+        inArray(sql`lower(${packagesTable.city})`, cityList) as unknown as SQL
+      );
+    }
   } else if (parsed.data.city) {
-    conditions.push(eq(packagesTable.city, parsed.data.city));
+    conditions.push(
+      sql`lower(${packagesTable.city}) = lower(${parsed.data.city})` as unknown as SQL
+    );
   }
 
   query = query.where(and(...conditions));
