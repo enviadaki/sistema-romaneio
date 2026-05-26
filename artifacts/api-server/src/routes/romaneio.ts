@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql, SQL } from "drizzle-orm";
 import { db, scansTable, packagesTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 
@@ -29,20 +29,21 @@ router.get("/romaneio", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const cityCondition =
-    cityList.length === 1
-      ? eq(scansTable.city, cityList[0])
-      : inArray(scansTable.city, cityList);
+  const lowerCities = cityList.map((c) => c.toLowerCase());
+  const scanCityCondition =
+    lowerCities.length === 1
+      ? (sql`lower(${scansTable.city}) = ${lowerCities[0]}` as unknown as SQL)
+      : (inArray(sql`lower(${scansTable.city})`, lowerCities) as unknown as SQL);
 
   const scans = await db
     .select()
     .from(scansTable)
-    .where(and(cityCondition, eq(scansTable.scanDate, date), eq(scansTable.operation, operation)));
+    .where(and(scanCityCondition, eq(scansTable.scanDate, date), eq(scansTable.operation, operation)));
 
   const pkgCityCondition =
-    cityList.length === 1
-      ? eq(packagesTable.city, cityList[0])
-      : inArray(packagesTable.city, cityList);
+    lowerCities.length === 1
+      ? (sql`lower(${packagesTable.city}) = ${lowerCities[0]}` as unknown as SQL)
+      : (inArray(sql`lower(${packagesTable.city})`, lowerCities) as unknown as SQL);
 
   const packagesResult =
     scans.length > 0

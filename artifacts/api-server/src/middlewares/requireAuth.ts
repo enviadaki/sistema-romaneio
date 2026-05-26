@@ -23,14 +23,15 @@ const ADMIN_EMAILS = new Set(
     .filter(Boolean)
 );
 
-// In-memory cache: userId -> { name, authorized, expiresAt }
-const userCache = new Map<string, { name: string | null; authorized: boolean; expiresAt: number }>();
+// In-memory cache: userId -> { name, role, authorized, expiresAt }
+const userCache = new Map<string, { name: string | null; role: string | undefined; authorized: boolean; expiresAt: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-async function resolveUser(userId: string): Promise<{ name: string | null; authorized: boolean }> {
+async function resolveUser(userId: string): Promise<{ name: string | null; authorized: boolean; hasRole: boolean }> {
   const cached = userCache.get(userId);
   if (cached && cached.expiresAt > Date.now()) {
-    return { name: cached.name, authorized: cached.authorized };
+    const hasRole = !!cached.role;
+    return { name: cached.name, authorized: cached.authorized, hasRole };
   }
 
   try {
@@ -62,10 +63,10 @@ async function resolveUser(userId: string): Promise<{ name: string | null; autho
       }
     }
 
-    userCache.set(userId, { name, authorized, expiresAt: Date.now() + CACHE_TTL_MS });
-    return { name, authorized };
+    userCache.set(userId, { name, role: role ?? undefined, authorized, expiresAt: Date.now() + CACHE_TTL_MS });
+    return { name, authorized, hasRole: !!role };
   } catch {
-    return { name: null, authorized: false };
+    return { name: null, authorized: false, hasRole: false };
   }
 }
 
@@ -103,7 +104,13 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   if (userId) {
     (req as any).userId = userId;
     resolveUser(userId)
-      .then(({ name, authorized }) => {
+      .then(({ name, authorized, hasRole }) => {
+        if (!hasRole) {
+          // Clerk user exists but has no role assigned — treat as unauthenticated
+          // so a custom JWT in a parallel request can still be used.
+          res.status(401).json({ error: "Não autorizado. Faça login para continuar." });
+          return;
+        }
         if (!authorized) {
           res.status(403).json({ error: "Acesso negado. Conta não autorizada para este sistema." });
           return;
@@ -112,7 +119,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
         next();
       })
       .catch(() => {
-        res.status(403).json({ error: "Acesso negado. Conta não autorizada para este sistema." });
+        res.status(401).json({ error: "Não autorizado. Faça login para continuar." });
       });
     return;
   }
