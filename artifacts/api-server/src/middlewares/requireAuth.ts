@@ -89,7 +89,14 @@ function tryCustomJwt(req: Request): boolean {
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
-  // Try Clerk auth first
+  // Custom JWT takes priority — if a valid Bearer token is present, use it
+  // regardless of any Clerk session cookie that may also be present.
+  if (tryCustomJwt(req)) {
+    next();
+    return;
+  }
+
+  // Fall back to Clerk auth (session cookie or Clerk-issued Bearer token)
   const auth = getAuth(req);
   const userId = auth?.userId;
 
@@ -107,12 +114,6 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
       .catch(() => {
         res.status(403).json({ error: "Acesso negado. Conta não autorizada para este sistema." });
       });
-    return;
-  }
-
-  // Fall back to custom JWT (motorista or operator)
-  if (tryCustomJwt(req)) {
-    next();
     return;
   }
 
