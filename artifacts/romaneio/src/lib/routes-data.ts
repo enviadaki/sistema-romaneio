@@ -180,7 +180,10 @@ export const ROUTES: Route[] = [
     cities: [
       "DOM BASILIO",
       "DOM BASILIO (BA)",
+      "DOM BASÍLIO",
+      "DOM BASÍLIO (BA)",
       "Dom Basilio",
+      "Dom Basílio",
     ],
   },
   {
