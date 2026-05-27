@@ -76,11 +76,19 @@ export interface OperatorCount {
   count: number;
 }
 
+export interface UnscannedPackage {
+  id: number;
+  trackingNumber: string;
+  city: string;
+  promisedDeliveryDate: string;
+}
+
 export interface Stats {
   totalPackages: number;
   totalScansToday: number;
   totalCities: number;
-  recentScans: Scan[];
+  totalUnscanned: number;
+  unscannedPackages: UnscannedPackage[];
   packagesByCity: CityCount[];
   scansByOperator: OperatorCount[];
   scansByCity: CityCount[];

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql, and, isNull } from "drizzle-orm";
 import { db, packagesTable, scansTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 
@@ -24,12 +24,26 @@ router.get("/stats", requireAuth, async (req, res): Promise<void> => {
     .from(packagesTable)
     .where(eq(packagesTable.operation, operation));
 
-  const recentScans = await db
-    .select()
-    .from(scansTable)
-    .where(eq(scansTable.operation, operation))
-    .orderBy(sql`${scansTable.scannedAt} desc`)
-    .limit(10);
+  // Packages with no scan record at all — ordered by promised delivery date (most urgent first)
+  const unscannedPackages = await db
+    .select({
+      id: packagesTable.id,
+      trackingNumber: packagesTable.trackingNumber,
+      city: packagesTable.city,
+      promisedDeliveryDate: packagesTable.promisedDeliveryDate,
+      createdAt: packagesTable.createdAt,
+    })
+    .from(packagesTable)
+    .leftJoin(scansTable, eq(scansTable.trackingNumber, packagesTable.trackingNumber))
+    .where(and(eq(packagesTable.operation, operation), isNull(scansTable.id)))
+    .orderBy(packagesTable.promisedDeliveryDate)
+    .limit(20);
+
+  const [totalUnscannedResult] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(packagesTable)
+    .leftJoin(scansTable, eq(scansTable.trackingNumber, packagesTable.trackingNumber))
+    .where(and(eq(packagesTable.operation, operation), isNull(scansTable.id)));
 
   const packagesByCity = await db
     .select({
@@ -69,13 +83,12 @@ router.get("/stats", requireAuth, async (req, res): Promise<void> => {
     totalPackages: totalPackagesResult?.count ?? 0,
     totalScansToday: totalScansResult?.count ?? 0,
     totalCities: totalCitiesResult.length,
-    recentScans: recentScans.map((s) => ({
-      id: s.id,
-      trackingNumber: s.trackingNumber,
-      city: s.city,
-      scanDate: s.scanDate,
-      scannedBy: s.scannedBy ?? null,
-      scannedAt: s.scannedAt.toISOString(),
+    totalUnscanned: totalUnscannedResult?.count ?? 0,
+    unscannedPackages: unscannedPackages.map((p) => ({
+      id: p.id,
+      trackingNumber: p.trackingNumber,
+      city: p.city,
+      promisedDeliveryDate: p.promisedDeliveryDate,
     })),
     packagesByCity,
     scansByOperator,

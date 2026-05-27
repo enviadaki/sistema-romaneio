@@ -4,7 +4,7 @@ import {
   customFetch,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package, ScanLine, MapPin, Trophy, User, Route } from "lucide-react";
+import { Package, ScanLine, MapPin, Trophy, User, Route, AlertCircle } from "lucide-react";
 import { formatDateTime } from "@/lib/date-utils";
 import {
   Table,
@@ -352,39 +352,53 @@ export default function Dashboard() {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Scans Recentes</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-orange-500" />
+              <CardTitle>Faltam Bipar</CardTitle>
+            </div>
+            {(stats.totalUnscanned ?? 0) > 0 && (
+              <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100 text-xs">
+                {stats.totalUnscanned} pendente{stats.totalUnscanned !== 1 ? "s" : ""}
+              </Badge>
+            )}
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {stats.recentScans.map((scan) => (
-                <div
-                  key={scan.id}
-                  className="flex items-start justify-between border-b pb-3 last:border-0 last:pb-0"
-                >
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm font-mono truncate">
-                      {scan.trackingNumber}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{scan.city}</p>
-                    {scan.scannedBy && (
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                        <User className="h-3 w-3" />
-                        {scan.scannedBy}
+            <ScrollArea className="h-[300px] pr-1">
+              <div className="space-y-2">
+                {(stats.unscannedPackages ?? []).map((pkg: any) => (
+                  <div
+                    key={pkg.id}
+                    className="flex items-start justify-between border-b pb-2 last:border-0 last:pb-0"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm font-mono truncate">
+                        {pkg.trackingNumber}
                       </p>
-                    )}
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <MapPin className="h-3 w-3 flex-shrink-0" />
+                        {pkg.city}
+                      </p>
+                    </div>
+                    <div className="text-xs text-right ml-2 flex-shrink-0">
+                      <span className="text-muted-foreground">Entrega prometida</span>
+                      <p className="font-medium">{pkg.promisedDeliveryDate}</p>
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground whitespace-nowrap ml-2 flex-shrink-0">
-                    {formatDateTime(scan.scannedAt)}
+                ))}
+                {(stats.unscannedPackages ?? []).length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground gap-2">
+                    <Package className="h-8 w-8 opacity-30" />
+                    <p className="text-sm">Todos os pacotes foram bipados!</p>
                   </div>
-                </div>
-              ))}
-              {stats.recentScans.length === 0 && (
-                <div className="text-center py-4 text-muted-foreground">
-                  Nenhum scan recente.
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            </ScrollArea>
+            {(stats.totalUnscanned ?? 0) > 20 && (
+              <p className="text-xs text-muted-foreground text-center mt-3 pt-3 border-t">
+                Mostrando os 20 mais urgentes de {stats.totalUnscanned} pendentes
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
