@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import QRCode from "react-qr-code";
-import { customFetch } from "@workspace/api-client-react";
+import { customFetch, createScan } from "@workspace/api-client-react";
 import { useOperation } from "@/contexts/operation-context";
 import { getTodayDateString } from "@/lib/date-utils";
 import { ROUTES } from "@/lib/routes-data";
@@ -9,12 +9,14 @@ import { useMotoristaAuth } from "@/contexts/motorista-auth-context";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import {
   Play, Pause, SkipBack, SkipForward, RotateCcw,
   Maximize, Minimize, QrCode, CheckCircle2, ChevronLeft, Loader2,
+  AlertTriangle,
 } from "lucide-react";
 
 interface RomaneioItem {
@@ -76,6 +78,10 @@ export default function QrAutoplay() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const [registerScans, setRegisterScans] = useState(false);
+  const [scannedSet, setScannedSet] = useState<Set<string>>(new Set());
+  const [scanError, setScanError] = useState<string | null>(null);
+
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const presentationRef = useRef<HTMLDivElement>(null);
 
@@ -85,6 +91,20 @@ export default function QrAutoplay() {
       timerRef.current = null;
     }
   }, []);
+
+  const registerCurrentScan = useCallback(
+    async (trackingNumber: string) => {
+      if (!trackingNumber) return;
+      try {
+        await createScan({ trackingNumber });
+        setScannedSet((prev) => new Set(prev).add(trackingNumber));
+        setScanError(null);
+      } catch {
+        setScanError(`Falha ao registrar bipagem: ${trackingNumber}`);
+      }
+    },
+    [],
+  );
 
   const advance = useCallback(() => {
     setCurrentIndex((prev) => {
@@ -107,6 +127,14 @@ export default function QrAutoplay() {
     }
     return stopTimer;
   }, [isPlaying, intervalSec, phase, advance, stopTimer]);
+
+  useEffect(() => {
+    if (phase !== "presenting" || !registerScans) return;
+    const tn = trackingNumbers[currentIndex];
+    if (tn && !scannedSet.has(tn)) {
+      registerCurrentScan(tn);
+    }
+  }, [currentIndex, phase]);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -164,6 +192,8 @@ export default function QrAutoplay() {
   const handleStart = () => {
     setCurrentIndex(0);
     setIsPlaying(true);
+    setScannedSet(new Set());
+    setScanError(null);
     setPhase("presenting");
   };
 
@@ -171,6 +201,8 @@ export default function QrAutoplay() {
     stopTimer();
     setCurrentIndex(0);
     setIsPlaying(false);
+    setScannedSet(new Set());
+    setScanError(null);
     setPhase("presenting");
   };
 
@@ -179,6 +211,8 @@ export default function QrAutoplay() {
     setIsPlaying(false);
     setPhase("config");
     setTrackingNumbers([]);
+    setScannedSet(new Set());
+    setScanError(null);
     setError("");
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
   };
@@ -209,6 +243,7 @@ export default function QrAutoplay() {
   const progress = trackingNumbers.length > 0
     ? ((currentIndex + 1) / trackingNumbers.length) * 100
     : 0;
+  const isCurrentScanned = scannedSet.has(currentTracking);
 
   if (phase === "config") {
     return (
@@ -259,6 +294,23 @@ export default function QrAutoplay() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3">
+            <Checkbox
+              id="register-scans"
+              checked={registerScans}
+              onCheckedChange={(v) => setRegisterScans(!!v)}
+              className="mt-0.5"
+            />
+            <div className="space-y-0.5">
+              <Label htmlFor="register-scans" className="font-medium cursor-pointer">
+                Registrar bipagens no sistema ao avançar
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Cada QR code exibido será marcado como bipado no sistema próprio automaticamente.
+              </p>
+            </div>
           </div>
 
           <Button
@@ -318,6 +370,11 @@ export default function QrAutoplay() {
           <p className="text-muted-foreground text-center">
             Todos os <strong>{trackingNumbers.length}</strong> QR codes foram exibidos.
           </p>
+          {registerScans && (
+            <p className="text-sm text-muted-foreground">
+              <span className="font-medium text-green-700">{scannedSet.size}</span> de {trackingNumbers.length} bipagens registradas no sistema.
+            </p>
+          )}
           <Badge variant="outline" className="text-base px-3 py-1">{routeLabel}</Badge>
         </div>
         <div className="flex gap-3">
@@ -353,6 +410,12 @@ export default function QrAutoplay() {
           <span className="text-sm text-muted-foreground">
             {currentIndex + 1} / {trackingNumbers.length}
           </span>
+          {registerScans && scannedSet.size > 0 && (
+            <Badge variant="outline" className="text-xs text-green-700 border-green-300">
+              <CheckCircle2 className="h-3 w-3 mr-1" />
+              {scannedSet.size} registrado{scannedSet.size !== 1 ? "s" : ""}
+            </Badge>
+          )}
         </div>
         <button
           onClick={toggleFullscreen}
@@ -363,20 +426,44 @@ export default function QrAutoplay() {
         </button>
       </div>
 
+      {/* Scan error banner */}
+      {scanError && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-yellow-50 border-b border-yellow-200 text-sm text-yellow-800">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-yellow-600" />
+          <span className="flex-1">{scanError}</span>
+          <button
+            onClick={() => setScanError(null)}
+            className="text-yellow-600 hover:text-yellow-800 font-medium text-xs underline"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
+
       {/* QR Display */}
       <div className="flex-1 flex flex-col items-center justify-center gap-6 py-8 px-4">
-        <div className="p-6 bg-white rounded-2xl shadow-lg border">
+        <div className="relative p-6 bg-white rounded-2xl shadow-lg border">
           <QRCode
             value={currentTracking}
             size={isFullscreen ? 320 : 260}
             level="M"
           />
+          {isCurrentScanned && registerScans && (
+            <div className="absolute -top-3 -right-3 bg-green-500 rounded-full p-0.5 shadow-md">
+              <CheckCircle2 className="h-6 w-6 text-white" />
+            </div>
+          )}
         </div>
 
         <div className="text-center space-y-1">
           <p className="font-mono font-bold tracking-widest text-xl md:text-2xl text-foreground select-all">
             {currentTracking}
           </p>
+          {registerScans && (
+            <p className={`text-xs font-medium ${isCurrentScanned ? "text-green-600" : "text-muted-foreground"}`}>
+              {isCurrentScanned ? "✓ Bipagem registrada" : "Registrando..."}
+            </p>
+          )}
         </div>
       </div>
 
