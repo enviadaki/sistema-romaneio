@@ -2,7 +2,7 @@ import { ReactNode, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Package, ScanLine, History, FileText, LogOut, User,
-  Search, Truck, ClipboardList, DollarSign, Users, Shield,
+  Search, Truck, ClipboardList, DollarSign, Users, Shield, QrCode,
 } from "lucide-react";
 import { useClerk, useUser } from "@clerk/react";
 import { useOperation, OPERATIONS } from "@/contexts/operation-context";
@@ -86,6 +86,7 @@ export function Layout({ children }: { children: ReactNode }) {
     { href: "/romaneio", label: "Romaneio", icon: FileText },
     { href: "/romaneio-motorista", label: "Romaneio Motorista", icon: ClipboardList },
     { href: "/financeiro", label: "Financeiro", icon: DollarSign },
+    { href: "/qr-autoplay", label: "Auto QR", icon: QrCode },
     ...(isAdmin
       ? [
           { href: "/usuarios", label: "Usuários Motoristas", icon: Users },
