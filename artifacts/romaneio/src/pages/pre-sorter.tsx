@@ -10,6 +10,7 @@ import {
   getListPackagesQueryKey,
   getGetStatsQueryKey,
   customFetch,
+  ApiError,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -208,7 +209,27 @@ export default function PreSorter() {
           queryClient.invalidateQueries({ queryKey: getGetStatsQueryKey() });
           setTimeout(() => inputRef.current?.focus(), 100);
         },
-        onError: () => {
+        onError: (error) => {
+          if (error instanceof ApiError && error.status === 409) {
+            playScanWarning();
+            triggerResult({
+              status: "warning",
+              message: "Pacote já bipado (outro período)",
+              trackingNumber: code,
+              city: expectedPkg.city,
+            });
+            queryClient.invalidateQueries({ queryKey: getListScansQueryKey() });
+            queryClient.invalidateQueries({ queryKey: getGetStatsQueryKey() });
+            return;
+          }
+          if (error instanceof ApiError && error.status === 404) {
+            triggerResult({
+              status: "error",
+              message: "Rastreio não encontrado na base",
+              trackingNumber: code,
+            });
+            return;
+          }
           triggerResult({
             status: "error",
             message: "Erro ao registrar bipagem",
