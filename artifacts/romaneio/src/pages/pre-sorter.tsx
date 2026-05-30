@@ -55,7 +55,6 @@ export default function PreSorter() {
   const { toast } = useToast();
   const { operation } = useOperation();
   const today = getTodayDateString();
-
   const [filterMode, setFilterMode] = useState<FilterMode>("rota");
   const [selectedCity, setSelectedCity] = useState<string>("");
   const [selectedRoute, setSelectedRoute] = useState<string>("");
@@ -212,7 +211,7 @@ export default function PreSorter() {
         onError: () => {
           triggerResult({
             status: "error",
-            message: "Erro ao registrar scan",
+            message: "Erro ao registrar bipagem",
             trackingNumber: code,
           });
         },

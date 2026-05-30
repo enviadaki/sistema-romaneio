@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
-import { setAuthTokenGetter } from "@workspace/api-client-react";
+import { setAuthTokenGetter, setOnUnauthorized } from "@workspace/api-client-react";
 
 interface OperatorUser {
   id: number;
@@ -99,6 +99,16 @@ export function OperatorAuthProvider({
     });
     return () => setAuthTokenGetter(null);
   }, [clerkGetToken]);
+
+  // Global 401 handler: auto-logout on session expiry or invalid token
+  useEffect(() => {
+    setOnUnauthorized(() => {
+      localStorage.removeItem(OPERATOR_KEY);
+      localStorage.removeItem(MOTORISTA_KEY);
+      window.location.href = "/sign-in";
+    });
+    return () => setOnUnauthorized(null);
+  }, []);
 
   return (
     <OperatorAuthContext.Provider value={{ isAuthenticated, user, token, login, logout }}>

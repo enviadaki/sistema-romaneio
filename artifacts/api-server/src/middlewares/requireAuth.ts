@@ -72,19 +72,29 @@ async function resolveUser(userId: string): Promise<{ name: string | null; autho
 
 function tryCustomJwt(req: Request): boolean {
   const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith("Bearer ")) return false;
+  if (!authHeader?.startsWith("Bearer ")) {
+    (req as any).log?.debug?.({ auth: "no-bearer" }, "requireAuth: no Bearer header");
+    return false;
+  }
   const token = authHeader.slice(7);
   const secret = process.env.SESSION_SECRET;
-  if (!secret) return false;
+  if (!secret) {
+    (req as any).log?.warn?.({ auth: "no-secret" }, "requireAuth: SESSION_SECRET not set");
+    return false;
+  }
   try {
     const payload = jwt.verify(token, secret) as Record<string, unknown>;
     const role = payload.role as string | undefined;
-    if (role !== "motorista" && role !== "operator") return false;
+    if (role !== "motorista" && role !== "operator") {
+      (req as any).log?.warn?.({ auth: "invalid-role", role }, "requireAuth: JWT role not allowed");
+      return false;
+    }
     (req as any).userId = `${role}_${payload.id}`;
     (req as any).userFullName = payload.fullName ?? payload.username;
     (req as any).customRole = role;
     return true;
-  } catch {
+  } catch (err: any) {
+    (req as any).log?.warn?.({ auth: "jwt-error", err: err?.message }, "requireAuth: JWT verify failed");
     return false;
   }
 }
