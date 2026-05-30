@@ -74,7 +74,7 @@ router.post("/scans/bulk", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
   const userFullName = (req as any).userFullName ?? null;
 
   // Fetch all matching packages in one query
@@ -128,7 +128,7 @@ router.post("/scans", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
   const userFullName = (req as any).userFullName ?? null;
 
   const [scan] = await db

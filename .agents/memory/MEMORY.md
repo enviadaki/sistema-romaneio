@@ -1,0 +1,1 @@
+- [Timezone — scan_date](timezone-scan-date.md) — use toLocaleDateString("en-CA", {timeZone:"America/Sao_Paulo"}) on server; never toISOString().slice(0,10) for BR-facing dates
