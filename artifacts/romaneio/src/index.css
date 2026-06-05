@@ -161,3 +161,8 @@
   animation: scan-line 2s ease-in-out infinite;
   position: absolute;
 }
+
+@keyframes qr-countdown {
+  from { width: 100%; }
+  to   { width: 0%; }
+}

@@ -82,12 +82,12 @@ export default function QrAutoplay() {
   const [scannedSet, setScannedSet] = useState<Set<string>>(new Set());
   const [scanError, setScanError] = useState<string | null>(null);
 
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const presentationRef = useRef<HTMLDivElement>(null);
 
   const stopTimer = useCallback(() => {
     if (timerRef.current) {
-      clearInterval(timerRef.current);
+      clearTimeout(timerRef.current);
       timerRef.current = null;
     }
   }, []);
@@ -121,12 +121,12 @@ export default function QrAutoplay() {
   useEffect(() => {
     if (isPlaying && phase === "presenting") {
       stopTimer();
-      timerRef.current = setInterval(advance, intervalSec * 1000);
+      timerRef.current = setTimeout(advance, intervalSec * 1000);
     } else {
       stopTimer();
     }
     return stopTimer;
-  }, [isPlaying, intervalSec, phase, advance, stopTimer]);
+  }, [isPlaying, intervalSec, phase, advance, stopTimer, currentIndex]);
 
   useEffect(() => {
     if (phase !== "presenting" || !registerScans) return;
@@ -464,6 +464,23 @@ export default function QrAutoplay() {
               {isCurrentScanned ? "✓ Bipagem registrada" : "Registrando..."}
             </p>
           )}
+        </div>
+      </div>
+
+      {/* Countdown bar */}
+      <div className="px-6 pb-1">
+        <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+          <div
+            key={currentIndex}
+            className="h-full rounded-full bg-primary origin-left"
+            style={{
+              animationName: "qr-countdown",
+              animationDuration: `${intervalSec}s`,
+              animationTimingFunction: "linear",
+              animationFillMode: "forwards",
+              animationPlayState: isPlaying ? "running" : "paused",
+            }}
+          />
         </div>
       </div>
 
