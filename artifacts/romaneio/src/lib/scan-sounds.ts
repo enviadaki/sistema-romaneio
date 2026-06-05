@@ -63,6 +63,8 @@ export function playScanSuccess() {
 
 /** Bipe grave descendente — pacote não encontrado / erro */
 export function playScanError() {
+  navigator.vibrate?.([250, 80, 250, 80, 500]);
+
   const ac = getCtx();
   const t = ac.currentTime;
 
