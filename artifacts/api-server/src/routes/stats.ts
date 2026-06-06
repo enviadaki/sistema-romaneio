@@ -6,7 +6,7 @@ import { requireAuth } from "../middlewares/requireAuth";
 const router: IRouter = Router();
 
 router.get("/stats", requireAuth, async (req, res): Promise<void> => {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
   const operation = (req.query.operation as string | undefined)?.trim() ?? "LOGGI";
 
   const [totalPackagesResult] = await db

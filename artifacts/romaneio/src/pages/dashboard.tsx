@@ -96,6 +96,8 @@ export default function Dashboard() {
   const rotasComProgresso = routeProgress.filter(
     (r) => r.totalScans > 0 && r.totalScans < r.totalPkgs,
   ).length;
+  const rotasComPacotes = routeProgress.filter((r) => r.totalPkgs > 0).length;
+  const totalRotas = ROUTES.length;
 
   return (
     <div className="space-y-8">
@@ -134,12 +136,17 @@ export default function Dashboard() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Cidades Ativas</CardTitle>
-            <MapPin className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Rotas Ativas</CardTitle>
+            <Route className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalCities}</div>
-            <p className="text-xs text-muted-foreground mt-1">com pacotes cadastrados</p>
+            <div className="text-2xl font-bold">
+              {rotasComPacotes}{" "}
+              <span className="text-base font-normal text-muted-foreground">
+                de {totalRotas}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">rotas com pacotes cadastrados</p>
           </CardContent>
         </Card>
       </div>
