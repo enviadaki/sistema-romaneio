@@ -23,3 +23,9 @@ id = "b8V3OrosKaBKgAZ0MSSA7"
 uri = "file://artifacts/romaneio-video/public/images/warehouse.jpg"
 type = "image"
 title = "industrial warehouse with packages logistics"
+
+[[outputs]]
+id = "pBVMvOEhCfe1rDjBRk6sX"
+uri = "file://artifacts/romaneio-video/public/audio/bg_music.mp3"
+type = "audio"
+title = "background music"
