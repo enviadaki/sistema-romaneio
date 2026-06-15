@@ -14,7 +14,7 @@ export interface Package {
   trackingNumber: string;
   city: string;
   promisedDeliveryDate: string;
-  operation: string;
+  operation?: string;
   createdAt: string;
 }
 
@@ -25,6 +25,7 @@ export interface PackageInput {
   city: string;
   /** @minLength 1 */
   promisedDeliveryDate: string;
+  /** Operation identifier (e.g. LOGGI, AMAZON). Defaults to LOGGI. */
   operation?: string;
 }
 
@@ -45,12 +46,14 @@ export interface Scan {
   scanDate: string;
   /** @nullable */
   scannedBy?: string | null;
+  operation?: string;
   scannedAt: string;
 }
 
 export interface ScanInput {
   /** @minLength 1 */
   trackingNumber: string;
+  /** Operation identifier (e.g. LOGGI, AMAZON). Defaults to LOGGI. */
   operation?: string;
 }
 
@@ -67,6 +70,13 @@ export interface Romaneio {
   packages: RomaneioItem[];
 }
 
+export interface UnscannedPackage {
+  id: number;
+  trackingNumber: string;
+  city: string;
+  promisedDeliveryDate: string;
+}
+
 export interface CityCount {
   city: string;
   count: number;
@@ -75,13 +85,6 @@ export interface CityCount {
 export interface OperatorCount {
   operator: string;
   count: number;
-}
-
-export interface UnscannedPackage {
-  id: number;
-  trackingNumber: string;
-  city: string;
-  promisedDeliveryDate: string;
 }
 
 export interface Stats {
@@ -97,6 +100,7 @@ export interface Stats {
 
 export interface BulkScansInput {
   trackingNumbers: string[];
+  /** Operation identifier (e.g. LOGGI, AMAZON). Defaults to LOGGI. */
   operation?: string;
 }
 
@@ -111,79 +115,6 @@ export interface ClearPackagesResult {
 
 export interface ErrorResponse {
   error: string;
-}
-
-export type ClearPackagesParams = {
-  /** Restrict deletion to this operation (e.g. LOGGI, AMAZON). */
-  operation?: string;
-  /** ISO date (YYYY-MM-DD). Single-day shorthand; superseded by dateFrom/dateTo. */
-  date?: string;
-  /** ISO date (YYYY-MM-DD). Start of date range (inclusive). */
-  dateFrom?: string;
-  /** ISO date (YYYY-MM-DD). End of date range (inclusive). */
-  dateTo?: string;
-};
-
-export type ListPackagesParams = {
-  city?: string;
-  operation?: string;
-  /** ISO date (YYYY-MM-DD). Start of creation date range (inclusive). */
-  dateFrom?: string;
-  /** ISO date (YYYY-MM-DD). End of creation date range (inclusive). */
-  dateTo?: string;
-};
-
-export type ListScansParams = {
-  city?: string;
-  date?: string;
-  dateFrom?: string;
-  dateTo?: string;
-};
-
-export type GetRomaneioParams = {
-  city?: string;
-  /**
-   * Comma-separated list of cities (route mode)
-   */
-  cities?: string;
-  /**
-   * Display label for the romaneio (route name)
-   */
-  label?: string;
-  date: string;
-};
-
-export interface CityContact {
-  id: number;
-  city: string;
-  responsavel: string;
-  contato: string;
-  entregador: string;
-  motorista: string;
-  contatoMotorista: string;
-  conferente: string;
-  operacao: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface MotoristaSummary {
-  motorista: string;
-  conferente: string;
-  contatoMotorista: string;
-}
-
-export interface Motorista {
-  id: number;
-  nome: string;
-  contato: string;
-  createdAt: string;
-}
-
-export interface Conferente {
-  id: number;
-  nome: string;
-  createdAt: string;
 }
 
 export interface DeliveryManifestItem {
@@ -205,26 +136,111 @@ export interface DeliveryManifest {
   contatoMotorista: string;
   rota: string;
   rotaPortaAPorta: number;
-  km: string | null;
-  valorPorKm: string | null;
-  valorPagamento: string | null;
+  /** @nullable */
+  km?: string | null;
+  /** @nullable */
+  valorPorKm?: string | null;
+  /** @nullable */
+  valorPagamento?: string | null;
   status: string;
-  dataPagamento: string | null;
-  observacoes: string | null;
+  /** @nullable */
+  dataPagamento?: string | null;
+  /** @nullable */
+  observacoes?: string | null;
   createdAt: string;
   items: DeliveryManifestItem[];
 }
 
-export interface ManifestPreviewItem {
-  cidade: string;
-  empresa: string;
-  sacas: number;
-  avulsos: number;
+export interface CityContact {
+  id: number;
+  city: string;
+  responsavel: string;
+  contato: string;
+  entregador: string;
+  motorista: string;
+  contatoMotorista: string;
+  conferente: string;
+  operacao: string;
 }
 
-export type ListDeliveryManifestsParams = {
-  motorista?: string;
-  status?: string;
+export interface Motorista {
+  id: number;
+  nome: string;
+  contato: string;
+  createdAt?: string;
+}
+
+export interface Conferente {
+  id: number;
+  nome: string;
+  createdAt?: string;
+}
+
+export type ClearPackagesParams = {
+  /**
+   * Restrict deletion to this operation (e.g. LOGGI, AMAZON). If omitted, deletes across all operations.
+   */
+  operation?: string;
+  /**
+   * ISO date (YYYY-MM-DD). Single-day shorthand; superseded by dateFrom/dateTo.
+   */
+  date?: string;
+  /**
+   * ISO date (YYYY-MM-DD). Start of date range (inclusive).
+   */
   dateFrom?: string;
+  /**
+   * ISO date (YYYY-MM-DD). End of date range (inclusive).
+   */
   dateTo?: string;
+};
+
+export type ListPackagesParams = {
+  city?: string;
+  operation?: string;
+  /**
+   * ISO date (YYYY-MM-DD). Start of creation date range (inclusive).
+   */
+  dateFrom?: string;
+  /**
+   * ISO date (YYYY-MM-DD). End of creation date range (inclusive).
+   */
+  dateTo?: string;
+};
+
+export type ListScansParams = {
+  city?: string;
+  date?: string;
+  /**
+   * ISO date (YYYY-MM-DD). Start of scan date range (inclusive).
+   */
+  dateFrom?: string;
+  /**
+   * ISO date (YYYY-MM-DD). End of scan date range (inclusive).
+   */
+  dateTo?: string;
+  /**
+   * Filter by operation (e.g. LOGGI, AMAZON).
+   */
+  operation?: string;
+};
+
+export type GetRomaneioParams = {
+  city?: string;
+  /**
+   * Comma-separated list of cities (route mode)
+   */
+  cities?: string;
+  /**
+   * Display label for the romaneio (route name)
+   */
+  label?: string;
+  date: string;
+};
+
+export type GetStatsParams = {
+  /**
+   * Filter statistics by operation (e.g. LOGGI, AMAZON). Defaults to LOGGI if omitted.
+   */
+  operation?: string;
 };

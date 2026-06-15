@@ -8,4 +8,6 @@
 
 export interface BulkScansInput {
   trackingNumbers: string[];
+  /** Operation identifier (e.g. LOGGI, AMAZON). Defaults to LOGGI. */
+  operation?: string;
 }

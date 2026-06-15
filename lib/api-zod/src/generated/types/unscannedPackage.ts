@@ -6,9 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface ScanInput {
-  /** @minLength 1 */
+export interface UnscannedPackage {
+  id: number;
   trackingNumber: string;
-  /** Operation identifier (e.g. LOGGI, AMAZON). Defaults to LOGGI. */
-  operation?: string;
+  city: string;
+  promisedDeliveryDate: string;
 }

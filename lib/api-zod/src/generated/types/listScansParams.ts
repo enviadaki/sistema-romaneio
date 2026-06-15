@@ -9,5 +9,16 @@
 export type ListScansParams = {
   city?: string;
   date?: string;
+  /**
+   * ISO date (YYYY-MM-DD). Start of scan date range (inclusive).
+   */
+  dateFrom?: string;
+  /**
+   * ISO date (YYYY-MM-DD). End of scan date range (inclusive).
+   */
+  dateTo?: string;
+  /**
+   * Filter by operation (e.g. LOGGI, AMAZON).
+   */
   operation?: string;
 };

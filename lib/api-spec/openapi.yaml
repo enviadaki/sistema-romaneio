@@ -216,6 +216,24 @@ paths:
           required: false
           schema:
             type: string
+        - name: dateFrom
+          in: query
+          required: false
+          schema:
+            type: string
+          description: ISO date (YYYY-MM-DD). Start of scan date range (inclusive).
+        - name: dateTo
+          in: query
+          required: false
+          schema:
+            type: string
+          description: ISO date (YYYY-MM-DD). End of scan date range (inclusive).
+        - name: operation
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by operation (e.g. LOGGI, AMAZON).
       responses:
         "200":
           description: List of scans
@@ -342,6 +360,13 @@ paths:
       operationId: getStats
       tags: [stats]
       summary: Get dashboard statistics
+      parameters:
+        - name: operation
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter statistics by operation (e.g. LOGGI, AMAZON). Defaults to LOGGI if omitted.
       responses:
         "200":
           description: Statistics
@@ -371,6 +396,8 @@ components:
           type: string
         promisedDeliveryDate:
           type: string
+        operation:
+          type: string
         createdAt:
           type: string
 
@@ -387,6 +414,9 @@ components:
         promisedDeliveryDate:
           type: string
           minLength: 1
+        operation:
+          type: string
+          description: Operation identifier (e.g. LOGGI, AMAZON). Defaults to LOGGI.
 
     PackageBulkInput:
       type: object
@@ -424,6 +454,8 @@ components:
           type: string
         scannedBy:
           type: ["string", "null"]
+        operation:
+          type: string
         scannedAt:
           type: string
 
@@ -434,6 +466,9 @@ components:
         trackingNumber:
           type: string
           minLength: 1
+        operation:
+          type: string
+          description: Operation identifier (e.g. LOGGI, AMAZON). Defaults to LOGGI.
 
     Romaneio:
       type: object
@@ -463,7 +498,7 @@ components:
 
     Stats:
       type: object
-      required: [totalPackages, totalScansToday, totalCities, recentScans, packagesByCity, scansByOperator, scansByCity]
+      required: [totalPackages, totalScansToday, totalCities, totalUnscanned, unscannedPackages, packagesByCity, scansByOperator, scansByCity]
       properties:
         totalPackages:
           type: integer
@@ -471,10 +506,12 @@ components:
           type: integer
         totalCities:
           type: integer
-        recentScans:
+        totalUnscanned:
+          type: integer
+        unscannedPackages:
           type: array
           items:
-            $ref: "#/components/schemas/Scan"
+            $ref: "#/components/schemas/UnscannedPackage"
         packagesByCity:
           type: array
           items:
@@ -487,6 +524,19 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CityCount"
+
+    UnscannedPackage:
+      type: object
+      required: [id, trackingNumber, city, promisedDeliveryDate]
+      properties:
+        id:
+          type: integer
+        trackingNumber:
+          type: string
+        city:
+          type: string
+        promisedDeliveryDate:
+          type: string
 
     OperatorCount:
       type: object
@@ -514,6 +564,9 @@ components:
           type: array
           items:
             type: string
+        operation:
+          type: string
+          description: Operation identifier (e.g. LOGGI, AMAZON). Defaults to LOGGI.
 
     BulkScansResult:
       type: object
@@ -536,4 +589,109 @@ components:
       required: [error]
       properties:
         error:
+          type: string
+
+    DeliveryManifestItem:
+      type: object
+      required: [id, manifestId, cidade, empresa, sacas, avulsos, responsavel, contato]
+      properties:
+        id:
+          type: integer
+        manifestId:
+          type: integer
+        cidade:
+          type: string
+        empresa:
+          type: string
+        sacas:
+          type: integer
+        avulsos:
+          type: integer
+        responsavel:
+          type: string
+        contato:
+          type: string
+
+    DeliveryManifest:
+      type: object
+      required: [id, numero, motorista, conferente, contatoMotorista, rota, rotaPortaAPorta, status, createdAt, items]
+      properties:
+        id:
+          type: integer
+        numero:
+          type: integer
+        motorista:
+          type: string
+        conferente:
+          type: string
+        contatoMotorista:
+          type: string
+        rota:
+          type: string
+        rotaPortaAPorta:
+          type: integer
+        km:
+          type: ["string", "null"]
+        valorPorKm:
+          type: ["string", "null"]
+        valorPagamento:
+          type: ["string", "null"]
+        status:
+          type: string
+        dataPagamento:
+          type: ["string", "null"]
+        observacoes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeliveryManifestItem"
+
+    CityContact:
+      type: object
+      required: [id, city, responsavel, contato, entregador, motorista, contatoMotorista, conferente, operacao]
+      properties:
+        id:
+          type: integer
+        city:
+          type: string
+        responsavel:
+          type: string
+        contato:
+          type: string
+        entregador:
+          type: string
+        motorista:
+          type: string
+        contatoMotorista:
+          type: string
+        conferente:
+          type: string
+        operacao:
+          type: string
+
+    Motorista:
+      type: object
+      required: [id, nome, contato]
+      properties:
+        id:
+          type: integer
+        nome:
+          type: string
+        contato:
+          type: string
+        createdAt:
+          type: string
+
+    Conferente:
+      type: object
+      required: [id, nome]
+      properties:
+        id:
+          type: integer
+        nome:
+          type: string
+        createdAt:
           type: string

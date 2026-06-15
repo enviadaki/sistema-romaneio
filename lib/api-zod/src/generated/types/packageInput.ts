@@ -13,5 +13,6 @@ export interface PackageInput {
   city: string;
   /** @minLength 1 */
   promisedDeliveryDate: string;
+  /** Operation identifier (e.g. LOGGI, AMAZON). Defaults to LOGGI. */
   operation?: string;
 }

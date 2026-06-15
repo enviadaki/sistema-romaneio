@@ -16,13 +16,29 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
- * @summary Delete all packages registered on a given date (or all if no date)
+ * @summary Delete packages filtered by operation and optional date range
  */
 export const ClearPackagesQueryParams = zod.object({
-  operation: zod.coerce.string().optional().describe("Restrict deletion to this operation (e.g. LOGGI, AMAZON)."),
-  date: zod.coerce.string().optional().describe("ISO date (YYYY-MM-DD). Single-day shorthand; superseded by dateFrom/dateTo."),
-  dateFrom: zod.coerce.string().optional().describe("ISO date (YYYY-MM-DD). Start of date range (inclusive)."),
-  dateTo: zod.coerce.string().optional().describe("ISO date (YYYY-MM-DD). End of date range (inclusive)."),
+  operation: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Restrict deletion to this operation (e.g. LOGGI, AMAZON). If omitted, deletes across all operations.",
+    ),
+  date: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "ISO date (YYYY-MM-DD). Single-day shorthand; superseded by dateFrom\/dateTo.",
+    ),
+  dateFrom: zod.coerce
+    .string()
+    .optional()
+    .describe("ISO date (YYYY-MM-DD). Start of date range (inclusive)."),
+  dateTo: zod.coerce
+    .string()
+    .optional()
+    .describe("ISO date (YYYY-MM-DD). End of date range (inclusive)."),
 });
 
 export const ClearPackagesResponse = zod.object({
@@ -35,8 +51,16 @@ export const ClearPackagesResponse = zod.object({
 export const ListPackagesQueryParams = zod.object({
   city: zod.coerce.string().optional(),
   operation: zod.coerce.string().optional(),
-  dateFrom: zod.coerce.string().optional().describe("ISO date (YYYY-MM-DD). Start of creation date range (inclusive)."),
-  dateTo: zod.coerce.string().optional().describe("ISO date (YYYY-MM-DD). End of creation date range (inclusive)."),
+  dateFrom: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "ISO date (YYYY-MM-DD). Start of creation date range (inclusive).",
+    ),
+  dateTo: zod.coerce
+    .string()
+    .optional()
+    .describe("ISO date (YYYY-MM-DD). End of creation date range (inclusive)."),
 });
 
 export const ListPackagesResponseItem = zod.object({
@@ -44,6 +68,7 @@ export const ListPackagesResponseItem = zod.object({
   trackingNumber: zod.string(),
   city: zod.string(),
   promisedDeliveryDate: zod.string(),
+  operation: zod.string().optional(),
   createdAt: zod.string(),
 });
 export const ListPackagesResponse = zod.array(ListPackagesResponseItem);
@@ -56,7 +81,10 @@ export const CreatePackageBody = zod.object({
   trackingNumber: zod.string().min(1),
   city: zod.string().min(1),
   promisedDeliveryDate: zod.string().min(1),
-  operation: zod.string().optional().default("LOGGI"),
+  operation: zod
+    .string()
+    .optional()
+    .describe("Operation identifier (e.g. LOGGI, AMAZON). Defaults to LOGGI."),
 });
 
 /**
@@ -69,7 +97,12 @@ export const BulkCreatePackagesBody = zod.object({
       trackingNumber: zod.string().min(1),
       city: zod.string().min(1),
       promisedDeliveryDate: zod.string().min(1),
-      operation: zod.string().optional().default("LOGGI"),
+      operation: zod
+        .string()
+        .optional()
+        .describe(
+          "Operation identifier (e.g. LOGGI, AMAZON). Defaults to LOGGI.",
+        ),
     }),
   ),
 });
@@ -93,8 +126,18 @@ export const ListCitiesResponse = zod.array(ListCitiesResponseItem);
 export const ListScansQueryParams = zod.object({
   city: zod.coerce.string().optional(),
   date: zod.coerce.string().optional(),
-  dateFrom: zod.coerce.string().optional(),
-  dateTo: zod.coerce.string().optional(),
+  dateFrom: zod.coerce
+    .string()
+    .optional()
+    .describe("ISO date (YYYY-MM-DD). Start of scan date range (inclusive)."),
+  dateTo: zod.coerce
+    .string()
+    .optional()
+    .describe("ISO date (YYYY-MM-DD). End of scan date range (inclusive)."),
+  operation: zod.coerce
+    .string()
+    .optional()
+    .describe("Filter by operation (e.g. LOGGI, AMAZON)."),
 });
 
 export const ListScansResponseItem = zod.object({
@@ -103,6 +146,7 @@ export const ListScansResponseItem = zod.object({
   city: zod.string(),
   scanDate: zod.string(),
   scannedBy: zod.string().nullish(),
+  operation: zod.string().optional(),
   scannedAt: zod.string(),
 });
 export const ListScansResponse = zod.array(ListScansResponseItem);
@@ -113,7 +157,10 @@ export const ListScansResponse = zod.array(ListScansResponseItem);
 
 export const CreateScanBody = zod.object({
   trackingNumber: zod.string().min(1),
-  operation: zod.string().optional(),
+  operation: zod
+    .string()
+    .optional()
+    .describe("Operation identifier (e.g. LOGGI, AMAZON). Defaults to LOGGI."),
 });
 
 /**
@@ -121,7 +168,10 @@ export const CreateScanBody = zod.object({
  */
 export const BulkCreateScansBody = zod.object({
   trackingNumbers: zod.array(zod.string()),
-  operation: zod.string().optional(),
+  operation: zod
+    .string()
+    .optional()
+    .describe("Operation identifier (e.g. LOGGI, AMAZON). Defaults to LOGGI."),
 });
 
 export const BulkCreateScansResponse = zod.object({
@@ -168,18 +218,26 @@ export const GetRomaneioResponse = zod.object({
 /**
  * @summary Get dashboard statistics
  */
+export const GetStatsQueryParams = zod.object({
+  operation: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Filter statistics by operation (e.g. LOGGI, AMAZON). Defaults to LOGGI if omitted.",
+    ),
+});
+
 export const GetStatsResponse = zod.object({
   totalPackages: zod.number(),
   totalScansToday: zod.number(),
   totalCities: zod.number(),
-  recentScans: zod.array(
+  totalUnscanned: zod.number(),
+  unscannedPackages: zod.array(
     zod.object({
       id: zod.number(),
       trackingNumber: zod.string(),
       city: zod.string(),
-      scanDate: zod.string(),
-      scannedBy: zod.string().nullish(),
-      scannedAt: zod.string(),
+      promisedDeliveryDate: zod.string(),
     }),
   ),
   packagesByCity: zod.array(

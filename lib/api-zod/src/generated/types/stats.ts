@@ -7,13 +7,7 @@
  */
 import type { CityCount } from "./cityCount";
 import type { OperatorCount } from "./operatorCount";
-
-export interface UnscannedPackage {
-  id: number;
-  trackingNumber: string;
-  city: string;
-  promisedDeliveryDate: string;
-}
+import type { UnscannedPackage } from "./unscannedPackage";
 
 export interface Stats {
   totalPackages: number;

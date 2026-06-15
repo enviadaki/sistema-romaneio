@@ -9,4 +9,12 @@
 export type ListPackagesParams = {
   city?: string;
   operation?: string;
+  /**
+   * ISO date (YYYY-MM-DD). Start of creation date range (inclusive).
+   */
+  dateFrom?: string;
+  /**
+   * ISO date (YYYY-MM-DD). End of creation date range (inclusive).
+   */
+  dateTo?: string;
 };

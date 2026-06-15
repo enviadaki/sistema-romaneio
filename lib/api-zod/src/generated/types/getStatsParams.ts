@@ -6,9 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface ScanInput {
-  /** @minLength 1 */
-  trackingNumber: string;
-  /** Operation identifier (e.g. LOGGI, AMAZON). Defaults to LOGGI. */
+export type GetStatsParams = {
+  /**
+   * Filter statistics by operation (e.g. LOGGI, AMAZON). Defaults to LOGGI if omitted.
+   */
   operation?: string;
-}
+};

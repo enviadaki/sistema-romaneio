@@ -24,6 +24,7 @@ import type {
   ClearPackagesResult,
   ErrorResponse,
   GetRomaneioParams,
+  GetStatsParams,
   HealthStatus,
   ListPackagesParams,
   ListScansParams,
@@ -122,7 +123,7 @@ export function useHealthCheck<
 }
 
 /**
- * @summary Delete all packages registered on a given date (or all if no date)
+ * @summary Delete packages filtered by operation and optional date range
  */
 export const getClearPackagesUrl = (params?: ClearPackagesParams) => {
   const normalizedParams = new URLSearchParams();
@@ -195,7 +196,7 @@ export type ClearPackagesMutationResult = NonNullable<
 export type ClearPackagesMutationError = ErrorType<unknown>;
 
 /**
- * @summary Delete all packages registered on a given date (or all if no date)
+ * @summary Delete packages filtered by operation and optional date range
  */
 export const useClearPackages = <
   TError = ErrorType<unknown>,
@@ -1087,35 +1088,57 @@ export function useGetRomaneio<
 /**
  * @summary Get dashboard statistics
  */
-export const getGetStatsUrl = () => {
-  return `/api/stats`;
+export const getGetStatsUrl = (params?: GetStatsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/stats?${stringifiedParams}`
+    : `/api/stats`;
 };
 
-export const getStats = async (options?: RequestInit): Promise<Stats> => {
-  return customFetch<Stats>(getGetStatsUrl(), {
+export const getStats = async (
+  params?: GetStatsParams,
+  options?: RequestInit,
+): Promise<Stats> => {
+  return customFetch<Stats>(getGetStatsUrl(params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetStatsQueryKey = () => {
-  return [`/api/stats`] as const;
+export const getGetStatsQueryKey = (params?: GetStatsParams) => {
+  return [`/api/stats`, ...(params ? [params] : [])] as const;
 };
 
 export const getGetStatsQueryOptions = <
   TData = Awaited<ReturnType<typeof getStats>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<Awaited<ReturnType<typeof getStats>>, TError, TData>;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
+>(
+  params?: GetStatsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getStats>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetStatsQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetStatsQueryKey(params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof getStats>>> = ({
     signal,
-  }) => getStats({ signal, ...requestOptions });
+  }) => getStats(params, { signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof getStats>>,
@@ -1136,11 +1159,18 @@ export type GetStatsQueryError = ErrorType<unknown>;
 export function useGetStats<
   TData = Awaited<ReturnType<typeof getStats>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<Awaited<ReturnType<typeof getStats>>, TError, TData>;
-  request?: SecondParameter<typeof customFetch>;
-}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetStatsQueryOptions(options);
+>(
+  params?: GetStatsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getStats>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetStatsQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

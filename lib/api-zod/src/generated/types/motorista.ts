@@ -6,11 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface Package {
+export interface Motorista {
   id: number;
-  trackingNumber: string;
-  city: string;
-  promisedDeliveryDate: string;
-  operation?: string;
-  createdAt: string;
+  nome: string;
+  contato: string;
+  createdAt?: string;
 }

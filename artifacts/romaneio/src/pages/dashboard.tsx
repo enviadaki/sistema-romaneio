@@ -1,8 +1,4 @@
-import {
-  useGetStats,
-  getGetStatsQueryKey,
-  customFetch,
-} from "@workspace/api-client-react";
+import { useGetStats } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, ScanLine, MapPin, Trophy, User, Route, AlertCircle } from "lucide-react";
 import { formatDateTime } from "@/lib/date-utils";
@@ -26,12 +22,7 @@ const MEDAL_LABELS = ["🥇", "🥈", "🥉"];
 
 export default function Dashboard() {
   const { operation } = useOperation();
-  const { data: stats, isLoading } = useGetStats({
-    query: {
-      queryKey: [...getGetStatsQueryKey(), operation],
-      queryFn: () => customFetch<any>(`/api/stats?operation=${operation}`),
-    },
-  });
+  const { data: stats, isLoading } = useGetStats({ operation });
 
   // Build route progress from static ROUTES config + stats data
   const routeProgress = useMemo(() => {

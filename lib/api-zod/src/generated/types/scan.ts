@@ -13,5 +13,6 @@ export interface Scan {
   scanDate: string;
   /** @nullable */
   scannedBy?: string | null;
+  operation?: string;
   scannedAt: string;
 }

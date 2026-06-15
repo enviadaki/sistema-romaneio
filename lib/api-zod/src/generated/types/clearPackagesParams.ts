@@ -8,7 +8,19 @@
 
 export type ClearPackagesParams = {
   /**
-   * ISO date (YYYY-MM-DD). If omitted, deletes ALL packages.
+   * Restrict deletion to this operation (e.g. LOGGI, AMAZON). If omitted, deletes across all operations.
+   */
+  operation?: string;
+  /**
+   * ISO date (YYYY-MM-DD). Single-day shorthand; superseded by dateFrom/dateTo.
    */
   date?: string;
+  /**
+   * ISO date (YYYY-MM-DD). Start of date range (inclusive).
+   */
+  dateFrom?: string;
+  /**
+   * ISO date (YYYY-MM-DD). End of date range (inclusive).
+   */
+  dateTo?: string;
 };
