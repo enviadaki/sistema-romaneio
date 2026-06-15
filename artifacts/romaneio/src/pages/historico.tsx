@@ -28,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Trash2, User } from "lucide-react";
+import { Download, Trash2, User } from "lucide-react";
 
 type DateMode = "day" | "period";
 
@@ -82,6 +82,31 @@ export default function Historico() {
       return op === operatorFilter;
     });
   }, [allScans, operatorFilter]);
+
+  const handleExportCSV = () => {
+    if (!scans.length) return;
+    const header = ["Data/Hora", "Rastreador", "Cidade", "Operador"];
+    const rows = scans.map((s) => [
+      formatDateTime(s.scannedAt),
+      s.trackingNumber,
+      s.city ?? "",
+      s.scannedBy ?? "",
+    ]);
+    const csv = [header, ...rows]
+      .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const dateLabel =
+      dateMode === "day"
+        ? dateFilter || "historico"
+        : `${dateFromFilter || ""}_${dateToFilter || ""}`;
+    a.download = `historico_scans_${dateLabel}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const handleDelete = async (id: number) => {
     setDeletingId(id);
@@ -208,6 +233,17 @@ export default function Historico() {
             </Button>
           </div>
         )}
+
+        <div className="flex items-end ml-auto">
+          <Button
+            variant="outline"
+            onClick={handleExportCSV}
+            disabled={!scans.length}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Exportar CSV
+          </Button>
+        </div>
       </div>
 
       {operatorFilter !== "ALL" && (
