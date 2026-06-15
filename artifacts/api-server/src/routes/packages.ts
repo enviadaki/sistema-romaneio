@@ -164,10 +164,13 @@ router.post("/packages", requireAuth, async (req, res): Promise<void> => {
   const existing = await db
     .select()
     .from(packagesTable)
-    .where(eq(packagesTable.trackingNumber, parsed.data.trackingNumber));
+    .where(and(
+      eq(packagesTable.trackingNumber, parsed.data.trackingNumber),
+      eq(packagesTable.operation, operation),
+    ));
 
   if (existing.length > 0) {
-    res.status(409).json({ error: "Número de rastreio já cadastrado" });
+    res.status(409).json({ error: "Número de rastreio já cadastrado nesta operação" });
     return;
   }
 
@@ -207,10 +210,14 @@ router.post("/packages/bulk", requireAuth, async (req, res): Promise<void> => {
 
   for (const pkg of parsed.data.packages) {
     try {
+      const pkgOperation = pkg.operation ?? bulkOperation;
       const existing = await db
         .select()
         .from(packagesTable)
-        .where(eq(packagesTable.trackingNumber, pkg.trackingNumber));
+        .where(and(
+          eq(packagesTable.trackingNumber, pkg.trackingNumber),
+          eq(packagesTable.operation, pkgOperation),
+        ));
 
       if (existing.length > 0) {
         skipped++;
@@ -221,7 +228,7 @@ router.post("/packages/bulk", requireAuth, async (req, res): Promise<void> => {
         trackingNumber: pkg.trackingNumber,
         city: pkg.city,
         promisedDeliveryDate: pkg.promisedDeliveryDate,
-        operation: pkg.operation ?? bulkOperation,
+        operation: pkgOperation,
       });
       imported++;
     } catch {
