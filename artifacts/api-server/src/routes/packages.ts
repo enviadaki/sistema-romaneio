@@ -62,6 +62,11 @@ router.delete("/packages/clear", requireAuth, async (req, res): Promise<void> =>
   const dateTo    = (req.query.dateTo    as string | undefined)?.trim();
   const operation = (req.query.operation as string | undefined)?.trim();
 
+  if (!operation) {
+    res.status(400).json({ error: "Parâmetro 'operation' é obrigatório para limpar pacotes." });
+    return;
+  }
+
   const conditions = [];
 
   // Single date shortcut (kept for backwards compat)

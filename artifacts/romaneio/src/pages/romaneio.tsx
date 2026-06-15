@@ -411,6 +411,14 @@ export default function Romaneio() {
           <h1 className="text-3xl font-bold tracking-tight">Gerar Romaneio</h1>
           <p className="text-muted-foreground mt-2">Gere, imprima ou exporte o manifesto de entrega em PDF.</p>
         </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <span className={`mt-1 text-sm font-bold px-3 py-1 rounded-full border ${
+            operation === "LOGGI"
+              ? "bg-blue-50 text-blue-700 border-blue-200"
+              : "bg-orange-50 text-orange-700 border-orange-200"
+          }`}>
+            {operation}
+          </span>
 
         <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
           <DialogTrigger asChild>
@@ -443,6 +451,7 @@ export default function Romaneio() {
             </div>
           </DialogContent>
         </Dialog>
+          </div>
       </div>
 
       {/* Controls */}

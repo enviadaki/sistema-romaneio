@@ -292,11 +292,20 @@ export default function PreSorter() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Pré-Sorter (Bipagem)</h1>
-        <p className="text-muted-foreground mt-2">
-          Biper pacotes para gerar o romaneio da rota ou cidade.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Pré-Sorter (Bipagem)</h1>
+          <p className="text-muted-foreground mt-2">
+            Biper pacotes para gerar o romaneio da rota ou cidade.
+          </p>
+        </div>
+        <span className={`mt-1 shrink-0 text-sm font-bold px-3 py-1 rounded-full border ${
+          operation === "LOGGI"
+            ? "bg-blue-50 text-blue-700 border-blue-200"
+            : "bg-orange-50 text-orange-700 border-orange-200"
+        }`}>
+          {operation}
+        </span>
       </div>
 
       <Card className="border-2 border-primary/20">

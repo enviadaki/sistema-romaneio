@@ -14,9 +14,10 @@ export const scansTable = pgTable(
     scannedAt: timestamp("scanned_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("scans_tracking_number_scan_date_unique").on(
+    uniqueIndex("scans_tracking_number_scan_date_operation_unique").on(
       table.trackingNumber,
       table.scanDate,
+      table.operation,
     ),
   ],
 );

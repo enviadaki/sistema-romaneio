@@ -333,7 +333,7 @@ export default function Cadastro() {
   const handleFileImport = () => {
     if (!filePreview || filePreview.rows.length === 0) return;
     bulkCreate.mutate(
-      { data: { packages: filePreview.rows } },
+      { data: { packages: filePreview.rows.map(r => ({ ...r, operation })) } },
       {
         onSuccess: (res) => {
           toast({
@@ -352,9 +352,18 @@ export default function Cadastro() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Cadastro de Pacotes</h1>
-        <p className="text-muted-foreground mt-2">Registre novos pacotes no sistema para posterior bipagem.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Cadastro de Pacotes</h1>
+          <p className="text-muted-foreground mt-2">Registre novos pacotes no sistema para posterior bipagem.</p>
+        </div>
+        <span className={`mt-1 shrink-0 text-sm font-bold px-3 py-1 rounded-full border ${
+          operation === "LOGGI"
+            ? "bg-blue-50 text-blue-700 border-blue-200"
+            : "bg-orange-50 text-orange-700 border-orange-200"
+        }`}>
+          {operation}
+        </span>
       </div>
 
       <div className="grid md:grid-cols-2 gap-8">
