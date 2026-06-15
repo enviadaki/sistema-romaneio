@@ -113,6 +113,7 @@ export const ListScansResponse = zod.array(ListScansResponseItem);
 
 export const CreateScanBody = zod.object({
   trackingNumber: zod.string().min(1),
+  operation: zod.string().optional(),
 });
 
 /**
@@ -120,6 +121,7 @@ export const CreateScanBody = zod.object({
  */
 export const BulkCreateScansBody = zod.object({
   trackingNumbers: zod.array(zod.string()),
+  operation: zod.string().optional(),
 });
 
 export const BulkCreateScansResponse = zod.object({

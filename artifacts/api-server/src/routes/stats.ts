@@ -34,7 +34,13 @@ router.get("/stats", requireAuth, async (req, res): Promise<void> => {
       createdAt: packagesTable.createdAt,
     })
     .from(packagesTable)
-    .leftJoin(scansTable, eq(scansTable.trackingNumber, packagesTable.trackingNumber))
+    .leftJoin(
+      scansTable,
+      and(
+        eq(scansTable.trackingNumber, packagesTable.trackingNumber),
+        eq(scansTable.operation, packagesTable.operation),
+      ),
+    )
     .where(and(eq(packagesTable.operation, operation), isNull(scansTable.id)))
     .orderBy(packagesTable.promisedDeliveryDate)
     .limit(20);
@@ -42,7 +48,13 @@ router.get("/stats", requireAuth, async (req, res): Promise<void> => {
   const [totalUnscannedResult] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(packagesTable)
-    .leftJoin(scansTable, eq(scansTable.trackingNumber, packagesTable.trackingNumber))
+    .leftJoin(
+      scansTable,
+      and(
+        eq(scansTable.trackingNumber, packagesTable.trackingNumber),
+        eq(scansTable.operation, packagesTable.operation),
+      ),
+    )
     .where(and(eq(packagesTable.operation, operation), isNull(scansTable.id)));
 
   const packagesByCity = await db

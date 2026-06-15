@@ -74,14 +74,18 @@ router.post("/scans/bulk", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  const bulkOperation = (parsed.data.operation ?? "LOGGI").trim();
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
   const userFullName = (req as any).userFullName ?? null;
 
-  // Fetch all matching packages in one query
+  // Fetch all matching packages in one query — scoped to the active operation
   const pkgs = await db
     .select()
     .from(packagesTable)
-    .where(inArray(packagesTable.trackingNumber, trackingNumbers));
+    .where(and(
+      inArray(packagesTable.trackingNumber, trackingNumbers),
+      eq(packagesTable.operation, bulkOperation),
+    ));
 
   const pkgMap = new Map(pkgs.map((p) => [p.trackingNumber, p]));
 
@@ -118,10 +122,15 @@ router.post("/scans", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  const scanOperation = (parsed.data.operation ?? "LOGGI").trim();
+
   const [pkg] = await db
     .select()
     .from(packagesTable)
-    .where(eq(packagesTable.trackingNumber, parsed.data.trackingNumber));
+    .where(and(
+      eq(packagesTable.trackingNumber, parsed.data.trackingNumber),
+      eq(packagesTable.operation, scanOperation),
+    ));
 
   if (!pkg) {
     res.status(404).json({ error: "Rastreio não encontrado na base" });

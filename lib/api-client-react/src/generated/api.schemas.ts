@@ -51,6 +51,7 @@ export interface Scan {
 export interface ScanInput {
   /** @minLength 1 */
   trackingNumber: string;
+  operation?: string;
 }
 
 export interface RomaneioItem {
@@ -96,6 +97,7 @@ export interface Stats {
 
 export interface BulkScansInput {
   trackingNumbers: string[];
+  operation?: string;
 }
 
 export interface BulkScansResult {

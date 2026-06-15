@@ -131,7 +131,7 @@ export default function PreSorter() {
   const handleAutoRegister = () => {
     if (!pendingPackages.length) return;
     bulkCreateScans.mutate(
-      { data: { trackingNumbers: pendingPackages.map((p: any) => p.trackingNumber) } },
+      { data: { trackingNumbers: pendingPackages.map((p: any) => p.trackingNumber), operation } },
       {
         onSuccess: (res) => {
           toast({
@@ -196,7 +196,7 @@ export default function PreSorter() {
     }
 
     createScan.mutate(
-      { data: { trackingNumber: code } },
+      { data: { trackingNumber: code, operation } },
       {
         onSuccess: () => {
           triggerResult({
