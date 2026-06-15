@@ -66,7 +66,7 @@ export default function Consulta() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [operation]);
 
   const handleSearch = () => {
     lookup(input);

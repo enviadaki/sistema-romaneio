@@ -178,7 +178,12 @@ router.delete("/scans/:id", requireAuth, async (req, res): Promise<void> => {
 
   const operation = (req.query.operation as string | undefined)?.trim();
 
-  // Fetch first to verify ownership if operation param is provided
+  if (!operation) {
+    res.status(400).json({ error: "Parâmetro 'operation' é obrigatório para remover bipagens." });
+    return;
+  }
+
+  // Fetch first to verify operation ownership before deleting
   const [existing] = await db
     .select()
     .from(scansTable)
@@ -189,12 +194,12 @@ router.delete("/scans/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  if (operation && existing.operation !== operation) {
+  if (existing.operation !== operation) {
     res.status(403).json({ error: "Operação não autorizada para esta bipagem" });
     return;
   }
 
-  await db.delete(scansTable).where(eq(scansTable.id, params.data.id));
+  await db.delete(scansTable).where(and(eq(scansTable.id, params.data.id), eq(scansTable.operation, operation)));
 
   res.sendStatus(204);
 });
