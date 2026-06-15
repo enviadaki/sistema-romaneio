@@ -1,5 +1,10 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "GvzpVTy3g-UXFBKYPOlhg"
+uri = "file://artifacts/romaneio-video/public/images/map-bg.png"
+type = "image"
+title = "abstract logistics map tech lines"
 
 [[outputs]]
 id = "3sVYjw0JdQvvr6tHqRfa0"
@@ -12,3 +17,9 @@ id = "B9_2v4CHcShavjUBv-viE"
 uri = "file://.local/outputs/Guia-de-Implantacao---Sistema-de-Romaneios.pdf"
 type = "pdf"
 title = "Guia de Implantação — Sistema de Romaneios (PDF)"
+
+[[outputs]]
+id = "b8V3OrosKaBKgAZ0MSSA7"
+uri = "file://artifacts/romaneio-video/public/images/warehouse.jpg"
+type = "image"
+title = "industrial warehouse with packages logistics"

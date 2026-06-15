@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+:root {
+  --color-primary: #f97316; /* Amazon Orange accent */
+  --color-secondary: #2563eb; /* Loggi Blue accent */
+  --color-accent: #38bdf8;
+
+  --color-loggi: #2563eb;
+  --color-amazon: #f97316;
+
+  --color-bg-light: #ffffff;
+  --color-bg-dark: #09090b; /* Very dark gray/black */
+  --color-bg-muted: #18181b;
+
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #a1a1aa;
+  --color-text-muted: #71717a;
+  --color-text-inverse: #09090b;
+
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+@theme inline {
+  --color-primary: var(--color-primary);
+  --color-secondary: var(--color-secondary);
+  --color-accent: var(--color-accent);
+  --color-loggi: var(--color-loggi);
+  --color-amazon: var(--color-amazon);
+  
+  --color-bg-light: var(--color-bg-light);
+  --color-bg-dark: var(--color-bg-dark);
+  --color-bg-muted: var(--color-bg-muted);
+  
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-muted: var(--color-text-muted);
+  --color-text-inverse: var(--color-text-inverse);
+  
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+  --font-mono: var(--font-mono);
+}
+
+body {
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--color-bg-dark);
+  color: var(--color-text-primary);
+}
