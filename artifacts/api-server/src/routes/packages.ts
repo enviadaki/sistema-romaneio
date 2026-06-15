@@ -57,16 +57,31 @@ router.get("/packages/lookup", requireAuth, async (req, res): Promise<void> => {
 
 // DELETE /packages/clear — must come BEFORE /packages/:id
 router.delete("/packages/clear", requireAuth, async (req, res): Promise<void> => {
-  const date = (req.query.date as string | undefined)?.trim();
+  const date      = (req.query.date      as string | undefined)?.trim();
+  const dateFrom  = (req.query.dateFrom  as string | undefined)?.trim();
+  const dateTo    = (req.query.dateTo    as string | undefined)?.trim();
   const operation = (req.query.operation as string | undefined)?.trim();
 
   const conditions = [];
+
+  // Single date shortcut (kept for backwards compat)
   if (date) {
-    const startOfDay = new Date(`${date}T00:00:00.000Z`);
-    const endOfDay   = new Date(`${date}T23:59:59.999Z`);
-    conditions.push(gte(packagesTable.createdAt, startOfDay));
-    conditions.push(lt(packagesTable.createdAt, endOfDay));
+    const start = new Date(`${date}T00:00:00-03:00`);
+    const end   = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 1);
+    conditions.push(gte(packagesTable.createdAt, start));
+    conditions.push(lt(packagesTable.createdAt, end));
+  } else {
+    if (dateFrom) {
+      conditions.push(gte(packagesTable.createdAt, new Date(`${dateFrom}T00:00:00-03:00`)));
+    }
+    if (dateTo) {
+      const end = new Date(`${dateTo}T00:00:00-03:00`);
+      end.setUTCDate(end.getUTCDate() + 1);
+      conditions.push(lt(packagesTable.createdAt, end));
+    }
   }
+
   if (operation) {
     conditions.push(eq(packagesTable.operation, operation));
   }
@@ -91,6 +106,18 @@ router.get("/packages", requireAuth, async (req, res): Promise<void> => {
   const conditions: ReturnType<typeof eq>[] = [];
 
   conditions.push(eq(packagesTable.operation, operation));
+
+  // Date range filter (Brazil timezone — UTC-3, no DST)
+  const dateFrom = (req.query as any).dateFrom as string | undefined;
+  const dateTo   = (req.query as any).dateTo   as string | undefined;
+  if (dateFrom) {
+    conditions.push(gte(packagesTable.createdAt, new Date(`${dateFrom}T00:00:00-03:00`)) as any);
+  }
+  if (dateTo) {
+    const end = new Date(`${dateTo}T00:00:00-03:00`);
+    end.setUTCDate(end.getUTCDate() + 1);
+    conditions.push(lt(packagesTable.createdAt, end) as any);
+  }
 
   const citiesParam = (req.query as any).cities as string | undefined;
   if (citiesParam) {

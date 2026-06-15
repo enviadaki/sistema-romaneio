@@ -13,7 +13,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { formatDate, getTodayDateString } from "@/lib/date-utils";
+import { formatDate, getTodayDateString, getYesterdayDateString, getWeekStartDateString } from "@/lib/date-utils";
 import { useOperation } from "@/contexts/operation-context";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
@@ -55,11 +55,21 @@ export default function Cadastro() {
 
   const [cityFilter, setCityFilter] = useState<string>("ALL");
   const [activeTab, setActiveTab] = useState<"single" | "bulk" | "file">("single");
+  const [periodTab, setPeriodTab] = useState<"hoje" | "ontem" | "semana" | "tudo">("hoje");
 
   // Clear dialog state
   const [clearOpen, setClearOpen] = useState(false);
   const [clearDate, setClearDate] = useState(getTodayDateString);
-  const [clearMode, setClearMode] = useState<"date" | "all">("date");
+  const [clearMode, setClearMode] = useState<"date" | "period" | "all">("date");
+
+  // Date range for the active period tab
+  const getPeriodRange = (tab: typeof periodTab): { dateFrom?: string; dateTo?: string } => {
+    const today = getTodayDateString();
+    if (tab === "hoje")   return { dateFrom: today, dateTo: today };
+    if (tab === "ontem")  { const y = getYesterdayDateString(); return { dateFrom: y, dateTo: y }; }
+    if (tab === "semana") return { dateFrom: getWeekStartDateString(), dateTo: today };
+    return {};
+  };
 
   // Single mode state
   const [trackingNumber, setTrackingNumber] = useState("");
@@ -74,9 +84,12 @@ export default function Cadastro() {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const pkgParams = cityFilter !== "ALL"
-    ? { city: cityFilter, operation }
-    : { operation };
+  const periodRange = getPeriodRange(periodTab);
+  const pkgParams = {
+    operation,
+    ...(cityFilter !== "ALL" ? { city: cityFilter } : {}),
+    ...periodRange,
+  };
 
   const { data: packages, isLoading } = useListPackages(pkgParams, {
     query: { queryKey: getListPackagesQueryKey(pkgParams) },
@@ -101,8 +114,15 @@ export default function Cadastro() {
   };
 
   const handleClear = () => {
-    const params = clearMode === "date" ? { params: { date: clearDate } } : {};
-    clearPkgs.mutate(params as any, {
+    let params: Record<string, string> = { operation };
+    if (clearMode === "date") {
+      params.date = clearDate;
+    } else if (clearMode === "period" && periodRange.dateFrom) {
+      params.dateFrom = periodRange.dateFrom;
+      if (periodRange.dateTo) params.dateTo = periodRange.dateTo;
+    }
+    // clearMode === "all" → no date params, just operation
+    clearPkgs.mutate({ params } as any, {
       onSuccess: (res) => {
         toast({
           title: "Pacotes removidos",
@@ -548,13 +568,57 @@ export default function Cadastro() {
               <Button
                 variant="destructive"
                 size="sm"
-                onClick={() => { setClearMode("date"); setClearDate(getTodayDateString()); setClearOpen(true); }}
+                onClick={() => {
+                  if (periodTab === "hoje") {
+                    setClearMode("date"); setClearDate(getTodayDateString());
+                  } else if (periodTab === "ontem") {
+                    setClearMode("date"); setClearDate(getYesterdayDateString());
+                  } else if (periodTab === "semana") {
+                    setClearMode("period");
+                  } else {
+                    setClearMode("all");
+                  }
+                  setClearOpen(true);
+                }}
               >
                 <Eraser className="h-4 w-4 mr-1.5" />
                 Limpar
               </Button>
             </div>
           </div>
+
+          {/* Period tabs */}
+          {(() => {
+            const tabs: { key: typeof periodTab; label: string }[] = [
+              { key: "hoje",   label: "Hoje" },
+              { key: "ontem",  label: "Ontem" },
+              { key: "semana", label: "Esta semana" },
+              { key: "tudo",   label: "Tudo" },
+            ];
+            return (
+              <div className="flex gap-1 border-b">
+                {tabs.map(t => (
+                  <button
+                    key={t.key}
+                    type="button"
+                    onClick={() => setPeriodTab(t.key)}
+                    className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                      periodTab === t.key
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {t.label}
+                    {periodTab === t.key && packages && packages.length > 0 && (
+                      <span className="ml-1.5 text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
+                        {packages.length}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
 
           {/* Clear packages dialog */}
           <Dialog open={clearOpen} onOpenChange={setClearOpen}>
@@ -573,7 +637,7 @@ export default function Cadastro() {
                 {/* Mode selector */}
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">O que deseja apagar?</Label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     <button
                       type="button"
                       onClick={() => setClearMode("date")}
@@ -584,7 +648,19 @@ export default function Cadastro() {
                       }`}
                     >
                       <div className="font-medium mb-0.5">Por data</div>
-                      <div className="text-xs text-muted-foreground">Apaga os pacotes de um dia específico</div>
+                      <div className="text-xs text-muted-foreground">Um dia específico</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setClearMode("period")}
+                      className={`rounded-lg border-2 p-3 text-sm text-left transition-colors ${
+                        clearMode === "period"
+                          ? "border-destructive bg-destructive/5 font-semibold"
+                          : "border-muted hover:border-muted-foreground/40"
+                      }`}
+                    >
+                      <div className="font-medium mb-0.5">Este período</div>
+                      <div className="text-xs text-muted-foreground">Aba ativa</div>
                     </button>
                     <button
                       type="button"
@@ -596,7 +672,7 @@ export default function Cadastro() {
                       }`}
                     >
                       <div className="font-medium mb-0.5">Todos</div>
-                      <div className="text-xs text-muted-foreground">Apaga <strong>todos</strong> os pacotes do sistema</div>
+                      <div className="text-xs text-muted-foreground">Toda a operação</div>
                     </button>
                   </div>
                 </div>
@@ -616,6 +692,16 @@ export default function Cadastro() {
                   </div>
                 )}
 
+                {/* Period info */}
+                {clearMode === "period" && (
+                  <div className="rounded-lg bg-muted/50 border p-3 text-sm text-muted-foreground">
+                    {periodRange.dateFrom === periodRange.dateTo
+                      ? <>Serão apagados pacotes do dia <strong>{periodRange.dateFrom}</strong>.</>
+                      : <>Serão apagados pacotes de <strong>{periodRange.dateFrom}</strong> até <strong>{periodRange.dateTo}</strong>.</>
+                    }
+                  </div>
+                )}
+
                 <div className="flex gap-2 pt-1">
                   <Button
                     variant="outline"
@@ -631,7 +717,13 @@ export default function Cadastro() {
                     onClick={handleClear}
                     disabled={clearPkgs.isPending}
                   >
-                    {clearPkgs.isPending ? "Apagando..." : clearMode === "all" ? "Apagar Tudo" : "Apagar do Dia"}
+                    {clearPkgs.isPending
+                      ? "Apagando..."
+                      : clearMode === "all"
+                      ? "Apagar Tudo"
+                      : clearMode === "period"
+                      ? "Apagar Período"
+                      : "Apagar do Dia"}
                   </Button>
                 </div>
               </div>
