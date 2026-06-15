@@ -176,15 +176,25 @@ router.delete("/scans/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const [scan] = await db
-    .delete(scansTable)
-    .where(eq(scansTable.id, params.data.id))
-    .returning();
+  const operation = (req.query.operation as string | undefined)?.trim();
 
-  if (!scan) {
+  // Fetch first to verify ownership if operation param is provided
+  const [existing] = await db
+    .select()
+    .from(scansTable)
+    .where(eq(scansTable.id, params.data.id));
+
+  if (!existing) {
     res.status(404).json({ error: "Bipagem não encontrada" });
     return;
   }
+
+  if (operation && existing.operation !== operation) {
+    res.status(403).json({ error: "Operação não autorizada para esta bipagem" });
+    return;
+  }
+
+  await db.delete(scansTable).where(eq(scansTable.id, params.data.id));
 
   res.sendStatus(204);
 });

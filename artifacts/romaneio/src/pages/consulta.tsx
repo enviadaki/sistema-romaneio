@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { customFetch } from "@workspace/api-client-react";
+import { useOperation } from "@/contexts/operation-context";
 import { ROUTES } from "@/lib/routes-data";
 import { CameraScanner } from "@/components/camera-scanner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,6 +42,7 @@ function findRouteForCity(city: string): string | null {
 }
 
 export default function Consulta() {
+  const { operation } = useOperation();
   const [input, setInput] = useState("");
   const [cameraOpen, setCameraOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -56,7 +58,7 @@ export default function Consulta() {
 
     try {
       const data = await customFetch<LookupResult>(
-        `/api/packages/lookup?trackingNumber=${encodeURIComponent(code)}`
+        `/api/packages/lookup?trackingNumber=${encodeURIComponent(code)}&operation=${operation}`
       );
       setResult(data);
     } catch {

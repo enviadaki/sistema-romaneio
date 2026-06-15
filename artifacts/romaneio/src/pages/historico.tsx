@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import {
   useListScans,
   getListScansQueryKey,
-  useDeleteScan,
+  customFetch,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDateTime, getTodayDateString } from "@/lib/date-utils";
@@ -58,7 +58,7 @@ export default function Historico() {
     query: { queryKey: getListScansQueryKey(params) },
   });
 
-  const deleteScan = useDeleteScan();
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const operators = useMemo(() => {
     if (!allScans) return [];
@@ -83,15 +83,17 @@ export default function Historico() {
     });
   }, [allScans, operatorFilter]);
 
-  const handleDelete = (id: number) => {
-    deleteScan.mutate(
-      { id },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListScansQueryKey() });
-        },
-      }
-    );
+  const handleDelete = async (id: number) => {
+    setDeletingId(id);
+    try {
+      await customFetch<void>(
+        `/api/scans/${id}?operation=${encodeURIComponent(operation)}`,
+        { method: "DELETE" },
+      );
+      queryClient.invalidateQueries({ queryKey: getListScansQueryKey() });
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const hasActiveFilters =
@@ -276,6 +278,7 @@ export default function Historico() {
                     <Button
                       variant="ghost"
                       size="icon"
+                      disabled={deletingId === scan.id}
                       onClick={() => handleDelete(scan.id)}
                     >
                       <Trash2 className="h-4 w-4 text-destructive" />

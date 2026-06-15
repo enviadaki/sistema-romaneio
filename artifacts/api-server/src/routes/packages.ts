@@ -11,7 +11,7 @@ import { requireAuth } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
-// GET /packages/lookup?trackingNumber=XXX — must come BEFORE /packages/:id
+// GET /packages/lookup?trackingNumber=XXX&operation=LOGGI — must come BEFORE /packages/:id
 router.get("/packages/lookup", requireAuth, async (req, res): Promise<void> => {
   const trackingNumber = (req.query.trackingNumber as string | undefined)?.trim();
   if (!trackingNumber) {
@@ -19,10 +19,15 @@ router.get("/packages/lookup", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  const operation = (req.query.operation as string | undefined)?.trim() ?? "LOGGI";
+
   const [pkg] = await db
     .select()
     .from(packagesTable)
-    .where(eq(packagesTable.trackingNumber, trackingNumber))
+    .where(and(
+      eq(packagesTable.trackingNumber, trackingNumber),
+      eq(packagesTable.operation, operation),
+    ))
     .limit(1);
 
   if (!pkg) {
@@ -30,14 +35,15 @@ router.get("/packages/lookup", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
   const [scan] = await db
     .select()
     .from(scansTable)
     .where(
       and(
         eq(scansTable.trackingNumber, trackingNumber),
-        eq(scansTable.scanDate, today)
+        eq(scansTable.operation, pkg.operation),
+        eq(scansTable.scanDate, today),
       )
     )
     .limit(1);
