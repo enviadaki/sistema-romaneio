@@ -19,10 +19,10 @@ export const HealthCheckResponse = zod.object({
  * @summary Delete all packages registered on a given date (or all if no date)
  */
 export const ClearPackagesQueryParams = zod.object({
-  date: zod.coerce
-    .string()
-    .optional()
-    .describe("ISO date (YYYY-MM-DD). If omitted, deletes ALL packages."),
+  operation: zod.coerce.string().optional().describe("Restrict deletion to this operation (e.g. LOGGI, AMAZON)."),
+  date: zod.coerce.string().optional().describe("ISO date (YYYY-MM-DD). Single-day shorthand; superseded by dateFrom/dateTo."),
+  dateFrom: zod.coerce.string().optional().describe("ISO date (YYYY-MM-DD). Start of date range (inclusive)."),
+  dateTo: zod.coerce.string().optional().describe("ISO date (YYYY-MM-DD). End of date range (inclusive)."),
 });
 
 export const ClearPackagesResponse = zod.object({
@@ -35,6 +35,8 @@ export const ClearPackagesResponse = zod.object({
 export const ListPackagesQueryParams = zod.object({
   city: zod.coerce.string().optional(),
   operation: zod.coerce.string().optional(),
+  dateFrom: zod.coerce.string().optional().describe("ISO date (YYYY-MM-DD). Start of creation date range (inclusive)."),
+  dateTo: zod.coerce.string().optional().describe("ISO date (YYYY-MM-DD). End of creation date range (inclusive)."),
 });
 
 export const ListPackagesResponseItem = zod.object({
