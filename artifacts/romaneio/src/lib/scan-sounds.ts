@@ -1,8 +1,8 @@
 let ctx: AudioContext | null = null;
 
-function getCtx(): AudioContext {
+async function getCtx(): Promise<AudioContext> {
   if (!ctx) ctx = new AudioContext();
-  if (ctx.state === "suspended") ctx.resume();
+  if (ctx.state !== "running") await ctx.resume();
   return ctx;
 }
 
@@ -30,7 +30,6 @@ function playTone(
   const distortion = ac.createWaveShaper();
   const masterGain = ac.createGain();
 
-  // Heavy distortion
   distortion.curve = makeDistortionCurve(800);
   distortion.oversample = "4x";
 
@@ -42,12 +41,10 @@ function playTone(
   osc.type = type;
   osc.frequency.setValueAtTime(frequency, startTime);
 
-  // Pre-distortion gain — drives the clipper hard
   gain.gain.setValueAtTime(0, startTime);
   gain.gain.linearRampToValueAtTime(gainValue, startTime + 0.008);
   gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
 
-  // Post-distortion master volume
   masterGain.gain.setValueAtTime(6.0, startTime);
 
   osc.start(startTime);
@@ -55,18 +52,18 @@ function playTone(
 }
 
 /** Dois bipes ascendentes — confirmação de sucesso */
-export function playScanSuccess() {
-  const ac = getCtx();
+export async function playScanSuccess() {
+  const ac = await getCtx();
   const t = ac.currentTime;
   playTone(880,  t,        0.18, 8.0, "square", ac);
   playTone(1320, t + 0.20, 0.22, 8.0, "square", ac);
 }
 
 /** Bipe grave descendente — pacote não encontrado / erro */
-export function playScanError() {
+export async function playScanError() {
   navigator.vibrate?.([250, 80, 250, 80, 500]);
 
-  const ac = getCtx();
+  const ac = await getCtx();
   const t = ac.currentTime;
 
   const osc = ac.createOscillator();
@@ -96,8 +93,8 @@ export function playScanError() {
 }
 
 /** Tom médio duplo — pacote já bipado (aviso) */
-export function playScanWarning() {
-  const ac = getCtx();
+export async function playScanWarning() {
+  const ac = await getCtx();
   const t = ac.currentTime;
   playTone(520, t,        0.15, 8.0, "square", ac);
   playTone(520, t + 0.20, 0.15, 8.0, "square", ac);
