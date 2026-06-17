@@ -128,38 +128,48 @@ function addRomaneioToPDF(
   const emitW = doc.getTextWidth(emitidoText);
   doc.text(emitidoText, pageWidth - margin - emitW, 21);
 
-  // ── Info block ──
-  const infoH = 28;
-  const infoTop = 38;
-  doc.setFillColor(240, 244, 250);
+  // ── Route banner ──
+  const bannerTop = 38;
+  const bannerH = 34;
+  doc.setFillColor(20, 80, 175);
+  doc.rect(0, bannerTop, pageWidth, bannerH, "F");
+
+  // Faixa lateral de destaque no lado esquerdo
+  doc.setFillColor(255, 200, 0);
+  doc.rect(0, bannerTop, 5, bannerH, "F");
+
+  const destinoLabel = opts.isRouteMode ? "ROTA" : "CIDADE DESTINO";
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.setTextColor(160, 200, 255);
+  doc.text(destinoLabel, margin + 2, bannerTop + 10);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.setTextColor(255, 255, 255);
+  doc.text(data.city.toUpperCase(), margin + 2, bannerTop + 27);
+
+  // Total volumes (direita, dentro do banner)
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7);
+  doc.setTextColor(160, 200, 255);
+  doc.text("TOTAL DE VOLUMES", pageWidth - margin, bannerTop + 10, { align: "right" });
+  doc.setFontSize(24);
+  doc.setTextColor(255, 255, 255);
+  doc.text(String(data.totalCount), pageWidth - margin, bannerTop + 28, { align: "right" });
+
+  // ── Info bar (data) ──
+  const infoTop = bannerTop + bannerH;
+  const infoH = 18;
+  doc.setFillColor(235, 241, 252);
   doc.rect(0, infoTop, pageWidth, infoH, "F");
 
-  const boxW = 54;
-  const boxX = pageWidth - margin - boxW;
-  doc.setFillColor(15, 40, 80);
-  doc.roundedRect(boxX, infoTop + 1, boxW, infoH - 2, 2, 2, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.5);
-  doc.text("TOTAL DE VOLUMES", boxX + boxW / 2, infoTop + 9, { align: "center" });
-  doc.setFontSize(20);
-  doc.text(String(data.totalCount), boxX + boxW / 2, infoTop + 21, { align: "center" });
-
-  const textMaxX = boxX - 6;
   doc.setTextColor(15, 40, 80);
-  doc.setFontSize(9.5);
-
-  const destinoLabel = opts.isRouteMode ? "ROTA:" : "CIDADE DESTINO:";
+  doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
-  doc.text(destinoLabel, margin, infoTop + 9);
+  doc.text("DATA DE BIPAGEM:", margin, infoTop + 12);
   doc.setFont("helvetica", "normal");
-  const destinoX = margin + doc.getTextWidth(destinoLabel) + 2;
-  doc.text(data.city.toUpperCase(), destinoX, infoTop + 9, { maxWidth: textMaxX - destinoX });
-
-  doc.setFont("helvetica", "bold");
-  doc.text("DATA DE BIPAGEM:", margin, infoTop + 19);
-  doc.setFont("helvetica", "normal");
-  doc.text(formatDate(data.date), margin + doc.getTextWidth("DATA DE BIPAGEM:") + 2, infoTop + 19);
+  doc.text(formatDate(data.date), margin + doc.getTextWidth("DATA DE BIPAGEM:") + 2, infoTop + 12);
 
   // ── Table ──
   const tableStartY = infoTop + infoH + 4;
