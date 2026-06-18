@@ -102,10 +102,13 @@ function addRomaneioToPDF(
   const contentWidth = pageWidth - margin * 2;
 
   // ── Header background ──
-  doc.setFillColor(15, 40, 80);
+  doc.setFillColor(235, 235, 235);
   doc.rect(0, 0, pageWidth, 38, "F");
+  doc.setDrawColor(60, 60, 60);
+  doc.setLineWidth(0.6);
+  doc.line(0, 38, pageWidth, 38);
 
-  doc.setTextColor(255, 255, 255);
+  doc.setTextColor(20, 20, 20);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
   doc.text(opts.empresa || "SISTEMA DE ROMANEIOS", margin, 14);
@@ -117,13 +120,14 @@ function addRomaneioToPDF(
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
-  doc.setTextColor(255, 255, 255);
+  doc.setTextColor(20, 20, 20);
   const titleText = "ROMANEIO DE ENTREGA";
   const titleW = doc.getTextWidth(titleText);
   doc.text(titleText, pageWidth - margin - titleW, 14);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
+  doc.setTextColor(80, 80, 80);
   const emitidoText = `Emitido: ${new Date().toLocaleString("pt-BR")}`;
   const emitW = doc.getTextWidth(emitidoText);
   doc.text(emitidoText, pageWidth - margin - emitW, 21);
@@ -131,40 +135,47 @@ function addRomaneioToPDF(
   // ── Route banner ──
   const bannerTop = 38;
   const bannerH = 34;
-  doc.setFillColor(20, 80, 175);
+  doc.setFillColor(210, 210, 210);
   doc.rect(0, bannerTop, pageWidth, bannerH, "F");
 
-  // Faixa lateral de destaque no lado esquerdo
-  doc.setFillColor(255, 200, 0);
+  // Faixa lateral de destaque — barra preta sólida
+  doc.setFillColor(30, 30, 30);
   doc.rect(0, bannerTop, 5, bannerH, "F");
+
+  doc.setDrawColor(120, 120, 120);
+  doc.setLineWidth(0.4);
+  doc.line(0, bannerTop + bannerH, pageWidth, bannerTop + bannerH);
 
   const destinoLabel = opts.isRouteMode ? "ROTA" : "CIDADE DESTINO";
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
-  doc.setTextColor(160, 200, 255);
+  doc.setTextColor(70, 70, 70);
   doc.text(destinoLabel, margin + 2, bannerTop + 10);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(20);
-  doc.setTextColor(255, 255, 255);
+  doc.setTextColor(10, 10, 10);
   doc.text(data.city.toUpperCase(), margin + 2, bannerTop + 27);
 
   // Total volumes (direita, dentro do banner)
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7);
-  doc.setTextColor(160, 200, 255);
+  doc.setTextColor(70, 70, 70);
   doc.text("TOTAL DE VOLUMES", pageWidth - margin, bannerTop + 10, { align: "right" });
   doc.setFontSize(24);
-  doc.setTextColor(255, 255, 255);
+  doc.setTextColor(10, 10, 10);
   doc.text(String(data.totalCount), pageWidth - margin, bannerTop + 28, { align: "right" });
 
   // ── Info bar (data) ──
   const infoTop = bannerTop + bannerH;
   const infoH = 18;
-  doc.setFillColor(235, 241, 252);
+  doc.setFillColor(248, 248, 248);
   doc.rect(0, infoTop, pageWidth, infoH, "F");
+  doc.setDrawColor(180, 180, 180);
+  doc.setLineWidth(0.3);
+  doc.line(0, infoTop + infoH, pageWidth, infoTop + infoH);
 
-  doc.setTextColor(15, 40, 80);
+  doc.setTextColor(20, 20, 20);
   doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
   doc.text("DATA DE BIPAGEM:", margin, infoTop + 12);
@@ -191,9 +202,9 @@ function addRomaneioToPDF(
           "",
         ]),
         theme: "grid",
-        styles: { fontSize: 9, cellPadding: 3, lineColor: [180, 195, 215], lineWidth: 0.3, textColor: [20, 30, 50], valign: "middle" },
-        headStyles: { fillColor: [30, 64, 120], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 9, cellPadding: 4 },
-        alternateRowStyles: { fillColor: [245, 248, 252] },
+        styles: { fontSize: 9, cellPadding: 3, lineColor: [160, 160, 160], lineWidth: 0.3, textColor: [20, 20, 20], valign: "middle" },
+        headStyles: { fillColor: [190, 190, 190], textColor: [10, 10, 10], fontStyle: "bold", fontSize: 9, cellPadding: 4 },
+        alternateRowStyles: { fillColor: [245, 245, 245] },
         columnStyles: {
           0: { cellWidth: 12, halign: "center", fontStyle: "bold" },
           1: { cellWidth: 75, fontStyle: "bold", font: "courier", fontSize: 9 },
@@ -203,7 +214,7 @@ function addRomaneioToPDF(
         didDrawPage: (d) => {
           const pageCount = (doc.internal as any).getNumberOfPages();
           doc.setFontSize(8);
-          doc.setTextColor(130, 140, 160);
+          doc.setTextColor(100, 100, 100);
           doc.setFont("helvetica", "normal");
           doc.text(`Página ${d.pageNumber}`, pageWidth / 2, pageHeight - 8, { align: "center" });
         },
@@ -224,9 +235,9 @@ function addRomaneioToPDF(
       head: [["#", "RASTREADOR (TRACKING NUMBER)", "ENTREGA PROMETIDA", "ASSINATURA"]],
       body: tableRows,
       theme: "grid",
-      styles: { fontSize: 9, cellPadding: 3, lineColor: [180, 195, 215], lineWidth: 0.3, textColor: [20, 30, 50], valign: "middle" },
-      headStyles: { fillColor: [15, 40, 80], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8, cellPadding: 4 },
-      alternateRowStyles: { fillColor: [245, 248, 252] },
+      styles: { fontSize: 9, cellPadding: 3, lineColor: [160, 160, 160], lineWidth: 0.3, textColor: [20, 20, 20], valign: "middle" },
+      headStyles: { fillColor: [190, 190, 190], textColor: [10, 10, 10], fontStyle: "bold", fontSize: 8, cellPadding: 4 },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
       columnStyles: {
         0: { cellWidth: 12, halign: "center", fontStyle: "bold" },
         1: { cellWidth: 75, fontStyle: "bold", font: "courier", fontSize: 9 },
@@ -235,7 +246,7 @@ function addRomaneioToPDF(
       },
       didDrawPage: (d) => {
         doc.setFontSize(8);
-        doc.setTextColor(130, 140, 160);
+        doc.setTextColor(100, 100, 100);
         doc.setFont("helvetica", "normal");
         doc.text(`Página ${d.pageNumber}`, pageWidth / 2, pageHeight - 8, { align: "center" });
       },
@@ -245,16 +256,16 @@ function addRomaneioToPDF(
   // ── Footer ──
   const finalY = (doc as any).lastAutoTable.finalY + 16;
   if (finalY < pageHeight - 45) {
-    doc.setDrawColor(180, 195, 215);
+    doc.setDrawColor(140, 140, 140);
     doc.setLineWidth(0.4);
     doc.line(margin, finalY, pageWidth - margin, finalY);
 
     const sigY = finalY + 20;
     const sigW = 70;
-    doc.setDrawColor(60, 80, 120);
+    doc.setDrawColor(60, 60, 60);
     doc.setLineWidth(0.6);
     doc.line(margin, sigY, margin + sigW, sigY);
-    doc.setTextColor(80, 95, 120);
+    doc.setTextColor(80, 80, 80);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.text("Assinatura do Motorista / Entregador", margin + sigW / 2, sigY + 5, { align: "center" });
