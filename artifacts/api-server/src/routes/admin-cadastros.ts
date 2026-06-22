@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, asc } from "drizzle-orm";
-import { db, routesTable, citiesTable, motoristasTable } from "@workspace/db";
+import { eq, asc, inArray } from "drizzle-orm";
+import { db, routesTable, citiesTable, motoristasTable, routeCitiesTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireAdmin } from "../middlewares/requireAdmin";
 
@@ -39,6 +39,43 @@ router.delete("/admin/routes/:id", requireAuth, requireAdmin, async (req, res): 
   const id = Number(req.params.id);
   await db.delete(routesTable).where(eq(routesTable.id, id));
   res.json({ success: true });
+});
+
+// ── Cidades de uma rota ────────────────────────────────────────────────────
+
+// GET /admin/routes/:id/cities
+router.get("/admin/routes/:id/cities", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const routeId = Number(req.params.id);
+  const rows = await db
+    .select({ id: citiesTable.id, name: citiesTable.name })
+    .from(routeCitiesTable)
+    .innerJoin(citiesTable, eq(routeCitiesTable.cityId, citiesTable.id))
+    .where(eq(routeCitiesTable.routeId, routeId))
+    .orderBy(asc(citiesTable.name));
+  res.json(rows);
+});
+
+// PUT /admin/routes/:id/cities  — replaces all city assignments
+router.put("/admin/routes/:id/cities", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const routeId = Number(req.params.id);
+  const { cityIds } = req.body as { cityIds?: number[] };
+  if (!Array.isArray(cityIds)) {
+    res.status(400).json({ error: "cityIds deve ser um array" });
+    return;
+  }
+  await db.transaction(async (tx) => {
+    await tx.delete(routeCitiesTable).where(eq(routeCitiesTable.routeId, routeId));
+    if (cityIds.length > 0) {
+      await tx.insert(routeCitiesTable).values(cityIds.map((cityId) => ({ routeId, cityId })));
+    }
+  });
+  const rows = await db
+    .select({ id: citiesTable.id, name: citiesTable.name })
+    .from(routeCitiesTable)
+    .innerJoin(citiesTable, eq(routeCitiesTable.cityId, citiesTable.id))
+    .where(eq(routeCitiesTable.routeId, routeId))
+    .orderBy(asc(citiesTable.name));
+  res.json(rows);
 });
 
 // ── Cidades ────────────────────────────────────────────────────────────────

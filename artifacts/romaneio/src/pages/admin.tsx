@@ -4,6 +4,7 @@ import { customFetch } from "@workspace/api-client-react";
 import { useUser } from "@clerk/react";
 import {
   Plus, Pencil, Trash2, Route, MapPin, Truck, Users, Shield, Check, X,
+  ChevronDown, ChevronRight,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,8 @@ import { Link } from "wouter";
 // ── Types ──────────────────────────────────────────────────────────────────
 
 interface RouteRow { id: number; name: string; createdAt: string }
-interface CityRow  { id: number; name: string; createdAt: string }
+interface CityRow  { id: number; name: string; createdAt?: string }
+interface RouteCityRow { id: number; name: string }
 interface MotoristaRow { id: number; nome: string; contato: string; createdAt: string }
 
 // ── Generic CRUD tab ───────────────────────────────────────────────────────
@@ -61,6 +63,133 @@ function InlineEditRow({
   );
 }
 
+// ── City assignment dialog ─────────────────────────────────────────────────
+
+function RouteCitiesDialog({
+  route,
+  allCities,
+  onClose,
+}: {
+  route: RouteRow;
+  allCities: CityRow[];
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [search, setSearch] = useState("");
+
+  const { data: assigned = [] } = useQuery<RouteCityRow[]>({
+    queryKey: ["route-cities", route.id],
+    queryFn: () => customFetch<RouteCityRow[]>(`/api/admin/routes/${route.id}/cities`),
+  });
+
+  const [selected, setSelected] = useState<Set<number>>(() => new Set());
+
+  // Sync selected from fetched data once
+  const [synced, setSynced] = useState(false);
+  if (!synced && assigned.length >= 0) {
+    setSelected(new Set(assigned.map((c) => c.id)));
+    setSynced(true);
+  }
+
+  const saveMutation = useMutation({
+    mutationFn: (cityIds: number[]) =>
+      customFetch<RouteCityRow[]>(`/api/admin/routes/${route.id}/cities`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cityIds }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["route-cities", route.id] });
+      toast({ title: `Cidades da ${route.name} atualizadas` });
+      onClose();
+    },
+    onError: (err: any) => toast({ title: "Erro", description: err?.message, variant: "destructive" }),
+  });
+
+  const toggle = (id: number) => {
+    setSelected((s) => {
+      const n = new Set(s);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  };
+
+  const filtered = allCities.filter((c) =>
+    c.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const toggleAll = () => {
+    if (filtered.every((c) => selected.has(c.id))) {
+      setSelected((s) => { const n = new Set(s); filtered.forEach((c) => n.delete(c.id)); return n; });
+    } else {
+      setSelected((s) => { const n = new Set(s); filtered.forEach((c) => n.add(c.id)); return n; });
+    }
+  };
+
+  const allFilteredSelected = filtered.length > 0 && filtered.every((c) => selected.has(c.id));
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Input
+          placeholder="Filtrar cidades..."
+          className="h-8 text-sm"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          autoFocus
+        />
+        <span className="text-xs text-muted-foreground whitespace-nowrap">
+          {selected.size} selecionada(s)
+        </span>
+      </div>
+
+      <div className="flex items-center gap-2 pb-1 border-b">
+        <label className="flex items-center gap-2 cursor-pointer text-xs text-muted-foreground select-none">
+          <input
+            type="checkbox"
+            checked={allFilteredSelected}
+            onChange={toggleAll}
+            className="h-3.5 w-3.5 accent-primary"
+          />
+          {allFilteredSelected ? "Desmarcar todas visíveis" : "Marcar todas visíveis"}
+        </label>
+      </div>
+
+      <div className="max-h-72 overflow-y-auto space-y-0.5 pr-1">
+        {filtered.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">Nenhuma cidade encontrada</p>
+        ) : (
+          filtered.map((c) => (
+            <label
+              key={c.id}
+              className="flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer hover:bg-muted transition-colors select-none"
+            >
+              <input
+                type="checkbox"
+                checked={selected.has(c.id)}
+                onChange={() => toggle(c.id)}
+                className="h-3.5 w-3.5 accent-primary flex-shrink-0"
+              />
+              <span className="text-sm">{c.name}</span>
+            </label>
+          ))
+        )}
+      </div>
+
+      <div className="flex justify-end gap-2 pt-2 border-t">
+        <Button variant="outline" onClick={onClose}>Cancelar</Button>
+        <Button
+          disabled={saveMutation.isPending}
+          onClick={() => saveMutation.mutate(Array.from(selected))}
+        >
+          {saveMutation.isPending ? "Salvando..." : "Salvar"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ── Rotas tab ──────────────────────────────────────────────────────────────
 
 function RotasTab() {
@@ -69,10 +198,17 @@ function RotasTab() {
   const [newName, setNewName] = useState("");
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [cityDialogRoute, setCityDialogRoute] = useState<RouteRow | null>(null);
 
   const { data: routes = [], isLoading } = useQuery<RouteRow[]>({
     queryKey: ["admin-routes"],
     queryFn: () => customFetch<RouteRow[]>("/api/admin/routes"),
+  });
+
+  const { data: allCities = [] } = useQuery<CityRow[]>({
+    queryKey: ["admin-cities"],
+    queryFn: () => customFetch<CityRow[]>("/api/admin/cities"),
   });
 
   const createMutation = useMutation({
@@ -155,6 +291,22 @@ function RotasTab() {
         </Card>
       )}
 
+      {/* City assignment dialog */}
+      <Dialog open={!!cityDialogRoute} onOpenChange={(o) => { if (!o) setCityDialogRoute(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cidades da {cityDialogRoute?.name}</DialogTitle>
+          </DialogHeader>
+          {cityDialogRoute && (
+            <RouteCitiesDialog
+              route={cityDialogRoute}
+              allCities={allCities}
+              onClose={() => setCityDialogRoute(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
       {isLoading ? (
         <p className="text-sm text-muted-foreground py-6 text-center">Carregando...</p>
       ) : routes.length === 0 && !adding ? (
@@ -166,53 +318,148 @@ function RotasTab() {
         </Card>
       ) : (
         <div className="divide-y rounded-md border">
-          {routes.map((r) => (
-            <div key={r.id} className="flex items-center gap-3 px-4 py-2.5">
-              {editingId === r.id ? (
-                <InlineEditRow
-                  value={r.name}
-                  onSave={(v) => { if (v.trim()) updateMutation.mutate({ id: r.id, name: v.trim() }); }}
-                  onCancel={() => setEditingId(null)}
-                />
-              ) : (
-                <>
-                  <span className="flex-1 text-sm font-medium">{r.name}</span>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8 text-muted-foreground"
-                    onClick={() => setEditingId(r.id)}
+          {routes.map((r) => {
+            const isExpanded = expandedId === r.id;
+            return (
+              <RouteRowItem
+                key={r.id}
+                route={r}
+                isExpanded={isExpanded}
+                isEditing={editingId === r.id}
+                onToggleExpand={() => setExpandedId(isExpanded ? null : r.id)}
+                onStartEdit={() => setEditingId(r.id)}
+                onSaveEdit={(name) => { if (name.trim()) updateMutation.mutate({ id: r.id, name: name.trim() }); }}
+                onCancelEdit={() => setEditingId(null)}
+                onDelete={() => deleteMutation.mutate(r.id)}
+                onEditCities={() => setCityDialogRoute(r)}
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Route row with expandable city list ────────────────────────────────────
+
+function RouteRowItem({
+  route,
+  isExpanded,
+  isEditing,
+  onToggleExpand,
+  onStartEdit,
+  onSaveEdit,
+  onCancelEdit,
+  onDelete,
+  onEditCities,
+}: {
+  route: RouteRow;
+  isExpanded: boolean;
+  isEditing: boolean;
+  onToggleExpand: () => void;
+  onStartEdit: () => void;
+  onSaveEdit: (name: string) => void;
+  onCancelEdit: () => void;
+  onDelete: () => void;
+  onEditCities: () => void;
+}) {
+  const { data: cities = [] } = useQuery<RouteCityRow[]>({
+    queryKey: ["route-cities", route.id],
+    queryFn: () => customFetch<RouteCityRow[]>(`/api/admin/routes/${route.id}/cities`),
+    enabled: isExpanded,
+  });
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 px-3 py-2.5">
+        <button
+          onClick={onToggleExpand}
+          className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+          title={isExpanded ? "Recolher" : "Ver cidades"}
+        >
+          {isExpanded
+            ? <ChevronDown className="h-4 w-4" />
+            : <ChevronRight className="h-4 w-4" />}
+        </button>
+
+        {isEditing ? (
+          <InlineEditRow value={route.name} onSave={onSaveEdit} onCancel={onCancelEdit} />
+        ) : (
+          <>
+            <span
+              className="flex-1 text-sm font-medium cursor-pointer"
+              onClick={onToggleExpand}
+            >
+              {route.name}
+            </span>
+            <span className="text-xs text-muted-foreground mr-1">
+              {cities.length > 0 ? `${cities.length} cidade(s)` : ""}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1 px-2"
+              onClick={onEditCities}
+            >
+              <MapPin className="h-3 w-3" />
+              Cidades
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8 text-muted-foreground"
+              onClick={onStartEdit}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:bg-destructive/10">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remover rota?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    A rota <strong>{route.name}</strong> e todas as suas cidades vinculadas serão removidas.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive hover:bg-destructive/90"
+                    onClick={onDelete}
                   >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:bg-destructive/10">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Remover rota?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          A rota <strong>{r.name}</strong> será removida da lista.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                          className="bg-destructive hover:bg-destructive/90"
-                          onClick={() => deleteMutation.mutate(r.id)}
-                        >
-                          Remover
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </>
-              )}
+                    Remover
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </>
+        )}
+      </div>
+
+      {isExpanded && (
+        <div className="px-9 pb-3">
+          {cities.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic">
+              Nenhuma cidade vinculada — clique em "Cidades" para adicionar.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {cities.map((c) => (
+                <span
+                  key={c.id}
+                  className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs font-medium"
+                >
+                  <MapPin className="h-2.5 w-2.5 text-muted-foreground" />
+                  {c.name}
+                </span>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>

@@ -9,3 +9,4 @@ export * from "./motorista-users";
 export * from "./operator-users";
 export * from "./routes";
 export * from "./cities";
+export * from "./route-cities";
