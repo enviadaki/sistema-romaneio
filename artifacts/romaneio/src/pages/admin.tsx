@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { useUser } from "@clerk/react";
@@ -78,19 +78,20 @@ function RouteCitiesDialog({
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
 
-  const { data: assigned = [] } = useQuery<RouteCityRow[]>({
+  const { data: assigned, isSuccess } = useQuery<RouteCityRow[]>({
     queryKey: ["route-cities", route.id],
     queryFn: () => customFetch<RouteCityRow[]>(`/api/admin/routes/${route.id}/cities`),
   });
 
   const [selected, setSelected] = useState<Set<number>>(() => new Set());
+  const [initialized, setInitialized] = useState(false);
 
-  // Sync selected from fetched data once
-  const [synced, setSynced] = useState(false);
-  if (!synced && assigned.length >= 0) {
-    setSelected(new Set(assigned.map((c) => c.id)));
-    setSynced(true);
-  }
+  useEffect(() => {
+    if (isSuccess && !initialized && assigned) {
+      setSelected(new Set(assigned.map((c) => c.id)));
+      setInitialized(true);
+    }
+  }, [isSuccess, assigned, initialized]);
 
   const saveMutation = useMutation({
     mutationFn: (cityIds: number[]) =>
@@ -367,7 +368,6 @@ function RouteRowItem({
   const { data: cities = [] } = useQuery<RouteCityRow[]>({
     queryKey: ["route-cities", route.id],
     queryFn: () => customFetch<RouteCityRow[]>(`/api/admin/routes/${route.id}/cities`),
-    enabled: isExpanded,
   });
 
   return (
