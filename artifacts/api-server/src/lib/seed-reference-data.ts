@@ -1,4 +1,4 @@
-import { db, motoristasTable, conferentesTable, cityContactsTable } from "@workspace/db";
+import { db, motoristasTable, conferentesTable, cityContactsTable, routesTable, citiesTable, routeCitiesTable } from "@workspace/db";
 import { count } from "drizzle-orm";
 import { logger } from "./logger";
 
@@ -58,7 +58,7 @@ const CIDADES = [
   { city: "GUANAMBI", responsavel: "ELSON ADÃO", contato: "77998184567", operacao: "" },
   { city: "IBIASSUCÊ", responsavel: "MAYCON VINICIUS BRITO BALEEIRO", contato: "77991868571", operacao: "" },
   { city: "IBICOARA", responsavel: "LEANDRO ROCHA", contato: "7781002250", operacao: "" },
-  { city: "IBICUI", responsavel: "JOÃO CAMAMU", contato: "73981091087", operacao: "" },
+  { city: "IBICUÍ", responsavel: "JOÃO CAMAMU", contato: "73981091087", operacao: "" },
   { city: "IBITIRA", responsavel: "LUCILEIA SANTOS DA SILVA", contato: "77981449006", operacao: "" },
   { city: "IGUAÍ", responsavel: "HENRIQUE", contato: "77982201641", operacao: "" },
   { city: "ITAETE", responsavel: "LEANDRO ROCHA", contato: "7781002250", operacao: "" },
@@ -108,12 +108,91 @@ const CIDADES = [
   { city: "URANDI", responsavel: "ELSON ADÃO", contato: "77998184567", operacao: "" },
 ];
 
+// 58 sub-routes (each identifies a specific delivery area)
+const ROUTES_WITH_CITIES: { name: string; cities: string[] }[] = [
+  { name: "ABAIRA - ROTA 03.4",              cities: ["ABAÍRA", "CATÓLES"] },
+  { name: "ANAGE - RETIRA 05",               cities: ["ANAGÉ"] },
+  { name: "ARACATU - ROTA 05",               cities: ["ARACATU"] },
+  { name: "BARRA DO CHOÇA - RETIRA 06",      cities: ["BARRA DO CHOÇA"] },
+  { name: "BELO CAMPO - RETIRA 03",          cities: ["BELO CAMPO"] },
+  { name: "BOA NOVA - ROTA 01",              cities: ["BOA NOVA"] },
+  { name: "BOM JESUS DA SERRA - ROTA 01",    cities: ["BOM JESUS DA SERRA"] },
+  { name: "BRUMADO - ROTA 05.1",             cities: ["BRUMADO", "UBIRACABA"] },
+  { name: "CACULE - ROTA 05.2",              cities: ["CACULÉ"] },
+  { name: "CAETANOS - RETIRA 01",            cities: ["CAETANOS"] },
+  { name: "CAETITE - ROTA 05.3",             cities: ["CAETITÉ"] },
+  { name: "CANDIBA - ROTA 05.4",             cities: ["CANDIBA"] },
+  { name: "CANDIDO SALES - RETIRA 02",       cities: ["CÂNDIDO SALES", "LAGOA GRANDE", "QUARAÇU"] },
+  { name: "CARAIBAS - RETIRA 05",            cities: ["CARAÍBAS", "PRESIDENTE JÂNIO QUADROS"] },
+  { name: "CARIRANHA - ROTA 05.4",           cities: ["CARINHANHA"] },
+  { name: "CONDEUBA - RETIRA 03",            cities: ["CONDEÚBA"] },
+  { name: "CORDEIROS - RETIRA 03",           cities: ["CORDEIROS"] },
+  { name: "DOM BASILIO - ROTA 03.3",         cities: ["DOM BASÍLIO"] },
+  { name: "ERICO CARDOSO - ROTA 03.2",       cities: ["ÉRICO CARDOSO"] },
+  { name: "GUAJERU - ROTA 05.2",             cities: ["GUAJERU"] },
+  { name: "GUANAMBI - ROTA 05.5",            cities: ["GUANAMBI", "MORRINHOS", "MUTAS", "TANQUE NOVO"] },
+  { name: "IBICUI - ROTA 01",                cities: ["IBICUÍ"] },
+  { name: "IBISSUCE - ROTA 05.2",            cities: ["IBIASSUCÊ"] },
+  { name: "IGUAI - ROTA 02",                 cities: ["IGUAÍ", "IGUAIBI"] },
+  { name: "ITAMBÉ - ROTA 04",               cities: ["ITAMBÉ"] },
+  { name: "ITAPETINGA - ROTA 04",            cities: ["ITAPETINGA", "ITAPITANGA"] },
+  { name: "ITARANTIM - ROTA 04",             cities: ["ITARANTIM"] },
+  { name: "ITORORO - ROTA 04",               cities: ["ITORORÓ", "RIO DO MEIO"] },
+  { name: "ITUAÇU - ROTA 03",               cities: ["BARRA DA ESTIVA", "CONTENDAS DO SINCORÁ", "IBICOARA", "ITAETÉ", "ITUAÇU", "TANHAÇU", "TRIUNFO DO SINCORÁ"] },
+  { name: "IUIU - ROTA 05.4",               cities: ["IUIÚ"] },
+  { name: "JACARACI - ROTA 05.4",            cities: ["IRUNDIARA", "JACARACI"] },
+  { name: "JUSSIAPE - ROTA 03.4",            cities: ["CARAGUATAÍ", "JUSSIAPE"] },
+  { name: "LAGOA REAL - ROTA 05.2",          cities: ["LAGOA REAL"] },
+  { name: "LICINIO DE ALMEIDA - ROTA 05.4",  cities: ["LICÍNIO DE ALMEIDA"] },
+  { name: "LIVRAMENTO - ROTA 03.3",          cities: ["LIVRAMENTO DE NOSSA SENHORA", "ITANAGÉ"] },
+  { name: "MACARANI - ROTA 04",              cities: ["MACARANI"] },
+  { name: "MAETINGA - RETIRA 05",            cities: ["MAETINGA"] },
+  { name: "MAIQUENIQUE - ROTA 04",           cities: ["MAIQUINIQUE"] },
+  { name: "MALHADA DE PEDRAS - ROTA 05.2",   cities: ["MALHADA DE PEDRAS"] },
+  { name: "MALHADA - ROTA 05.4",             cities: ["MALHADA"] },
+  { name: "MATINA - ROTA 05.4",              cities: ["MATINA"] },
+  { name: "MIRANTE - ROTA 01",               cities: ["MIRANTE"] },
+  { name: "MORTUGABA - ROTA 05.4",           cities: ["MORTUGABA"] },
+  { name: "NOVA CANAÃ - ROTA 02",            cities: ["NOVA CANAÃ"] },
+  { name: "PALMAS DE MONTE ALTO - ROTA 05.4",cities: ["PALMAS DE MONTE ALTO"] },
+  { name: "PARAMIRIM - ROTA 03.2",           cities: ["PARAMIRIM"] },
+  { name: "PIATÃ - ROTA 03.5",              cities: ["CABRÁLIA", "PIATÃ"] },
+  { name: "PINDAI - ROTA 05.4",              cities: ["PINDAÍ"] },
+  { name: "PIRIPA - RETIRA 03",              cities: ["PIRIPÁ"] },
+  { name: "PLANALTO - ROTA 01",              cities: ["PLANALTO"] },
+  { name: "POÇÕES - ROTA 01",               cities: ["POÇÕES"] },
+  { name: "POTIRAGUA - ROTA 04",             cities: ["POTIRAGUÁ"] },
+  { name: "RIO DE CONTAS - ROTA 03.3",       cities: ["ARAPIRANGA", "MARCOLINO MOURA", "RIO DE CONTAS"] },
+  { name: "RIO DO ANTONIO - ROTA 05.2",      cities: ["IBITIRA", "RIO DO ANTÔNIO"] },
+  { name: "SEBASTIÃO LARANJEIRAS - ROTA 05.4", cities: ["BOQUIRA", "SEBASTIÃO LARANJEIRAS"] },
+  { name: "TREMENDAL - RETIRA 03",           cities: ["TREMEDAL"] },
+  { name: "URANDI - ROTA 05.4",              cities: ["URANDI"] },
+  { name: "VCA",                             cities: ["VITÓRIA DA CONQUISTA"] },
+];
+
+// Canonical city names referenced by routes (+ extras not in city_contacts)
+const EXTRA_ADMIN_CITIES = [
+  "ABAÍRA", "ARAPIRANGA", "BOQUIRA", "CABRÁLIA", "CARAGUATAÍ",
+  "CATÓLES", "IGUAIBI", "IRUNDIARA", "ITANAGÉ", "ITAPITANGA",
+  "ITAETÉ", "LAGOA GRANDE", "MARCOLINO MOURA", "MORRINHOS",
+  "MUTAS", "QUARAÇU", "RIO DO MEIO", "TANQUE NOVO",
+  "TRIUNFO DO SINCORÁ", "UBIRACABA", "VITÓRIA DA CONQUISTA",
+];
+
 export async function seedReferenceData(): Promise<void> {
   try {
-    const [[{ value: mCount }], [{ value: cCount }], [{ value: ccCount }]] = await Promise.all([
+    const [
+      [{ value: mCount }],
+      [{ value: cCount }],
+      [{ value: ccCount }],
+      [{ value: rCount }],
+      [{ value: citCount }],
+    ] = await Promise.all([
       db.select({ value: count() }).from(motoristasTable),
       db.select({ value: count() }).from(conferentesTable),
       db.select({ value: count() }).from(cityContactsTable),
+      db.select({ value: count() }).from(routesTable),
+      db.select({ value: count() }).from(citiesTable),
     ]);
 
     const tasks: Promise<unknown>[] = [];
@@ -159,6 +238,65 @@ export async function seedReferenceData(): Promise<void> {
             logger.info({ count: CIDADES.length }, "Seed: city_contacts inseridas");
           })
       );
+    }
+
+    // Seed routes + cities + route_cities together only when routes are empty
+    if (rCount === 0) {
+      const routeNames = ROUTES_WITH_CITIES.map((r) => ({ name: r.name }));
+      const insertedRoutes = await db
+        .insert(routesTable)
+        .values(routeNames)
+        .onConflictDoNothing()
+        .returning({ id: routesTable.id, name: routesTable.name });
+      logger.info({ count: insertedRoutes.length }, "Seed: rotas inseridas");
+
+      // Build city name set from routes + extras
+      const allCityNamesSet = new Set<string>();
+      for (const r of ROUTES_WITH_CITIES) {
+        for (const c of r.cities) allCityNamesSet.add(c);
+      }
+      for (const c of EXTRA_ADMIN_CITIES) allCityNamesSet.add(c);
+
+      let insertedCities: { id: number; name: string }[] = [];
+      if (citCount === 0) {
+        const cityValues = Array.from(allCityNamesSet).map((name) => ({ name }));
+        insertedCities = await db
+          .insert(citiesTable)
+          .values(cityValues)
+          .onConflictDoNothing()
+          .returning({ id: citiesTable.id, name: citiesTable.name });
+        logger.info({ count: insertedCities.length }, "Seed: cidades inseridas");
+      } else {
+        // Cities already exist — fetch them to build route_cities
+        insertedCities = await db
+          .select({ id: citiesTable.id, name: citiesTable.name })
+          .from(citiesTable);
+      }
+
+      // Build lookup maps
+      const routeIdByName = new Map(insertedRoutes.map((r) => [r.name, r.id]));
+      const cityIdByName = new Map(
+        insertedCities.map((c) => [c.name.toLowerCase(), c.id])
+      );
+
+      // Build route_cities pairs
+      const pairs: { routeId: number; cityId: number }[] = [];
+      for (const route of ROUTES_WITH_CITIES) {
+        const routeId = routeIdByName.get(route.name);
+        if (!routeId) continue;
+        for (const cityName of route.cities) {
+          const cityId = cityIdByName.get(cityName.toLowerCase());
+          if (cityId) pairs.push({ routeId, cityId });
+        }
+      }
+
+      if (pairs.length > 0) {
+        await db
+          .insert(routeCitiesTable)
+          .values(pairs)
+          .onConflictDoNothing();
+        logger.info({ count: pairs.length }, "Seed: route_cities inseridas");
+      }
     }
 
     if (tasks.length > 0) await Promise.all(tasks);
