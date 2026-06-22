@@ -165,6 +165,9 @@ function buildErrorMessage(response: Response, data: unknown): string {
 
   if (typeof data === "string") {
     const text = data.trim();
+    if (text.startsWith("<!") || text.toLowerCase().startsWith("<html")) {
+      return `${prefix}: Serviço temporariamente indisponível`;
+    }
     return text ? `${prefix}: ${truncate(text)}` : prefix;
   }
 
