@@ -29,11 +29,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 
-const ROUTE_OPTIONS = [
-  "ROTA 01", "ROTA 02", "ROTA 03", "ROTA 03.2", "ROTA 03.3", "ROTA 03.4", "ROTA 03.5",
-  "ROTA 04", "ROTA 05", "ROTA 05.1", "ROTA 05.2", "ROTA 05.3", "ROTA 05.4", "ROTA 05.5",
-  "RETIRA 01", "RETIRA 02", "RETIRA 03", "RETIRA 05", "RETIRA 06",
-];
+interface RouteRow { id: number; name: string }
 
 interface MotoristaUser {
   id: number;
@@ -72,6 +68,12 @@ export default function MotoristaUsuarios() {
   const { data: users = [], isLoading } = useQuery<MotoristaUser[]>({
     queryKey: ["admin-motorista-users"],
     queryFn: () => customFetch<MotoristaUser[]>("/api/admin/motorista-users"),
+    enabled: isAdmin,
+  });
+
+  const { data: availableRoutes = [] } = useQuery<RouteRow[]>({
+    queryKey: ["admin-routes"],
+    queryFn: () => customFetch<RouteRow[]>("/api/admin/routes"),
     enabled: isAdmin,
   });
 
@@ -199,21 +201,27 @@ export default function MotoristaUsuarios() {
               <div className="space-y-2">
                 <Label>Rotas liberadas</Label>
                 <div className="border rounded-md p-3 grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
-                  {ROUTE_OPTIONS.map((route) => (
-                    <div key={route} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`route-${route}`}
-                        checked={form.allowedRoutes.includes(route)}
-                        onCheckedChange={() => toggleRoute(route)}
-                      />
-                      <label
-                        htmlFor={`route-${route}`}
-                        className="text-sm cursor-pointer leading-none"
-                      >
-                        {route}
-                      </label>
-                    </div>
-                  ))}
+                  {availableRoutes.length === 0 ? (
+                    <p className="col-span-2 text-xs text-muted-foreground italic">
+                      Nenhuma rota cadastrada. Cadastre rotas em Administração → Rotas.
+                    </p>
+                  ) : (
+                    availableRoutes.map((r) => (
+                      <div key={r.id} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`route-${r.id}`}
+                          checked={form.allowedRoutes.includes(r.name)}
+                          onCheckedChange={() => toggleRoute(r.name)}
+                        />
+                        <label
+                          htmlFor={`route-${r.id}`}
+                          className="text-sm cursor-pointer leading-none"
+                        >
+                          {r.name}
+                        </label>
+                      </div>
+                    ))
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {form.allowedRoutes.length === 0

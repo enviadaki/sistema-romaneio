@@ -7,3 +7,5 @@ export * from "./motoristas";
 export * from "./conferentes";
 export * from "./motorista-users";
 export * from "./operator-users";
+export * from "./routes";
+export * from "./cities";

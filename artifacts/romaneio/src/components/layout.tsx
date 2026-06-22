@@ -2,7 +2,7 @@ import { ReactNode, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Package, ScanLine, History, FileText, LogOut, User,
-  Search, Truck, ClipboardList, DollarSign, Users, Shield, QrCode,
+  Search, Truck, ClipboardList, DollarSign, Users, Shield, QrCode, Settings,
 } from "lucide-react";
 import { useClerk, useUser } from "@clerk/react";
 import { useOperation, OPERATIONS } from "@/contexts/operation-context";
@@ -89,6 +89,7 @@ export function Layout({ children }: { children: ReactNode }) {
     { href: "/qr-autoplay", label: "Auto QR", icon: QrCode },
     ...(isAdmin
       ? [
+          { href: "/admin", label: "Administração", icon: Settings },
           { href: "/usuarios", label: "Usuários Motoristas", icon: Users },
           { href: "/operadores", label: "Usuários Operadores", icon: Shield },
         ]

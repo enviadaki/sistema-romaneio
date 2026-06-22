@@ -23,6 +23,7 @@ import Financeiro from "@/pages/financeiro";
 import MotoristaUsuarios from "@/pages/motorista-usuarios";
 import OperatorUsuarios from "@/pages/operator-usuarios";
 import QrAutoplay from "@/pages/qr-autoplay";
+import Admin from "@/pages/admin";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -282,6 +283,7 @@ function ProtectedApp() {
           <Route path="/usuarios" component={MotoristaUsuarios} />
           <Route path="/operadores" component={OperatorUsuarios} />
           <Route path="/qr-autoplay" component={QrAutoplay} />
+          <Route path="/admin" component={Admin} />
           <Route component={NotFound} />
         </Switch>
       </Layout>
