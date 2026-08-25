@@ -71,7 +71,12 @@ router.get("/arco/lookup", requireArcoKey, async (req, res): Promise<void> => {
   const [pkg] = await db
     .select()
     .from(packagesTable)
-    .where(eq(packagesTable.trackingNumber, code))
+    .where(
+      and(
+        eq(packagesTable.trackingNumber, code),
+        eq(packagesTable.operation, "LOGGI"),
+      ),
+    )
     .limit(1);
 
   if (!pkg) {
@@ -107,7 +112,6 @@ router.get("/arco/config", requireAuth, requireAdmin, async (_req, res): Promise
   const apiKey = process.env.ARCO_API_KEY?.trim() ?? "";
   res.json(GetArcoConfigResponse.parse({
     configured: Boolean(apiKey),
-    apiKey: apiKey || null,
     maskedApiKey: apiKey ? maskApiKey(apiKey) : null,
   }));
 });

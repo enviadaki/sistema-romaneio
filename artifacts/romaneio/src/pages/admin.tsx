@@ -4,7 +4,7 @@ import { customFetch, useGetArcoConfig } from "@workspace/api-client-react";
 import { useUser } from "@clerk/react";
 import {
   Plus, Pencil, Trash2, Route, MapPin, Truck, Users, Shield, Check, X,
-  ChevronDown, ChevronRight, Copy, Eye, EyeOff, KeyRound, Wifi,
+  ChevronDown, ChevronRight, Copy, KeyRound, Wifi,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -838,7 +838,6 @@ function MotoristasTab() {
 function ArcoIntegrationTab() {
   const { toast } = useToast();
   const { data: config, isLoading, isError, refetch } = useGetArcoConfig();
-  const [showKey, setShowKey] = useState(false);
 
   const apiBaseUrl = window.location.origin;
   const lookupUrl = `${apiBaseUrl}/api/arco/lookup?code=CODIGO_DE_RASTREIO`;
@@ -885,8 +884,6 @@ function ArcoIntegrationTab() {
     );
   }
 
-  const visibleKey = showKey ? config.apiKey : config.maskedApiKey;
-
   return (
     <div className="space-y-4">
       {!config.configured ? (
@@ -904,7 +901,7 @@ function ArcoIntegrationTab() {
       ) : (
         <Card className="border-emerald-200 bg-emerald-50">
           <CardContent className="py-4 text-sm text-emerald-900">
-            A integração está ativa. Compartilhe a URL e a chave abaixo somente com a equipe autorizada da Loggi.
+            A integração está ativa. Compartilhe os dados de acesso somente por um canal seguro com a equipe autorizada da Loggi.
           </CardContent>
         </Card>
       )}
@@ -934,29 +931,12 @@ function ArcoIntegrationTab() {
             <div className="flex gap-2">
               <Input
                 readOnly
-                value={visibleKey ?? "Chave não configurada"}
+                value={config.maskedApiKey ?? "Chave não configurada"}
                 className="font-mono text-xs"
               />
-              {config.apiKey && (
-                <>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setShowKey((current) => !current)}
-                    title={showKey ? "Ocultar chave" : "Mostrar chave"}
-                  >
-                    {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    <span className="sr-only">{showKey ? "Ocultar chave" : "Mostrar chave"}</span>
-                  </Button>
-                  <Button variant="outline" size="icon" onClick={() => copyText(config.apiKey!, "Chave da API")}>
-                    <Copy className="h-4 w-4" />
-                    <span className="sr-only">Copiar chave da API</span>
-                  </Button>
-                </>
-              )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Envie a chave no cabeçalho <code>X-API-Key</code>. O parâmetro <code>apiKey</code> também é aceito quando necessário.
+              A chave completa nunca é exibida no navegador. Compartilhe-a somente por um canal seguro e prefira o cabeçalho <code>X-API-Key</code>. O parâmetro <code>apiKey</code> também é aceito quando necessário.
             </p>
           </div>
 

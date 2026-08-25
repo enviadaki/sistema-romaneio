@@ -52,7 +52,6 @@ export const ArcoLookupResponse = zod.object({
  */
 export const GetArcoConfigResponse = zod.object({
   configured: zod.boolean(),
-  apiKey: zod.string().nullable(),
   maskedApiKey: zod.string().nullable(),
 });
 

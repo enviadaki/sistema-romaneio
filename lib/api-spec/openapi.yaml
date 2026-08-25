@@ -494,12 +494,10 @@ components:
 
     ArcoConfig:
       type: object
-      required: [configured, apiKey, maskedApiKey]
+      required: [configured, maskedApiKey]
       properties:
         configured:
           type: boolean
-        apiKey:
-          type: ["string", "null"]
         maskedApiKey:
           type: ["string", "null"]
 

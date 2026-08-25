@@ -24,8 +24,6 @@ export interface ArcoLookupResult {
 export interface ArcoConfig {
   configured: boolean;
   /** @nullable */
-  apiKey: string | null;
-  /** @nullable */
   maskedApiKey: string | null;
 }
 
