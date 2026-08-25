@@ -29,3 +29,10 @@ id = "pBVMvOEhCfe1rDjBRk6sX"
 uri = "file://artifacts/romaneio-video/public/audio/bg_music.mp3"
 type = "audio"
 title = "background music"
+
+[[outputs]]
+id = "aDuvYJ8It1Y9yLt7XUK1W"
+uri = "file://attached_assets/listagem_organizada_24-08-2026.xlsx"
+type = "table"
+title = "Planilha organizada — pacotes de 24/08/2026"
+description = "512 pacotes filtrados e ordenados de Z a A. Contém somente Código de barras, Cidade e Prazo; cidades padronizadas em português e CEP 46197-000 convertido para Paramirim."
