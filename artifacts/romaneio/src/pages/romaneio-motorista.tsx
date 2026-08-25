@@ -44,6 +44,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 const OPERACOES = ["LOGGI", "AMAZON", "SHOPEE", "IMILE"];
+const CONFERENTES_ADICIONAIS = ["Vitor", "Marcelo"];
 
 interface ManualItem {
   empresa: string;
@@ -139,6 +140,13 @@ export default function RomaneioMotorista() {
     queryKey: ["city-contacts"],
     queryFn: () => customFetch<CityContact[]>("/api/city-contacts"),
   });
+  const conferenteOptions = useMemo(() => {
+    const existingNames = new Set(conferentes.map((conferente) => conferente.nome.toLowerCase()));
+    const additional = CONFERENTES_ADICIONAIS
+      .filter((nome) => !existingNames.has(nome.toLowerCase()))
+      .map((nome, index) => ({ id: `additional-${index}`, nome }));
+    return [...conferentes, ...additional];
+  }, [conferentes]);
 
   const contactMap = useMemo(
     () => new Map(cityContacts.map((c) => [c.city.toUpperCase(), c])),
@@ -411,7 +419,7 @@ export default function RomaneioMotorista() {
                   <SelectValue placeholder="Selecione o conferente" />
                 </SelectTrigger>
                 <SelectContent>
-                  {conferentes.map((c) => (
+                  {conferenteOptions.map((c) => (
                     <SelectItem key={c.id} value={c.nome}>{c.nome}</SelectItem>
                   ))}
                 </SelectContent>

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState } from "react";
 import {
   useListCities,
   getListCitiesQueryKey,
@@ -70,17 +70,6 @@ async function fetchRomaneio(params: {
   url.searchParams.set("operation", params.operation);
 
   return customFetch<RomaneioData>(url.toString());
-}
-
-function groupByCity(packages: RomaneioItem[]) {
-  const map: Record<string, RomaneioItem[]> = {};
-  for (const pkg of packages) {
-    if (!map[pkg.city]) map[pkg.city] = [];
-    map[pkg.city].push(pkg);
-  }
-  return Object.entries(map)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([city, pkgs]) => ({ city, packages: pkgs }));
 }
 
 function addRomaneioToPDF(
@@ -185,73 +174,58 @@ function addRomaneioToPDF(
   // ── Table ──
   const tableStartY = infoTop + infoH + 4;
 
-  if (opts.isRouteMode) {
-    const groups = groupByCity(data.packages);
-    let currentY = tableStartY;
-    let globalIndex = 1;
-
-    for (const group of groups) {
-      autoTable(doc, {
-        startY: currentY,
-        margin: { left: margin, right: margin },
-        head: [[{ content: `📍 ${group.city.toUpperCase()}  (${group.packages.length} volumes)`, colSpan: 4 }]],
-        body: group.packages.map((pkg) => [
-          String(globalIndex++),
+  const tableRows = data.packages.map((pkg, i) =>
+    opts.isRouteMode
+      ? [
+          String(i + 1),
+          pkg.trackingNumber,
+          pkg.city.toUpperCase(),
+          formatDate(pkg.promisedDeliveryDate),
+          "",
+        ]
+      : [
+          String(i + 1),
           pkg.trackingNumber,
           formatDate(pkg.promisedDeliveryDate),
           "",
-        ]),
-        theme: "grid",
-        styles: { fontSize: 9, cellPadding: 3, lineColor: [160, 160, 160], lineWidth: 0.3, textColor: [20, 20, 20], valign: "middle" },
-        headStyles: { fillColor: [190, 190, 190], textColor: [10, 10, 10], fontStyle: "bold", fontSize: 9, cellPadding: 4 },
-        alternateRowStyles: { fillColor: [245, 245, 245] },
-        columnStyles: {
-          0: { cellWidth: 12, halign: "center", fontStyle: "bold" },
-          1: { cellWidth: 75, fontStyle: "bold", font: "courier", fontSize: 9 },
-          2: { cellWidth: 38, halign: "center" },
-          3: { cellWidth: contentWidth - 12 - 75 - 38 },
-        },
-        didDrawPage: (d) => {
-          const pageCount = (doc.internal as any).getNumberOfPages();
-          doc.setFontSize(8);
-          doc.setTextColor(100, 100, 100);
-          doc.setFont("helvetica", "normal");
-          doc.text(`Página ${d.pageNumber}`, pageWidth / 2, pageHeight - 8, { align: "center" });
-        },
-      });
-      currentY = (doc as any).lastAutoTable.finalY + 4;
-    }
-  } else {
-    const tableRows = data.packages.map((pkg, i) => [
-      String(i + 1),
-      pkg.trackingNumber,
-      formatDate(pkg.promisedDeliveryDate),
-      "",
-    ]);
+        ],
+  );
 
-    autoTable(doc, {
-      startY: tableStartY,
-      margin: { left: margin, right: margin },
-      head: [["#", "RASTREADOR (TRACKING NUMBER)", "ENTREGA PROMETIDA", "ASSINATURA"]],
-      body: tableRows,
-      theme: "grid",
-      styles: { fontSize: 9, cellPadding: 3, lineColor: [160, 160, 160], lineWidth: 0.3, textColor: [20, 20, 20], valign: "middle" },
-      headStyles: { fillColor: [190, 190, 190], textColor: [10, 10, 10], fontStyle: "bold", fontSize: 8, cellPadding: 4 },
-      alternateRowStyles: { fillColor: [245, 245, 245] },
-      columnStyles: {
-        0: { cellWidth: 12, halign: "center", fontStyle: "bold" },
-        1: { cellWidth: 75, fontStyle: "bold", font: "courier", fontSize: 9 },
-        2: { cellWidth: 38, halign: "center" },
+  const tableHead = opts.isRouteMode
+    ? [["#", "RASTREADOR (TRACKING NUMBER)", "CIDADE", "ENTREGA PROMETIDA", "ASSINATURA"]]
+    : [["#", "RASTREADOR (TRACKING NUMBER)", "ENTREGA PROMETIDA", "ASSINATURA"]];
+  const tableColumns: Record<string, any> = opts.isRouteMode
+    ? {
+        0: { cellWidth: 12, halign: "center" as const, fontStyle: "bold" as const },
+        1: { cellWidth: 65, fontStyle: "bold" as const, font: "courier" as const, fontSize: 9 },
+        2: { cellWidth: 45 },
+        3: { cellWidth: 38, halign: "center" as const },
+        4: { cellWidth: contentWidth - 12 - 65 - 45 - 38 },
+      }
+    : {
+        0: { cellWidth: 12, halign: "center" as const, fontStyle: "bold" as const },
+        1: { cellWidth: 75, fontStyle: "bold" as const, font: "courier" as const, fontSize: 9 },
+        2: { cellWidth: 38, halign: "center" as const },
         3: { cellWidth: contentWidth - 12 - 75 - 38 },
-      },
-      didDrawPage: (d) => {
-        doc.setFontSize(8);
-        doc.setTextColor(100, 100, 100);
-        doc.setFont("helvetica", "normal");
-        doc.text(`Página ${d.pageNumber}`, pageWidth / 2, pageHeight - 8, { align: "center" });
-      },
-    });
-  }
+      };
+
+  autoTable(doc, {
+    startY: tableStartY,
+    margin: { left: margin, right: margin },
+    head: tableHead,
+    body: tableRows,
+    theme: "grid",
+    styles: { fontSize: 9, cellPadding: 3, lineColor: [160, 160, 160], lineWidth: 0.3, textColor: [20, 20, 20], valign: "middle" },
+    headStyles: { fillColor: [190, 190, 190], textColor: [10, 10, 10], fontStyle: "bold", fontSize: 8, cellPadding: 4 },
+    alternateRowStyles: { fillColor: [245, 245, 245] },
+    columnStyles: tableColumns,
+    didDrawPage: (d) => {
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Página ${d.pageNumber}`, pageWidth / 2, pageHeight - 8, { align: "center" });
+    },
+  });
 
   // ── Footer ──
   const finalY = (doc as any).lastAutoTable.finalY + 16;
@@ -347,12 +321,6 @@ export default function Romaneio() {
       }
     },
   });
-
-  const packagesByCity = useCallback(() => {
-    if (!romaneio) return [];
-    if (filterMode === "cidade") return [{ city: romaneio.city, packages: romaneio.packages }];
-    return groupByCity(romaneio.packages);
-  }, [romaneio, filterMode]);
 
   const isRouteMode = filterMode === "rota";
   const canExport = !!(romaneio && romaneio.packages.length > 0);
@@ -691,38 +659,6 @@ export default function Romaneio() {
               {romaneio.packages.length === 0 ? (
                 <div className="text-center py-12 italic text-gray-500">
                   Nenhum pacote bipado para {isRouteMode ? "esta rota" : "esta cidade"}/data.
-                </div>
-              ) : isRouteMode ? (
-                <div className="space-y-6">
-                  {packagesByCity().map((group) => (
-                    <div key={group.city}>
-                      <div className="flex items-center gap-2 mb-2 bg-gray-100 px-3 py-1.5 rounded">
-                        <MapPin className="h-4 w-4 text-gray-600 flex-shrink-0" />
-                        <span className="font-bold text-sm uppercase tracking-wide">{group.city}</span>
-                        <span className="text-xs text-gray-500 ml-auto">{group.packages.length} volume{group.packages.length !== 1 ? "s" : ""}</span>
-                      </div>
-                      <table className="w-full text-sm border-collapse border border-black">
-                        <thead>
-                          <tr className="bg-gray-50">
-                            <th className="border border-black px-2 py-1.5 text-center w-8">#</th>
-                            <th className="border border-black px-2 py-1.5 text-left">RASTREADOR</th>
-                            <th className="border border-black px-2 py-1.5 text-left w-32">ENTREGA PROMETIDA</th>
-                            <th className="border border-black px-2 py-1.5 text-center w-32">ASSINATURA</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {group.packages.map((pkg, index) => (
-                            <tr key={index} className={index % 2 === 1 ? "bg-gray-50" : ""}>
-                              <td className="border border-black px-2 py-1.5 text-center font-bold">{index + 1}</td>
-                              <td className="border border-black px-2 py-1.5 font-mono font-bold tracking-wider">{pkg.trackingNumber}</td>
-                              <td className="border border-black px-2 py-1.5">{formatDate(pkg.promisedDeliveryDate)}</td>
-                              <td className="border border-black px-2 py-1.5"></td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ))}
                 </div>
               ) : (
                 <table className="w-full text-sm border-collapse border border-black">
