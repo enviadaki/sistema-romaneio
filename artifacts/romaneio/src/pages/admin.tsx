@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { customFetch } from "@workspace/api-client-react";
+import { customFetch, useGetArcoConfig } from "@workspace/api-client-react";
 import { useUser } from "@clerk/react";
 import {
   Plus, Pencil, Trash2, Route, MapPin, Truck, Users, Shield, Check, X,
-  ChevronDown, ChevronRight,
+  ChevronDown, ChevronRight, Copy, Eye, EyeOff, KeyRound, Wifi,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -833,6 +833,152 @@ function MotoristasTab() {
   );
 }
 
+// ── Integração Arco ─────────────────────────────────────────────────────────
+
+function ArcoIntegrationTab() {
+  const { toast } = useToast();
+  const { data: config, isLoading, isError, refetch } = useGetArcoConfig();
+  const [showKey, setShowKey] = useState(false);
+
+  const apiBaseUrl = window.location.origin;
+  const lookupUrl = `${apiBaseUrl}/api/arco/lookup?code=CODIGO_DE_RASTREIO`;
+  const pingUrl = `${apiBaseUrl}/api/arco/ping`;
+
+  async function copyText(value: string, label: string) {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = value;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        textarea.remove();
+      }
+      toast({ title: `${label} copiada` });
+    } catch {
+      toast({
+        title: "Não foi possível copiar",
+        description: "Selecione e copie manualmente.",
+        variant: "destructive",
+      });
+    }
+  }
+
+  if (isLoading) {
+    return <p className="py-8 text-center text-sm text-muted-foreground">Carregando integração Arco...</p>;
+  }
+
+  if (isError || !config) {
+    return (
+      <Card>
+        <CardContent className="py-8 text-center">
+          <p className="text-sm text-muted-foreground">Não foi possível carregar a integração Arco.</p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={() => refetch()}>
+            Tentar novamente
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const visibleKey = showKey ? config.apiKey : config.maskedApiKey;
+
+  return (
+    <div className="space-y-4">
+      {!config.configured ? (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="flex gap-3 py-5">
+            <KeyRound className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+            <div>
+              <p className="font-medium text-amber-950">Integração ainda não configurada</p>
+              <p className="mt-1 text-sm text-amber-900/80">
+                Defina a chave secreta <code>ARCO_API_KEY</code> para liberar as consultas do sistema Arco.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border-emerald-200 bg-emerald-50">
+          <CardContent className="py-4 text-sm text-emerald-900">
+            A integração está ativa. Compartilhe a URL e a chave abaixo somente com a equipe autorizada da Loggi.
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardContent className="space-y-5 py-5">
+          <div>
+            <h3 className="font-semibold">Consulta de pacote</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              O Arco consulta esta URL ao bipar um código. A resposta informa cidade, rota e operação.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>URL de exemplo</Label>
+            <div className="flex gap-2">
+              <Input readOnly value={lookupUrl} className="font-mono text-xs" />
+              <Button variant="outline" size="icon" onClick={() => copyText(lookupUrl, "URL")}>
+                <Copy className="h-4 w-4" />
+                <span className="sr-only">Copiar URL</span>
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Chave da API</Label>
+            <div className="flex gap-2">
+              <Input
+                readOnly
+                value={visibleKey ?? "Chave não configurada"}
+                className="font-mono text-xs"
+              />
+              {config.apiKey && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setShowKey((current) => !current)}
+                    title={showKey ? "Ocultar chave" : "Mostrar chave"}
+                  >
+                    {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    <span className="sr-only">{showKey ? "Ocultar chave" : "Mostrar chave"}</span>
+                  </Button>
+                  <Button variant="outline" size="icon" onClick={() => copyText(config.apiKey!, "Chave da API")}>
+                    <Copy className="h-4 w-4" />
+                    <span className="sr-only">Copiar chave da API</span>
+                  </Button>
+                </>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Envie a chave no cabeçalho <code>X-API-Key</code>. O parâmetro <code>apiKey</code> também é aceito quando necessário.
+            </p>
+          </div>
+
+          <div className="space-y-1.5 border-t pt-5">
+            <Label className="flex items-center gap-2">
+              <Wifi className="h-4 w-4" /> Teste de conectividade
+            </Label>
+            <div className="flex gap-2">
+              <Input readOnly value={pingUrl} className="font-mono text-xs" />
+              <Button variant="outline" size="icon" onClick={() => copyText(pingUrl, "URL de teste")}>
+                <Copy className="h-4 w-4" />
+                <span className="sr-only">Copiar URL de teste</span>
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">Este endpoint não exige chave e retorna o status da integração.</p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────
 
 export default function Admin() {
@@ -858,7 +1004,7 @@ export default function Admin() {
       </div>
 
       <Tabs defaultValue="rotas">
-        <TabsList className="mb-4">
+        <TabsList className="mb-4 h-auto flex-wrap justify-start">
           <TabsTrigger value="rotas" className="gap-1.5">
             <Route className="h-4 w-4" /> Rotas
           </TabsTrigger>
@@ -873,6 +1019,9 @@ export default function Admin() {
           </TabsTrigger>
           <TabsTrigger value="usuarios-motoristas" className="gap-1.5">
             <Users className="h-4 w-4" /> Usuários Motoristas
+          </TabsTrigger>
+          <TabsTrigger value="arco" className="gap-1.5">
+            <KeyRound className="h-4 w-4" /> Integração Arco
           </TabsTrigger>
         </TabsList>
 
@@ -914,6 +1063,9 @@ export default function Admin() {
               </Button>
             </Link>
           </div>
+        </TabsContent>
+        <TabsContent value="arco">
+          <ArcoIntegrationTab />
         </TabsContent>
       </Tabs>
     </div>

@@ -17,6 +17,10 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  ArcoConfig,
+  ArcoLookupParams,
+  ArcoLookupResult,
+  ArcoPingResult,
   BulkImportResult,
   BulkScansInput,
   BulkScansResult,
@@ -114,6 +118,242 @@ export function useHealthCheck<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getHealthCheckQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Check Arco integration connectivity
+ */
+export const getArcoPingUrl = () => {
+  return `/api/arco/ping`;
+};
+
+export const arcoPing = async (
+  options?: RequestInit,
+): Promise<ArcoPingResult> => {
+  return customFetch<ArcoPingResult>(getArcoPingUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getArcoPingQueryKey = () => {
+  return [`/api/arco/ping`] as const;
+};
+
+export const getArcoPingQueryOptions = <
+  TData = Awaited<ReturnType<typeof arcoPing>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof arcoPing>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getArcoPingQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof arcoPing>>> = ({
+    signal,
+  }) => arcoPing({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof arcoPing>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ArcoPingQueryResult = NonNullable<
+  Awaited<ReturnType<typeof arcoPing>>
+>;
+export type ArcoPingQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Check Arco integration connectivity
+ */
+
+export function useArcoPing<
+  TData = Awaited<ReturnType<typeof arcoPing>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof arcoPing>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getArcoPingQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Look up a package for Arco
+ */
+export const getArcoLookupUrl = (params: ArcoLookupParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/arco/lookup?${stringifiedParams}`
+    : `/api/arco/lookup`;
+};
+
+export const arcoLookup = async (
+  params: ArcoLookupParams,
+  options?: RequestInit,
+): Promise<ArcoLookupResult> => {
+  return customFetch<ArcoLookupResult>(getArcoLookupUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getArcoLookupQueryKey = (params?: ArcoLookupParams) => {
+  return [`/api/arco/lookup`, ...(params ? [params] : [])] as const;
+};
+
+export const getArcoLookupQueryOptions = <
+  TData = Awaited<ReturnType<typeof arcoLookup>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params: ArcoLookupParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof arcoLookup>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getArcoLookupQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof arcoLookup>>> = ({
+    signal,
+  }) => arcoLookup(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof arcoLookup>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ArcoLookupQueryResult = NonNullable<
+  Awaited<ReturnType<typeof arcoLookup>>
+>;
+export type ArcoLookupQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Look up a package for Arco
+ */
+
+export function useArcoLookup<
+  TData = Awaited<ReturnType<typeof arcoLookup>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params: ArcoLookupParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof arcoLookup>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getArcoLookupQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get Arco integration configuration for administrators
+ */
+export const getGetArcoConfigUrl = () => {
+  return `/api/arco/config`;
+};
+
+export const getArcoConfig = async (
+  options?: RequestInit,
+): Promise<ArcoConfig> => {
+  return customFetch<ArcoConfig>(getGetArcoConfigUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetArcoConfigQueryKey = () => {
+  return [`/api/arco/config`] as const;
+};
+
+export const getGetArcoConfigQueryOptions = <
+  TData = Awaited<ReturnType<typeof getArcoConfig>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getArcoConfig>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetArcoConfigQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getArcoConfig>>> = ({
+    signal,
+  }) => getArcoConfig({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getArcoConfig>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetArcoConfigQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getArcoConfig>>
+>;
+export type GetArcoConfigQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get Arco integration configuration for administrators
+ */
+
+export function useGetArcoConfig<
+  TData = Awaited<ReturnType<typeof getArcoConfig>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getArcoConfig>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetArcoConfigQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

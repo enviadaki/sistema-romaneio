@@ -11,6 +11,7 @@ import motoristasRouter from "./motoristas";
 import motoristaAuthRouter from "./motorista-auth";
 import operatorAuthRouter from "./operator-auth";
 import adminCadastrosRouter from "./admin-cadastros";
+import arcoRouter from "./arco";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(motoristasRouter);
 router.use(motoristaAuthRouter);
 router.use(operatorAuthRouter);
 router.use(adminCadastrosRouter);
+router.use(arcoRouter);
 
 export default router;

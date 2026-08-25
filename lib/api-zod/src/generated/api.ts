@@ -16,6 +16,47 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
+ * @summary Check Arco integration connectivity
+ */
+export const ArcoPingResponse = zod.object({
+  ok: zod.boolean(),
+  service: zod.string(),
+});
+
+/**
+ * @summary Look up a package for Arco
+ */
+
+export const ArcoLookupQueryParams = zod.object({
+  code: zod.coerce.string().min(1).describe("Package tracking number"),
+  apiKey: zod.coerce
+    .string()
+    .optional()
+    .describe("Arco API key. Prefer the X-API-Key header when possible."),
+});
+
+export const ArcoLookupHeader = zod.object({
+  "X-API-Key": zod.string().optional().describe("Arco API key"),
+});
+
+export const ArcoLookupResponse = zod.object({
+  found: zod.boolean(),
+  trackingNumber: zod.string(),
+  city: zod.string().nullable(),
+  route: zod.string().nullable(),
+  operation: zod.string().nullable(),
+});
+
+/**
+ * @summary Get Arco integration configuration for administrators
+ */
+export const GetArcoConfigResponse = zod.object({
+  configured: zod.boolean(),
+  apiKey: zod.string().nullable(),
+  maskedApiKey: zod.string().nullable(),
+});
+
+/**
  * @summary Delete packages filtered by operation and optional date range
  */
 export const ClearPackagesQueryParams = zod.object({

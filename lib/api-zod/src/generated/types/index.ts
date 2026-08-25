@@ -6,6 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./arcoConfig";
+export * from "./arcoLookupParams";
+export * from "./arcoLookupResult";
+export * from "./arcoPingResult";
 export * from "./bulkImportResult";
 export * from "./bulkScansInput";
 export * from "./bulkScansResult";

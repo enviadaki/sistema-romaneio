@@ -5,6 +5,30 @@
  * API specification for Sistema de Romaneios
  * OpenAPI spec version: 0.1.0
  */
+export interface ArcoPingResult {
+  ok: boolean;
+  service: string;
+}
+
+export interface ArcoLookupResult {
+  found: boolean;
+  trackingNumber: string;
+  /** @nullable */
+  city: string | null;
+  /** @nullable */
+  route: string | null;
+  /** @nullable */
+  operation: string | null;
+}
+
+export interface ArcoConfig {
+  configured: boolean;
+  /** @nullable */
+  apiKey: string | null;
+  /** @nullable */
+  maskedApiKey: string | null;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -175,6 +199,18 @@ export interface Conferente {
   nome: string;
   createdAt?: string;
 }
+
+export type ArcoLookupParams = {
+  /**
+   * Package tracking number
+   * @minLength 1
+   */
+  code: string;
+  /**
+   * Arco API key. Prefer the X-API-Key header when possible.
+   */
+  apiKey?: string;
+};
 
 export type ClearPackagesParams = {
   /**

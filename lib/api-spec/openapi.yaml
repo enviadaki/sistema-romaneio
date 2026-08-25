@@ -18,6 +18,8 @@ tags:
     description: Romaneio generation
   - name: stats
     description: Statistics
+  - name: arco
+    description: Arco Loggi integration
 
 paths:
   /healthz:
@@ -33,6 +35,95 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /arco/ping:
+    get:
+      operationId: arcoPing
+      tags: [arco]
+      summary: Check Arco integration connectivity
+      responses:
+        "200":
+          description: Arco integration health status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArcoPingResult"
+
+  /arco/lookup:
+    get:
+      operationId: arcoLookup
+      tags: [arco]
+      summary: Look up a package for Arco
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+          description: Package tracking number
+        - name: apiKey
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Arco API key. Prefer the X-API-Key header when possible.
+        - name: X-API-Key
+          in: header
+          required: false
+          schema:
+            type: string
+          description: Arco API key
+      responses:
+        "200":
+          description: Package lookup result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArcoLookupResult"
+        "400":
+          description: Missing tracking code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Invalid or missing API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Integration is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /arco/config:
+    get:
+      operationId: getArcoConfig
+      tags: [arco]
+      summary: Get Arco integration configuration for administrators
+      responses:
+        "200":
+          description: Arco integration configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArcoConfig"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Administrator access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /packages/clear:
     delete:
@@ -377,6 +468,41 @@ paths:
 
 components:
   schemas:
+    ArcoPingResult:
+      type: object
+      required: [ok, service]
+      properties:
+        ok:
+          type: boolean
+        service:
+          type: string
+
+    ArcoLookupResult:
+      type: object
+      required: [found, trackingNumber, city, route, operation]
+      properties:
+        found:
+          type: boolean
+        trackingNumber:
+          type: string
+        city:
+          type: ["string", "null"]
+        route:
+          type: ["string", "null"]
+        operation:
+          type: ["string", "null"]
+
+    ArcoConfig:
+      type: object
+      required: [configured, apiKey, maskedApiKey]
+      properties:
+        configured:
+          type: boolean
+        apiKey:
+          type: ["string", "null"]
+        maskedApiKey:
+          type: ["string", "null"]
+
     HealthStatus:
       type: object
       required: [status]
