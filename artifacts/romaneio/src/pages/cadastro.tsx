@@ -38,7 +38,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Trash2, Upload, FileText, CheckCircle, AlertCircle, X, Eraser } from "lucide-react";
+import { Trash2, Upload, FileText, CheckCircle, AlertCircle, X, Eraser, Download } from "lucide-react";
 
 type PackageRow = { trackingNumber: string; city: string; promisedDeliveryDate: string };
 
@@ -46,7 +46,148 @@ type FilePreview = {
   rows: PackageRow[];
   fileName: string;
   errors: string[];
+  sourceRows: Record<string, unknown>[];
+  hasArrivalDate: boolean;
+  filteredCount: number;
+  filterDate: string;
 };
+
+const CITY_CORRECTIONS: Record<string, string> = {
+  abaira: "Abaíra",
+  anage: "Anagé",
+  aracatu: "Aracatu",
+  arapiranga: "Arapiranga",
+  "barra da estiva": "Barra da Estiva",
+  "barra do choca": "Barra do Choça",
+  "barra nova": "Barra Nova",
+  "belo campo": "Belo Campo",
+  "boa nova": "Boa Nova",
+  "bom jesus da serra": "Bom Jesus da Serra",
+  brumado: "Brumado",
+  cacule: "Caculé",
+  caetanos: "Caetanos",
+  caetite: "Caetité",
+  "cana brava": "Cana Brava",
+  cabralia: "Cabrália",
+  caraibas: "Caraíbas",
+  carinhanha: "Carinhanha",
+  catoles: "Catolés",
+  condeuba: "Condeúba",
+  cordeiros: "Cordeiros",
+  guajeru: "Guajeru",
+  guanambi: "Guanambi",
+  ibiassuce: "Ibiassucê",
+  ibicoara: "Ibicoara",
+  iguai: "Iguaí",
+  inhobim: "Inhobim",
+  inubia: "Inúbia",
+  itambe: "Itambé",
+  itapetinga: "Itapetinga",
+  itaquarai: "Itaquaraí",
+  itarantim: "Itarantim",
+  itororo: "Itororó",
+  ituacu: "Ituaçu",
+  iuiu: "Iuiú",
+  jacaraci: "Jacaraci",
+  jussiape: "Jussiape",
+  "lagoa real": "Lagoa Real",
+  "licinio de almeida": "Licínio de Almeida",
+  "livramento de nossa senhora": "Livramento de Nossa Senhora",
+  "livramento de n senhora": "Livramento de Nossa Senhora",
+  livramento: "Livramento de Nossa Senhora",
+  macarani: "Macarani",
+  maetinga: "Maetinga",
+  maiquinique: "Maiquinique",
+  malhada: "Malhada",
+  "malhada de pedras": "Malhada de Pedras",
+  "maniaçu": "Maniaçu",
+  matina: "Matina",
+  mirante: "Mirante",
+  morrinhos: "Morrinhos",
+  mortugaba: "Mortugaba",
+  mutas: "Mutans",
+  "nova canaa": "Nova Canaã",
+  "palmas de monte alto": "Palmas de Monte Alto",
+  paramirim: "Paramirim",
+  piata: "Piatã",
+  pindai: "Pindaí",
+  piripa: "Piripá",
+  planalto: "Planalto",
+  pocoes: "Poções",
+  "presidente janio quadros": "Presidente Jânio Quadros",
+  "rio de contas": "Rio de Contas",
+  "rio do antonio": "Rio do Antônio",
+  "sebastiao laranjeiras": "Sebastião Laranjeiras",
+  tanhacu: "Tanhaçu",
+  tauapé: "Tauapé",
+  tremedal: "Tremedal",
+  "triunfo do sincora": "Triunfo do Sincorá",
+  urandi: "Urandi",
+  "vitoria da conquista": "Vitória da Conquista",
+  "erico cardoso": "Érico Cardoso",
+};
+
+function removeAccents(value: string): string {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function cityKey(value: string): string {
+  return removeAccents(value)
+    .toLocaleLowerCase("pt-BR")
+    .replace(/\s*\([^)]*\)\s*$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cleanImportedCity(rawCity: string, rawCep: string): string {
+  if (rawCity.trim() === "Tauapé") return "Tauapé";
+  if (rawCep.replace(/\D/g, "") === "46197000") return "Paramirim";
+
+  const trimmed = rawCity.replace(/\s+/g, " ").trim();
+  const parenthetical = trimmed.match(/^(.+?)\s*\(([^()]+)\)$/);
+  if (parenthetical && cityKey(parenthetical[1]) === "pindorama") {
+    const parent = CITY_CORRECTIONS[cityKey(parenthetical[2])] ?? parenthetical[2];
+    return `Pindorama (${parent})`;
+  }
+  return CITY_CORRECTIONS[cityKey(trimmed)] ?? trimmed;
+}
+
+function normalizeImportedDate(value: unknown): string {
+  if (value === null || value === undefined || String(value).trim() === "" || String(value).trim() === "-") {
+    return "";
+  }
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+  }
+
+  const text = String(value).trim();
+  if (/^\d{5}(?:\.\d+)?$/.test(text)) {
+    const parsed = XLSX.SSF.parse_date_code(Number(text));
+    if (parsed) {
+      return `${parsed.y}-${String(parsed.m).padStart(2, "0")}-${String(parsed.d).padStart(2, "0")}`;
+    }
+  }
+
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+
+  const br = text.match(/^(\d{2})\/(\d{2})\/(\d{2,4})/);
+  if (br) {
+    const year = br[3].length === 2 ? `20${br[3]}` : br[3];
+    return `${year}-${br[2]}-${br[1]}`;
+  }
+
+  const parsed = new Date(text);
+  if (!Number.isNaN(parsed.getTime())) {
+    return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
+  }
+  return "";
+}
+
+function findColumnIndex(keys: string[], pattern: RegExp): number {
+  return keys.findIndex((key) => pattern.test(removeAccents(key.toLocaleLowerCase("pt-BR"))));
+}
 
 export default function Cadastro() {
   const queryClient = useQueryClient();
@@ -64,6 +205,7 @@ export default function Cadastro() {
   const todayStr = getTodayDateString();
   const yesterdayStr = getYesterdayDateString();
   const weekStartStr = getWeekStartDateString();
+  const [fileDateFilter, setFileDateFilter] = useState(todayStr);
 
   // Single mode state
   const [trackingNumber, setTrackingNumber] = useState("");
@@ -203,30 +345,34 @@ export default function Cadastro() {
 
   // --- File upload logic ---
 
-  const parseRows = (rawRows: Record<string, string>[], fileName: string): FilePreview => {
+  const parseRows = (rawRows: Record<string, unknown>[], fileName: string, targetDate: string): FilePreview => {
     const errors: string[] = [];
     const rows: PackageRow[] = [];
+    let filteredCount = 0;
+
+    const firstRowKeys = rawRows.length > 0 ? Object.keys(rawRows[0]) : [];
+    const hasArrivalDate = findColumnIndex(firstRowKeys, /chegou|chegada|entrada|received/) >= 0;
 
     rawRows.forEach((row, idx) => {
-      const keys = Object.keys(row).map(k => k.toLowerCase().trim());
-      const vals = Object.values(row).map(v => (v ?? "").toString().trim());
+      const originalKeys = Object.keys(row);
+      const keys = originalKeys.map(k => k.toLowerCase().trim());
+      const vals = originalKeys.map(k => (row[k] ?? "").toString().trim());
 
       // Try to auto-detect columns by header name
-      const colMap: Record<string, number> = {};
-      keys.forEach((k, i) => {
-        if (/rastreio|tracking|código|codigo|rastreador/.test(k)) colMap.tracking = i;
-        if (/cidade|city|destino/.test(k)) colMap.city = i;
-        if (/data|date|promessa|entrega|delivery/.test(k)) colMap.date = i;
-      });
+      const trackingIndex = findColumnIndex(keys, /rastreio|tracking|rastreador|codigo de barras|barcode|codigo/);
+      const cityIndex = findColumnIndex(keys, /cidade|city|destino/);
+      const dateIndex = findColumnIndex(keys, /prazo|promessa|entrega|delivery|date|data/);
+      const arrivalIndex = findColumnIndex(keys, /chegou|chegada|entrada|received/);
+      const cepIndex = findColumnIndex(keys, /(^|\s)cep(\s|$)/);
 
       let trackingVal: string;
       let cityVal: string;
       let dateVal: string;
 
-      if (Object.keys(colMap).length >= 3) {
-        trackingVal = vals[colMap.tracking];
-        cityVal = vals[colMap.city];
-        dateVal = vals[colMap.date];
+      if (trackingIndex >= 0 && cityIndex >= 0 && dateIndex >= 0) {
+        trackingVal = vals[trackingIndex];
+        cityVal = vals[cityIndex];
+        dateVal = vals[dateIndex];
       } else if (vals.length >= 3) {
         // Positional: col 0 = tracking, col 1 = city, col 2 = date
         trackingVal = vals[0];
@@ -235,6 +381,18 @@ export default function Cadastro() {
       } else {
         errors.push(`Linha ${idx + 2}: colunas insuficientes (${vals.length} encontradas, 3 necessárias)`);
         return;
+      }
+
+      if (hasArrivalDate && arrivalIndex >= 0) {
+        const arrivalDate = normalizeImportedDate(row[originalKeys[arrivalIndex]]);
+        if (!arrivalDate) {
+          errors.push(`Linha ${idx + 2}: data de chegada inválida`);
+          return;
+        }
+        if (targetDate && arrivalDate !== targetDate) {
+          filteredCount++;
+          return;
+        }
       }
 
       if (!trackingVal) {
@@ -246,33 +404,21 @@ export default function Cadastro() {
         return;
       }
 
-      // Normalize date: if it's a number (Excel serial date), convert it
-      let normalizedDate = dateVal;
-      if (/^\d{5}$/.test(dateVal)) {
-        const excelEpoch = new Date(1899, 11, 30);
-        const d = new Date(excelEpoch.getTime() + parseInt(dateVal) * 86400000);
-        normalizedDate = d.toISOString().slice(0, 10);
-      } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateVal)) {
-        // DD/MM/YYYY -> YYYY-MM-DD
-        const [dd, mm, yyyy] = dateVal.split("/");
-        normalizedDate = `${yyyy}-${mm}-${dd}`;
-      } else if (/^\d{4}-\d{2}-\d{2}$/.test(dateVal)) {
-        normalizedDate = dateVal;
-      } else if (dateVal) {
-        // Try parsing as generic date
-        const parsed = new Date(dateVal);
-        if (!isNaN(parsed.getTime())) {
-          normalizedDate = parsed.toISOString().slice(0, 10);
-        } else {
-          errors.push(`Linha ${idx + 2}: data "${dateVal}" inválida (use YYYY-MM-DD ou DD/MM/YYYY)`);
-          return;
-        }
+      const normalizedDate = normalizeImportedDate(dateVal);
+      if (!normalizedDate) {
+        errors.push(`Linha ${idx + 2}: data "${dateVal}" inválida (use YYYY-MM-DD ou DD/MM/YYYY)`);
+        return;
       }
 
-      rows.push({ trackingNumber: trackingVal, city: cityVal, promisedDeliveryDate: normalizedDate });
+      const cepVal = cepIndex >= 0 ? vals[cepIndex] : "";
+      rows.push({
+        trackingNumber: trackingVal,
+        city: cleanImportedCity(cityVal, cepVal),
+        promisedDeliveryDate: normalizedDate,
+      });
     });
 
-    return { rows, fileName, errors };
+    return { rows, fileName, errors, sourceRows: rawRows, hasArrivalDate, filteredCount, filterDate: targetDate };
   };
 
   const processFile = useCallback((file: File) => {
@@ -283,7 +429,7 @@ export default function Cadastro() {
         header: true,
         skipEmptyLines: true,
         complete: (result) => {
-          const preview = parseRows(result.data as Record<string, string>[], file.name);
+          const preview = parseRows(result.data as Record<string, unknown>[], file.name, fileDateFilter);
           setFilePreview(preview);
         },
         error: () => {
@@ -297,8 +443,8 @@ export default function Cadastro() {
           const data = new Uint8Array(e.target!.result as ArrayBuffer);
           const workbook = XLSX.read(data, { type: "array" });
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
-          const rows = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: "" });
-          const preview = parseRows(rows, file.name);
+          const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "", raw: true });
+          const preview = parseRows(rows, file.name, fileDateFilter);
           setFilePreview(preview);
         } catch {
           toast({ title: "Erro ao ler arquivo Excel", variant: "destructive" });
@@ -308,7 +454,7 @@ export default function Cadastro() {
     } else {
       toast({ title: "Formato não suportado. Use .csv, .xlsx ou .xls", variant: "destructive" });
     }
-  }, []);
+  }, [fileDateFilter, parseRows]);
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -329,6 +475,40 @@ export default function Cadastro() {
   };
 
   const handleDragLeave = () => setIsDragging(false);
+
+  const handleFileDateChange = (value: string) => {
+    setFileDateFilter(value);
+    if (filePreview) {
+      setFilePreview(parseRows(filePreview.sourceRows, filePreview.fileName, value));
+    }
+  };
+
+  const handleFileDownload = () => {
+    if (!filePreview || filePreview.rows.length === 0) return;
+
+    const worksheet = XLSX.utils.aoa_to_sheet([
+      ["Código de barras", "Cidade", "Prazo"],
+      ...filePreview.rows.map((row) => [
+        row.trackingNumber,
+        row.city,
+        new Date(`${row.promisedDeliveryDate}T12:00:00`),
+      ]),
+    ]);
+    for (let rowIndex = 1; rowIndex <= filePreview.rows.length; rowIndex++) {
+      const dateCell = worksheet[`C${rowIndex + 1}`];
+      if (dateCell) {
+        dateCell.t = "d";
+        dateCell.z = "dd/mm/yy";
+      }
+    }
+    worksheet["!cols"] = [{ wch: 30 }, { wch: 30 }, { wch: 13 }];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Pacotes");
+    const suffix = filePreview.filterDate || "processados";
+    XLSX.writeFile(workbook, `pacotes_prontos_${suffix}.xlsx`, { cellDates: true });
+    toast({ title: "Planilha pronta para baixar", description: `${filePreview.rows.length} pacotes exportados.` });
+  };
 
   const handleFileImport = () => {
     if (!filePreview || filePreview.rows.length === 0) return;
@@ -465,10 +645,11 @@ export default function Cadastro() {
                     </div>
                     <div className="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground space-y-1">
                       <p className="font-medium text-foreground">Formato esperado:</p>
-                      <p>O arquivo deve ter 3 colunas (com ou sem cabecalho):</p>
+                       <p>Envie a listagem completa ou um arquivo com 3 colunas:</p>
                       <p className="font-mono text-xs bg-muted rounded px-2 py-1 mt-1">
-                        Rastreador | Cidade | Data (YYYY-MM-DD ou DD/MM/YYYY)
+                         Código de barras | Cidade | Prazo
                       </p>
+                       <p className="text-xs mt-2">Quando existir a coluna “Chegou em”, o sistema mantém apenas os pacotes da data selecionada.</p>
                     </div>
                   </>
                 ) : (
@@ -482,6 +663,24 @@ export default function Cadastro() {
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
+
+                    {filePreview.hasArrivalDate && (
+                      <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
+                        <Label htmlFor="file-date-filter">Manter apenas pacotes chegados em</Label>
+                        <Input
+                          id="file-date-filter"
+                          type="date"
+                          value={fileDateFilter}
+                          onChange={(e) => handleFileDateChange(e.target.value)}
+                          className="bg-background"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Data padrão: hoje. {filePreview.filteredCount > 0 && (
+                            <>{filePreview.filteredCount} pacote{filePreview.filteredCount !== 1 ? "s" : ""} de outras datas será{filePreview.filteredCount !== 1 ? "ão" : ""} excluído{filePreview.filteredCount !== 1 ? "s" : ""}.</>
+                          )}
+                        </p>
+                      </div>
+                    )}
 
                     {filePreview.errors.length > 0 && (
                       <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-1">
@@ -498,7 +697,7 @@ export default function Cadastro() {
                     {filePreview.rows.length > 0 && (
                       <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-3 flex items-center gap-2 text-sm">
                         <CheckCircle className="h-4 w-4 text-green-600" />
-                        <span><strong>{filePreview.rows.length}</strong> pacotes prontos para importar</span>
+                         <span><strong>{filePreview.rows.length}</strong> pacotes prontos para baixar ou cadastrar</span>
                       </div>
                     )}
 
@@ -531,18 +730,27 @@ export default function Cadastro() {
                       </Table>
                     </div>
 
-                    <div className="flex gap-2">
+                     <div className="flex gap-2 flex-wrap">
                       <Button
                         variant="outline"
                         onClick={() => setFilePreview(null)}
-                        className="flex-1"
+                         className="flex-1 min-w-28"
                       >
                         Cancelar
                       </Button>
+                       <Button
+                         variant="outline"
+                         onClick={handleFileDownload}
+                         disabled={filePreview.rows.length === 0}
+                         className="flex-1 min-w-40"
+                       >
+                         <Download className="h-4 w-4 mr-1.5" />
+                         Baixar planilha pronta
+                       </Button>
                       <Button
                         onClick={handleFileImport}
                         disabled={bulkCreate.isPending || filePreview.rows.length === 0}
-                        className="flex-1"
+                         className="flex-1 min-w-40"
                       >
                         {bulkCreate.isPending ? "Importando..." : `Importar ${filePreview.rows.length} pacotes`}
                       </Button>
