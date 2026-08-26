@@ -357,38 +357,43 @@ export default function RomaneioMotorista() {
     // Observações em destaque
     const observacaoTexto = observacoes.trim();
     if (observacaoTexto) {
-      const obsWidth = W - mg * 2;
+      // A tabela usa 208 mm de largura fixa, deixando uma coluna livre à direita.
+      // Usamos essa área para manter as observações na mesma página do romaneio.
+      const tableWidth = 208;
+      const obsX = mg + tableWidth + 6;
+      const obsWidth = W - obsX - mg;
       const obsLines = doc.splitTextToSize(observacaoTexto, obsWidth - 10);
       const obsLineHeight = 4.5;
       const obsTopPadding = 13;
-      const obsHeight = obsTopPadding + obsLines.length * obsLineHeight + 4;
-      let obsY = finalY + 12;
+      const requiredObsHeight = obsTopPadding + obsLines.length * obsLineHeight + 4;
+      const obsY = 37;
+      const maxObsHeight = H - 25 - obsY;
+      const obsHeight = Math.max(42, requiredObsHeight);
 
-      // Garante que o destaque não invada a área de assinaturas.
-      if (obsY + obsHeight > H - 25) {
+      // Textos muito longos continuam protegidos: só criamos uma página extra
+      // quando não couberem nem mesmo na coluna lateral acima das assinaturas.
+      if (obsHeight > maxObsHeight) {
         doc.addPage();
-        obsY = 18;
       }
 
       doc.setFillColor(255, 248, 220);
       doc.setDrawColor(217, 145, 0);
       doc.setLineWidth(0.8);
-      doc.roundedRect(mg, obsY, obsWidth, obsHeight, 2, 2, "FD");
+      doc.roundedRect(obsX, obsY, obsWidth, obsHeight, 2, 2, "FD");
 
       doc.setFillColor(217, 145, 0);
-      doc.roundedRect(mg, obsY, obsWidth, 8, 2, 2, "F");
-      doc.setFillColor(217, 145, 0);
-      doc.rect(mg, obsY + 4, obsWidth, 4, "F");
+      doc.roundedRect(obsX, obsY, obsWidth, 8, 2, 2, "F");
+      doc.rect(obsX, obsY + 4, obsWidth, 4, "F");
 
       doc.setTextColor(255, 255, 255);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(8);
-      doc.text("OBSERVAÇÕES — ATENÇÃO", mg + 4, obsY + 5.5);
+      doc.text("OBSERVAÇÕES — ATENÇÃO", obsX + 4, obsY + 5.5);
 
       doc.setTextColor(75, 55, 10);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(9);
-      doc.text(obsLines, mg + 5, obsY + obsTopPadding, { lineHeightFactor: 1.15 });
+      doc.text(obsLines, obsX + 5, obsY + obsTopPadding, { lineHeightFactor: 1.15 });
     }
 
     const fy = H - 12;
