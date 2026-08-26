@@ -354,6 +354,43 @@ export default function RomaneioMotorista() {
       doc.text(`${km} km × R$ ${parseDec(valorPorKm).toFixed(4).replace(".", ",")} = ${formatBRL(valorPagamento)}`, W - mg, finalY + 6, { align: "right" });
     }
 
+    // Observações em destaque
+    const observacaoTexto = observacoes.trim();
+    if (observacaoTexto) {
+      const obsWidth = W - mg * 2;
+      const obsLines = doc.splitTextToSize(observacaoTexto, obsWidth - 10);
+      const obsLineHeight = 4.5;
+      const obsTopPadding = 13;
+      const obsHeight = obsTopPadding + obsLines.length * obsLineHeight + 4;
+      let obsY = finalY + 12;
+
+      // Garante que o destaque não invada a área de assinaturas.
+      if (obsY + obsHeight > H - 25) {
+        doc.addPage();
+        obsY = 18;
+      }
+
+      doc.setFillColor(255, 248, 220);
+      doc.setDrawColor(217, 145, 0);
+      doc.setLineWidth(0.8);
+      doc.roundedRect(mg, obsY, obsWidth, obsHeight, 2, 2, "FD");
+
+      doc.setFillColor(217, 145, 0);
+      doc.roundedRect(mg, obsY, obsWidth, 8, 2, 2, "F");
+      doc.setFillColor(217, 145, 0);
+      doc.rect(mg, obsY + 4, obsWidth, 4, "F");
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.text("OBSERVAÇÕES — ATENÇÃO", mg + 4, obsY + 5.5);
+
+      doc.setTextColor(75, 55, 10);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.text(obsLines, mg + 5, obsY + obsTopPadding, { lineHeightFactor: 1.15 });
+    }
+
     const fy = H - 12;
     doc.setDrawColor(15, 40, 80);
     doc.setLineWidth(0.4);
