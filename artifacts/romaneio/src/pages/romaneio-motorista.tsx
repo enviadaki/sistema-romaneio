@@ -360,20 +360,24 @@ export default function RomaneioMotorista() {
       // A tabela usa 208 mm de largura fixa, deixando uma coluna livre à direita.
       // Usamos essa área para manter as observações na mesma página do romaneio.
       const tableWidth = 208;
-      const obsX = mg + tableWidth + 6;
-      const obsWidth = W - obsX - mg;
-      const obsLines = doc.splitTextToSize(observacaoTexto, obsWidth - 10);
+      let obsX = mg + tableWidth + 6;
+      let obsWidth = W - obsX - mg;
+      let obsLines = doc.splitTextToSize(observacaoTexto, obsWidth - 10);
       const obsLineHeight = 4.5;
       const obsTopPadding = 13;
-      const requiredObsHeight = obsTopPadding + obsLines.length * obsLineHeight + 4;
-      const obsY = 37;
+      let obsHeight = Math.max(42, obsTopPadding + obsLines.length * obsLineHeight + 4);
+      let obsY = 37;
       const maxObsHeight = H - 25 - obsY;
-      const obsHeight = Math.max(42, requiredObsHeight);
 
       // Textos muito longos continuam protegidos: só criamos uma página extra
       // quando não couberem nem mesmo na coluna lateral acima das assinaturas.
       if (obsHeight > maxObsHeight) {
         doc.addPage();
+        obsX = mg;
+        obsY = 18;
+        obsWidth = W - mg * 2;
+        obsLines = doc.splitTextToSize(observacaoTexto, obsWidth - 10);
+        obsHeight = Math.max(42, obsTopPadding + obsLines.length * obsLineHeight + 4);
       }
 
       doc.setFillColor(255, 248, 220);
