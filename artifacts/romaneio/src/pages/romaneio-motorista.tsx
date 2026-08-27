@@ -439,7 +439,7 @@ export default function RomaneioMotorista() {
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o motorista" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-[min(70vh,22rem)]">
                   {motoristas.map((m) => (
                     <SelectItem key={m.id} value={m.nome}>{m.nome}</SelectItem>
                   ))}
@@ -464,7 +464,7 @@ export default function RomaneioMotorista() {
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o conferente" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-[min(70vh,22rem)]">
                   {conferenteOptions.map((c) => (
                     <SelectItem key={c.id} value={c.nome}>{c.nome}</SelectItem>
                   ))}

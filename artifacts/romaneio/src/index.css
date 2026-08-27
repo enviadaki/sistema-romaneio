@@ -142,6 +142,29 @@
   }
 }
 
+.select-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.55) hsl(var(--muted) / 0.35);
+}
+
+.select-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.select-scrollbar::-webkit-scrollbar-track {
+  background: hsl(var(--muted) / 0.35);
+  border-radius: 9999px;
+}
+
+.select-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.55);
+  border-radius: 9999px;
+}
+
+.select-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.75);
+}
+
 @media print {
   body {
     @apply bg-white text-black;
