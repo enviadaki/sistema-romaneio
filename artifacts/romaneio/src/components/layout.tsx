@@ -93,7 +93,6 @@ export function Layout({ children }: { children: ReactNode }) {
       ? [
           { href: "/admin", label: "Administração", icon: Settings },
           { href: "/usuarios", label: "Usuários Motoristas", icon: Users },
-          { href: "/operadores", label: "Usuários Operadores", icon: Shield },
         ]
       : []),
   ];

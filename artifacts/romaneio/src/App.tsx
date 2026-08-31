@@ -10,6 +10,7 @@ import { Layout } from "@/components/layout";
 import { OperationProvider } from "@/contexts/operation-context";
 import { MotoristaAuthProvider, useMotoristaAuth } from "@/contexts/motorista-auth-context";
 import { OperatorAuthProvider, useOperatorAuth } from "@/contexts/operator-auth-context";
+import { isPageAllowed, OPERATOR_PAGES } from "@/lib/operator-pages";
 
 import Dashboard from "@/pages/dashboard";
 import Cadastro from "@/pages/cadastro";
@@ -21,7 +22,6 @@ import Entrega from "@/pages/entrega";
 import RomaneioMotorista from "@/pages/romaneio-motorista";
 import Financeiro from "@/pages/financeiro";
 import MotoristaUsuarios from "@/pages/motorista-usuarios";
-import OperatorUsuarios from "@/pages/operator-usuarios";
 import QrAutoplay from "@/pages/qr-autoplay";
 import Admin from "@/pages/admin";
 import Devolucoes from "@/pages/devolucoes";
@@ -264,11 +264,23 @@ function SignInPage() {
 function ProtectedApp() {
   const { isSignedIn, isLoaded: clerkLoaded } = useAuth();
   const { isAuthenticated: isMotoristaAuth } = useMotoristaAuth();
-  const { isAuthenticated: isOperatorAuth } = useOperatorAuth();
+  const { isAuthenticated: isOperatorAuth, user: operatorUser } = useOperatorAuth();
+  const [location] = useLocation();
 
   if (!clerkLoaded) return null;
 
   if (isSignedIn || isMotoristaAuth || isOperatorAuth) {
+    if (
+      operatorUser &&
+      OPERATOR_PAGES.some((page) => page.href === location) &&
+      !isPageAllowed(operatorUser.allowedPages, location)
+    ) {
+      const fallbackPage = operatorUser.allowedPages.length
+        ? OPERATOR_PAGES.find((page) => operatorUser.allowedPages.includes(page.key))
+        : OPERATOR_PAGES[0];
+      return <Redirect to={fallbackPage?.href ?? "/"} />;
+    }
+
     return (
       <Layout>
         <Switch>
@@ -282,7 +294,7 @@ function ProtectedApp() {
           <Route path="/romaneio-motorista" component={RomaneioMotorista} />
           <Route path="/financeiro" component={Financeiro} />
           <Route path="/usuarios" component={MotoristaUsuarios} />
-          <Route path="/operadores" component={OperatorUsuarios} />
+          <Route path="/operadores" component={() => <Redirect to="/admin" />} />
           <Route path="/qr-autoplay" component={QrAutoplay} />
           <Route path="/admin" component={Admin} />
           <Route path="/devolucoes" component={Devolucoes} />

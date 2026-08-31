@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
 import { useUser } from "@clerk/react";
-import { Plus, Trash2, User, Shield, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Pencil, Trash2, User, Shield, ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -93,7 +92,7 @@ export default function OperatorUsuarios() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<CreateForm>(emptyForm);
-  const [creating, setCreating] = useState(false);
+  const [editingUser, setEditingUser] = useState<OperatorUser | null>(null);
   const [expandedUser, setExpandedUser] = useState<number | null>(null);
 
   const role = user?.publicMetadata?.role as string | undefined;
@@ -103,6 +102,42 @@ export default function OperatorUsuarios() {
     queryKey: ["admin-operator-users"],
     queryFn: () => customFetch<OperatorUser[]>("/api/admin/operator-users"),
     enabled: isAdmin,
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async ({ id, values }: { id: number | null; values: CreateForm }) => {
+      if (id) {
+        return customFetch<OperatorUser>(`/api/admin/operator-users/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fullName: values.fullName.trim(),
+            password: values.password || undefined,
+            allowedOperations: values.allowedOperations,
+            allowedPages: values.allowedPages,
+          }),
+        });
+      }
+      return customFetch<OperatorUser>("/api/admin/operator-users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-operator-users"] });
+      toast({ title: variables.id ? "Operador atualizado com sucesso" : `Operador ${form.username} criado com sucesso` });
+      setForm(emptyForm);
+      setEditingUser(null);
+      setOpen(false);
+    },
+    onError: (err: any) => {
+      toast({
+        title: editingUser ? "Erro ao atualizar operador" : "Erro ao criar operador",
+        description: err?.message ?? String(err),
+        variant: "destructive",
+      });
+    },
   });
 
   const deleteMutation = useMutation({
@@ -145,9 +180,9 @@ export default function OperatorUsuarios() {
 
   const allPagesSelected = OPERATOR_PAGES.every((p) => form.allowedPages.includes(p.key));
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.username || !form.fullName || !form.password) {
+    if (!form.username || !form.fullName || (!editingUser && !form.password)) {
       toast({ title: "Preencha todos os campos obrigatórios", variant: "destructive" });
       return;
     }
@@ -155,26 +190,29 @@ export default function OperatorUsuarios() {
       toast({ title: "Selecione ao menos uma operação", variant: "destructive" });
       return;
     }
-    setCreating(true);
-    try {
-      await customFetch("/api/admin/operator-users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      queryClient.invalidateQueries({ queryKey: ["admin-operator-users"] });
-      toast({ title: `Operador ${form.username} criado com sucesso` });
-      setForm(emptyForm);
-      setOpen(false);
-    } catch (err: any) {
-      toast({
-        title: "Erro ao criar operador",
-        description: err?.message ?? String(err),
-        variant: "destructive",
-      });
-    } finally {
-      setCreating(false);
+    if (editingUser && form.password && form.password.length < 6) {
+      toast({ title: "A nova senha deve ter no mínimo 6 caracteres", variant: "destructive" });
+      return;
     }
+    saveMutation.mutate({ id: editingUser?.id ?? null, values: form });
+  };
+
+  const openCreateDialog = () => {
+    setEditingUser(null);
+    setForm(emptyForm);
+    setOpen(true);
+  };
+
+  const openEditDialog = (operator: OperatorUser) => {
+    setEditingUser(operator);
+    setForm({
+      username: operator.username,
+      fullName: operator.fullName,
+      password: "",
+      allowedOperations: operator.allowedOperations ?? [],
+      allowedPages: operator.allowedPages ?? [],
+    });
+    setOpen(true);
   };
 
   if (!isAdmin) {
@@ -195,18 +233,22 @@ export default function OperatorUsuarios() {
           </p>
         </div>
 
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              Novo Operador
-            </Button>
-          </DialogTrigger>
+        <Dialog open={open} onOpenChange={(nextOpen) => {
+          setOpen(nextOpen);
+          if (!nextOpen) {
+            setEditingUser(null);
+            setForm(emptyForm);
+          }
+        }}>
+          <Button className="gap-2" onClick={openCreateDialog}>
+            <Plus className="h-4 w-4" />
+            Novo Operador
+          </Button>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Criar conta de operador</DialogTitle>
+              <DialogTitle>{editingUser ? "Editar operador" : "Criar conta de operador"}</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleCreate} className="space-y-4 pt-2">
+            <form onSubmit={handleSave} className="space-y-4 pt-2">
               {/* Username */}
               <div className="space-y-1.5">
                 <Label htmlFor="op-username">
@@ -215,6 +257,7 @@ export default function OperatorUsuarios() {
                 <Input
                   id="op-username"
                   placeholder="ex: operador01"
+                  disabled={Boolean(editingUser)}
                   value={form.username}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "") }))
@@ -244,7 +287,7 @@ export default function OperatorUsuarios() {
                 <Input
                   id="op-password"
                   type="password"
-                  placeholder="mínimo 6 caracteres"
+                  placeholder={editingUser ? "deixe em branco para manter a atual" : "mínimo 6 caracteres"}
                   value={form.password}
                   onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
                 />
@@ -305,8 +348,8 @@ export default function OperatorUsuarios() {
                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={creating}>
-                  {creating ? "Criando..." : "Criar operador"}
+                <Button type="submit" disabled={saveMutation.isPending}>
+                  {saveMutation.isPending ? "Salvando..." : editingUser ? "Salvar alterações" : "Criar operador"}
                 </Button>
               </div>
             </form>
@@ -347,12 +390,12 @@ export default function OperatorUsuarios() {
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {/* Operation badges */}
                       <div className="flex gap-1.5 flex-wrap justify-end">
-                        {u.allowedOperations.length === 0 ? (
+                        {(u.allowedOperations ?? []).length === 0 ? (
                           <Badge variant="outline" className="text-xs text-muted-foreground">
                             Sem operações
                           </Badge>
                         ) : (
-                          u.allowedOperations.map((op) => (
+                          (u.allowedOperations ?? []).map((op) => (
                             <Badge
                               key={op}
                               variant="secondary"
@@ -369,6 +412,16 @@ export default function OperatorUsuarios() {
                       </div>
 
                       {/* Expand/collapse modules */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 flex-shrink-0"
+                        onClick={() => openEditDialog(u)}
+                        title="Editar operador e permissões"
+                      >
+                        <Pencil className="h-4 w-4" />
+                        <span className="sr-only">Editar operador e permissões</span>
+                      </Button>
                       <button
                         onClick={() => setExpandedUser(isExpanded ? null : u.id)}
                         className="p-1.5 rounded-md text-muted-foreground hover:bg-muted transition-colors"
@@ -411,16 +464,16 @@ export default function OperatorUsuarios() {
                   </div>
 
                   {/* Expanded modules view */}
-                  {isExpanded && (
+                      {isExpanded && (
                     <div className="mt-3 pt-3 border-t">
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
                         Módulos permitidos
                       </p>
-                      {u.allowedPages.length === 0 ? (
+                      {(u.allowedPages ?? []).length === 0 ? (
                         <p className="text-xs text-muted-foreground italic">Acesso total (sem restrição de módulos)</p>
                       ) : (
                         <div className="flex flex-wrap gap-1.5">
-                          {u.allowedPages.map((key) => {
+                          {(u.allowedPages ?? []).map((key) => {
                             const page = OPERATOR_PAGES.find((p) => p.key === key);
                             return (
                               <Badge key={key} variant="outline" className="text-xs">

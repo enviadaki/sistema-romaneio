@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
+import OperatorUsuarios from "@/pages/operator-usuarios";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -1213,31 +1214,21 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="usuarios-operadores">
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Gerencie as contas de operadores — operações e módulos permitidos.
-            </p>
-            <Link href="/operadores">
-              <Button variant="outline" className="gap-2">
-                <Shield className="h-4 w-4" />
-                Abrir gestão de operadores
-              </Button>
-            </Link>
-          </div>
+            <OperatorUsuarios />
         </TabsContent>
 
         <TabsContent value="usuarios-motoristas">
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Gerencie as contas de login dos motoristas — usuário, senha e rotas liberadas.
-            </p>
-            <Link href="/usuarios">
-              <Button variant="outline" className="gap-2">
-                <Users className="h-4 w-4" />
-                Abrir gestão de usuários motoristas
-              </Button>
-            </Link>
-          </div>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Gerencie as contas de login dos motoristas — usuário, senha e rotas liberadas.
+              </p>
+              <Link href="/usuarios">
+                <Button variant="outline" className="gap-2">
+                  <Users className="h-4 w-4" />
+                  Abrir gestão de usuários motoristas
+                </Button>
+              </Link>
+            </div>
         </TabsContent>
         <TabsContent value="arco">
           <ArcoIntegrationTab />
