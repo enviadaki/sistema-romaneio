@@ -28,6 +28,7 @@ interface RouteRow { id: number; name: string; createdAt: string }
 interface CityRow  { id: number; name: string; createdAt?: string }
 interface RouteCityRow { id: number; name: string }
 interface MotoristaRow { id: number; nome: string; contato: string; createdAt: string }
+interface ConferenteRow { id: number; nome: string; createdAt: string }
 
 // ── Generic CRUD tab ───────────────────────────────────────────────────────
 
@@ -833,6 +834,194 @@ function MotoristasTab() {
   );
 }
 
+// ── Conferentes tab ────────────────────────────────────────────────────────
+
+function ConferentesTab() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ nome: "" });
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
+
+  const { data: conferentes = [], isLoading } = useQuery<ConferenteRow[]>({
+    queryKey: ["admin-conferentes"],
+    queryFn: () => customFetch<ConferenteRow[]>("/api/admin/conferentes"),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (nome: string) =>
+      customFetch<ConferenteRow>("/api/admin/conferentes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-conferentes"] });
+      setForm({ nome: "" });
+      setOpen(false);
+      toast({ title: "Conferente adicionado" });
+    },
+    onError: (err: any) => toast({ title: "Erro", description: err?.message, variant: "destructive" }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, nome }: { id: number; nome: string }) =>
+      customFetch<ConferenteRow>(`/api/admin/conferentes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-conferentes"] });
+      setEditingId(null);
+      toast({ title: "Conferente atualizado" });
+    },
+    onError: (err: any) => toast({ title: "Erro", description: err?.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) =>
+      customFetch<{ success: boolean }>(`/api/admin/conferentes/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-conferentes"] });
+      toast({ title: "Conferente removido" });
+    },
+    onError: (err: any) => toast({ title: "Erro", description: err?.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">{conferentes.length} conferente(s) cadastrado(s)</p>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button size="sm" className="gap-1.5">
+              <Plus className="h-4 w-4" /> Novo Conferente
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Adicionar conferente</DialogTitle>
+            </DialogHeader>
+            <form
+              className="space-y-4 pt-1"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (form.nome.trim()) createMutation.mutate(form.nome.trim());
+              }}
+            >
+              <div className="space-y-1.5">
+                <Label>Nome <span className="text-destructive">*</span></Label>
+                <Input
+                  placeholder="Ex: Maria Oliveira"
+                  value={form.nome}
+                  onChange={(e) => setForm({ nome: e.target.value })}
+                  autoFocus
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+                <Button type="submit" disabled={!form.nome.trim() || createMutation.isPending}>
+                  {createMutation.isPending ? "Salvando..." : "Salvar"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {isLoading ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">Carregando...</p>
+      ) : conferentes.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Users className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
+            <p className="text-muted-foreground">Nenhum conferente cadastrado</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="divide-y rounded-md border">
+          {conferentes.map((conferente) => (
+            <div key={conferente.id} className="px-4 py-3">
+              {editingId === conferente.id ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    className="h-8 flex-1 text-sm"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && editName.trim()) {
+                        updateMutation.mutate({ id: conferente.id, nome: editName.trim() });
+                      }
+                      if (e.key === "Escape") setEditingId(null);
+                    }}
+                    autoFocus
+                  />
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-green-600"
+                    disabled={!editName.trim() || updateMutation.isPending}
+                    onClick={() => updateMutation.mutate({ id: conferente.id, nome: editName.trim() })}
+                  >
+                    <Check className="h-4 w-4" />
+                  </Button>
+                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingId(null)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
+                    <Users className="h-4 w-4 text-primary" />
+                  </div>
+                  <p className="flex-1 text-sm font-medium">{conferente.nome}</p>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-muted-foreground"
+                    onClick={() => {
+                      setEditingId(conferente.id);
+                      setEditName(conferente.nome);
+                    }}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:bg-destructive/10">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Remover conferente?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          <strong>{conferente.nome}</strong> será removido da lista de conferentes.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive hover:bg-destructive/90"
+                          onClick={() => deleteMutation.mutate(conferente.id)}
+                        >
+                          Remover
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Integração Arco ─────────────────────────────────────────────────────────
 
 function ArcoIntegrationTab() {
@@ -979,7 +1168,7 @@ export default function Admin() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Administração</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Cadastre e gerencie rotas, cidades, motoristas e usuários do sistema.
+           Cadastre e gerencie rotas, cidades, motoristas, conferentes e usuários do sistema.
         </p>
       </div>
 
@@ -993,6 +1182,9 @@ export default function Admin() {
           </TabsTrigger>
           <TabsTrigger value="motoristas" className="gap-1.5">
             <Truck className="h-4 w-4" /> Motoristas
+          </TabsTrigger>
+          <TabsTrigger value="conferentes" className="gap-1.5">
+            <Users className="h-4 w-4" /> Conferentes
           </TabsTrigger>
           <TabsTrigger value="usuarios-operadores" className="gap-1.5">
             <Shield className="h-4 w-4" /> Operadores
@@ -1015,6 +1207,9 @@ export default function Admin() {
 
         <TabsContent value="motoristas">
           <MotoristasTab />
+        </TabsContent>
+        <TabsContent value="conferentes">
+          <ConferentesTab />
         </TabsContent>
 
         <TabsContent value="usuarios-operadores">

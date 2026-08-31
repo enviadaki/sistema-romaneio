@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, asc, inArray } from "drizzle-orm";
-import { db, routesTable, citiesTable, motoristasTable, routeCitiesTable } from "@workspace/db";
+import { eq, asc, inArray, ne, and } from "drizzle-orm";
+import { db, routesTable, citiesTable, motoristasTable, conferentesTable, routeCitiesTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireAdmin } from "../middlewares/requireAdmin";
 
@@ -145,6 +145,72 @@ router.put("/admin/motoristas/:id", requireAuth, requireAdmin, async (req, res):
 router.delete("/admin/motoristas/:id", requireAuth, requireAdmin, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   await db.delete(motoristasTable).where(eq(motoristasTable.id, id));
+  res.json({ success: true });
+});
+
+// ── Conferentes (lista mestra) ─────────────────────────────────────────────
+
+router.get("/admin/conferentes", requireAuth, requireAdmin, async (_req, res): Promise<void> => {
+  const rows = await db.select().from(conferentesTable).orderBy(asc(conferentesTable.nome));
+  res.json(rows);
+});
+
+router.post("/admin/conferentes", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const { nome } = req.body as { nome?: string };
+  if (!nome?.trim()) {
+    res.status(400).json({ error: "Nome do conferente é obrigatório" });
+    return;
+  }
+
+  const name = nome.trim();
+  const [existing] = await db
+    .select({ id: conferentesTable.id })
+    .from(conferentesTable)
+    .where(eq(conferentesTable.nome, name))
+    .limit(1);
+  if (existing) {
+    res.status(409).json({ error: "Este conferente já está cadastrado" });
+    return;
+  }
+
+  const [row] = await db.insert(conferentesTable).values({ nome: name }).returning();
+  res.status(201).json(row);
+});
+
+router.put("/admin/conferentes/:id", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const { nome } = req.body as { nome?: string };
+  if (!nome?.trim()) {
+    res.status(400).json({ error: "Nome do conferente é obrigatório" });
+    return;
+  }
+
+  const name = nome.trim();
+  const [existing] = await db
+    .select({ id: conferentesTable.id })
+    .from(conferentesTable)
+    .where(and(eq(conferentesTable.nome, name), ne(conferentesTable.id, id)))
+    .limit(1);
+  if (existing) {
+    res.status(409).json({ error: "Este conferente já está cadastrado" });
+    return;
+  }
+
+  const [row] = await db
+    .update(conferentesTable)
+    .set({ nome: name })
+    .where(eq(conferentesTable.id, id))
+    .returning();
+  if (!row) {
+    res.status(404).json({ error: "Conferente não encontrado" });
+    return;
+  }
+  res.json(row);
+});
+
+router.delete("/admin/conferentes/:id", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  await db.delete(conferentesTable).where(eq(conferentesTable.id, id));
   res.json({ success: true });
 });
 
