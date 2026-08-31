@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  ApiError,
   customFetch,
   getListReturnProtocolsQueryKey,
   useListReturnProtocols,
@@ -251,29 +252,28 @@ export default function Devolucoes() {
 
     setLookingUp(true);
     try {
-      const response = await fetch(
+      const pkg = await customFetch<PacoteLocal>(
         `/api/packages/lookup?trackingNumber=${encodeURIComponent(code)}&operation=${encodeURIComponent(operation)}`,
-        { credentials: "include" },
       );
-      if (response.ok) {
-        const pkg = (await response.json()) as PacoteLocal;
-        setItems((current) => [
-          ...current,
-          {
-            tipo: "RASTREAVEL",
-            referencia: pkg.trackingNumber,
-            descricao: "Pacote localizado no cadastro local",
-            operacao: pkg.operation,
-            cidade: pkg.city,
-            rota: "",
-            prazo: pkg.promisedDeliveryDate ?? "",
-            quantidadeVolumes: 1,
-            observacao: "",
-            origem: "local",
-          },
-        ]);
-        toast({ title: "Pacote localizado no cadastro local" });
-      } else if (response.status === 404) {
+      setItems((current) => [
+        ...current,
+        {
+          tipo: "RASTREAVEL",
+          referencia: pkg.trackingNumber,
+          descricao: "Pacote localizado no cadastro local",
+          operacao: pkg.operation,
+          cidade: pkg.city,
+          rota: "",
+          prazo: pkg.promisedDeliveryDate ?? "",
+          quantidadeVolumes: 1,
+          observacao: "",
+          origem: "local",
+        },
+      ]);
+      toast({ title: "Pacote localizado no cadastro local" });
+      setTrackingInput("");
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
         setItems((current) => [
           ...current,
           {
@@ -293,17 +293,14 @@ export default function Devolucoes() {
           title: "Sem rastreabilidade",
           description: "Preencha os dados manuais do pacote.",
         });
+        setTrackingInput("");
       } else {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error ?? "Não foi possível consultar o cadastro local");
+        toast({
+          title: "Erro ao consultar pacote",
+          description: error instanceof Error ? error.message : "Tente novamente.",
+          variant: "destructive",
+        });
       }
-      setTrackingInput("");
-    } catch (error) {
-      toast({
-        title: "Erro ao consultar pacote",
-        description: error instanceof Error ? error.message : "Tente novamente.",
-        variant: "destructive",
-      });
     } finally {
       setLookingUp(false);
     }
