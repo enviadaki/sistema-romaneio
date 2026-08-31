@@ -1,0 +1,19 @@
+kind = "design-system"
+previewPath = "/envia-daki-design-system/"
+title = "Envia Daki Design System"
+description = "Design system extraído do Sistema de Romaneios da Envia Daki, com tokens, componentes operacionais e guia visual para interfaces logísticas consistentes."
+version = "1.0.0"
+id = "artifacts/envia-daki-design-system"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/envia-daki-design-system/" ]
+localPort = 21243
+
+[services.development]
+run = "pnpm --filter @workspace/envia-daki-design-system run dev"
+
+[services.env]
+PORT = "21243"
+BASE_PATH = "/envia-daki-design-system/"
