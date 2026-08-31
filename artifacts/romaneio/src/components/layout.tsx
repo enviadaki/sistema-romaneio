@@ -95,6 +95,9 @@ export function Layout({ children }: { children: ReactNode }) {
           { href: "/usuarios", label: "Usuários Motoristas", icon: Users },
         ]
       : []),
+    ...(isCustomOperator && operatorUser!.canManageMotoristas
+      ? [{ href: "/motoristas", label: "Cadastro de Motoristas", icon: Truck }]
+      : []),
   ];
 
   const motoristaNavItems = [
@@ -123,9 +126,8 @@ export function Layout({ children }: { children: ReactNode }) {
     <div className="min-h-[100dvh] flex flex-col md:flex-row bg-background">
       {/* Sidebar */}
       <aside className="w-full md:w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border flex flex-col flex-shrink-0 no-print">
-        <div className="p-4 border-b border-sidebar-border flex items-center gap-2 font-bold text-lg">
-          <Package className="h-6 w-6 text-sidebar-primary" />
-          <span>Romaneios</span>
+        <div className="p-4 border-b border-sidebar-border flex items-center justify-center h-20">
+          <img src={`${import.meta.env.BASE_URL === "/" ? "" : import.meta.env.BASE_URL}/enviadaki-logo.png`} alt="Envia Daki" className="h-10 w-auto" />
         </div>
 
         {/* Operation Selector — hidden for motoristas */}

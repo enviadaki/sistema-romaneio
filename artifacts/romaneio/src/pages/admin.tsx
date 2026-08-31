@@ -628,7 +628,7 @@ function CidadesTab() {
 
 // ── Motoristas tab ─────────────────────────────────────────────────────────
 
-function MotoristasTab() {
+export function MotoristasTab() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);

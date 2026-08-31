@@ -22,6 +22,7 @@ import Entrega from "@/pages/entrega";
 import RomaneioMotorista from "@/pages/romaneio-motorista";
 import Financeiro from "@/pages/financeiro";
 import MotoristaUsuarios from "@/pages/motorista-usuarios";
+import Motoristas from "@/pages/motoristas";
 import QrAutoplay from "@/pages/qr-autoplay";
 import Admin from "@/pages/admin";
 import Devolucoes from "@/pages/devolucoes";
@@ -48,10 +49,10 @@ const clerkAppearance = {
   options: {
     logoPlacement: "inside" as const,
     logoLinkUrl: basePath || "/",
-    logoImageUrl: `${window.location.origin}${basePath}/logo.svg`,
+    logoImageUrl: `${window.location.origin}${basePath}/enviadaki-logo.png`,
   },
   variables: {
-    colorPrimary: "#1e3a5f",
+    colorPrimary: "#35a7df",
     colorForeground: "#0f172a",
     colorMutedForeground: "#64748b",
     colorDanger: "#dc2626",
@@ -77,10 +78,10 @@ const clerkAppearance = {
     identityPreviewEditButton: "text-blue-700",
     formFieldSuccessText: "text-green-600",
     alertText: "text-slate-700",
-    logoBox: "mb-1",
-    logoImage: "h-10 w-auto",
+    logoBox: "mb-1 flex justify-center",
+    logoImage: "h-12 w-auto",
     socialButtonsBlockButton: "border border-slate-200 bg-white hover:bg-slate-50",
-    formButtonPrimary: "bg-[#1e3a5f] hover:bg-[#162e4d] text-white font-semibold",
+    formButtonPrimary: "bg-[#35a7df] hover:bg-[#2891c5] text-black font-semibold",
     formFieldInput: "border-slate-200 bg-white text-slate-900",
     footerAction: "bg-slate-50 border-t border-slate-100",
     dividerLine: "bg-slate-200",
@@ -147,7 +148,7 @@ function CustomLoginForm({
               placeholder="ex: joaosilva"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent"
+              className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#35a7df] focus:border-transparent"
             />
           </div>
           <div className="space-y-1.5">
@@ -161,7 +162,7 @@ function CustomLoginForm({
               placeholder="••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent"
+              className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#35a7df] focus:border-transparent"
             />
           </div>
           {error && (
@@ -172,7 +173,7 @@ function CustomLoginForm({
           <button
             type="submit"
             disabled={loading || !username || !password}
-            className="w-full rounded-md bg-[#1e3a5f] hover:bg-[#162e4d] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-2 text-sm transition-colors"
+            className="w-full rounded-md bg-[#35a7df] hover:bg-[#2891c5] disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold py-2 text-sm transition-colors"
           >
             {loading ? "Entrando..." : "Entrar"}
           </button>
@@ -218,16 +219,14 @@ function SignInPage() {
   ];
 
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-gradient-to-br from-slate-900 via-[#0f2850] to-slate-800 px-4">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-gradient-to-br from-slate-900 via-black to-slate-800 px-4">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <img
-            src={`${basePath}/logo.svg`}
-            alt="Logo"
-            className="mx-auto mb-4 h-14 w-14"
+            src={`${basePath}/enviadaki-logo.png`}
+            alt="Envia Daki"
+            className="mx-auto mb-6 h-12 w-auto"
           />
-          <h1 className="text-2xl font-bold text-white">Sistema de Romaneios</h1>
-          <p className="mt-1 text-sm text-slate-400">Gestão logística de entregas</p>
         </div>
 
         <div className="flex bg-white/10 backdrop-blur-sm rounded-xl mb-5 p-1 gap-1">
@@ -272,8 +271,9 @@ function ProtectedApp() {
   if (isSignedIn || isMotoristaAuth || isOperatorAuth) {
     if (
       operatorUser &&
-      OPERATOR_PAGES.some((page) => page.href === location) &&
-      !isPageAllowed(operatorUser.allowedPages, location)
+      ((OPERATOR_PAGES.some((page) => page.href === location) &&
+        !isPageAllowed(operatorUser.allowedPages, location)) ||
+        (location === "/motoristas" && !operatorUser.canManageMotoristas))
     ) {
       const fallbackPage = operatorUser.allowedPages.length
         ? OPERATOR_PAGES.find((page) => operatorUser.allowedPages.includes(page.key))
@@ -295,6 +295,7 @@ function ProtectedApp() {
           <Route path="/financeiro" component={Financeiro} />
           <Route path="/usuarios" component={MotoristaUsuarios} />
           <Route path="/operadores" component={() => <Redirect to="/admin" />} />
+          <Route path="/motoristas" component={Motoristas} />
           <Route path="/qr-autoplay" component={QrAutoplay} />
           <Route path="/admin" component={Admin} />
           <Route path="/devolucoes" component={Devolucoes} />

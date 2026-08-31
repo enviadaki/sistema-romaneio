@@ -9,6 +9,7 @@ export const operatorUsersTable = pgTable("operator_users", {
   fullName: text("full_name").notNull().default(""),
   allowedOperations: text("allowed_operations").array().notNull().default([]),
   allowedPages: text("allowed_pages").array().notNull().default([]),
+  canManageMotoristas: boolean("can_manage_motoristas").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

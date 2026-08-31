@@ -7,6 +7,7 @@ interface OperatorUser {
   fullName: string;
   allowedOperations: string[];
   allowedPages: string[];
+  canManageMotoristas: boolean;
   role: "operator";
 }
 
@@ -42,6 +43,7 @@ function parseOperatorJwt(token: string): OperatorUser | null {
       fullName: payload.fullName,
       allowedOperations: payload.allowedOperations ?? [],
       allowedPages: payload.allowedPages ?? [],
+      canManageMotoristas: payload.canManageMotoristas === true,
       role: "operator",
     };
   } catch {

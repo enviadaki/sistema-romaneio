@@ -99,12 +99,20 @@ router.post("/operator/login", async (req, res): Promise<void> => {
         fullName: user.fullName,
         allowedOperations: user.allowedOperations,
         allowedPages: user.allowedPages,
+        canManageMotoristas: user.canManageMotoristas,
         role: "operator",
       },
       secret,
       { expiresIn: "24h" }
     );
-    res.json({ token, username: user.username, fullName: user.fullName, allowedOperations: user.allowedOperations, allowedPages: user.allowedPages });
+    res.json({
+      token,
+      username: user.username,
+      fullName: user.fullName,
+      allowedOperations: user.allowedOperations,
+      allowedPages: user.allowedPages,
+      canManageMotoristas: user.canManageMotoristas,
+    });
   } catch (err) {
     req.log?.error({ err }, "operator/login error");
     res.status(500).json({ error: "Erro interno" });
@@ -121,6 +129,7 @@ router.get("/admin/operator-users", requireAdminClerk, async (req, res): Promise
         fullName: operatorUsersTable.fullName,
         allowedOperations: operatorUsersTable.allowedOperations,
         allowedPages: operatorUsersTable.allowedPages,
+        canManageMotoristas: operatorUsersTable.canManageMotoristas,
         isActive: operatorUsersTable.isActive,
         createdAt: operatorUsersTable.createdAt,
       })
@@ -135,8 +144,9 @@ router.get("/admin/operator-users", requireAdminClerk, async (req, res): Promise
 
 // POST /api/admin/operator-users — admin only
 router.post("/admin/operator-users", requireAdminClerk, async (req, res): Promise<void> => {
-  const { username, fullName, password, allowedOperations, allowedPages } = req.body as {
+  const { username, fullName, password, allowedOperations, allowedPages, canManageMotoristas } = req.body as {
     username: unknown; fullName: unknown; password: unknown; allowedOperations: unknown; allowedPages: unknown;
+    canManageMotoristas: unknown;
   };
   if (typeof username !== "string" || username.length < 3 || username.length > 32 || !/^[a-z0-9_]+$/.test(username)) {
     res.status(400).json({ error: "username inválido (3-32 chars, apenas letras minúsculas, números e _)" });
@@ -170,9 +180,16 @@ router.post("/admin/operator-users", requireAdminClerk, async (req, res): Promis
       fullName,
       allowedOperations: operations,
       allowedPages: pages,
+      canManageMotoristas: canManageMotoristas === true,
       isActive: true,
     });
-    res.status(201).json({ username, fullName, allowedOperations: operations, allowedPages: pages });
+    res.status(201).json({
+      username,
+      fullName,
+      allowedOperations: operations,
+      allowedPages: pages,
+      canManageMotoristas: canManageMotoristas === true,
+    });
   } catch (err: any) {
     req.log?.error({ err }, "admin/operator-users POST error");
     res.status(500).json({ error: err?.message ?? "Erro ao criar usuário" });
@@ -187,11 +204,12 @@ router.put("/admin/operator-users/:id", requireAdminClerk, async (req, res): Pro
     return;
   }
 
-  const { fullName, password, allowedOperations, allowedPages } = req.body as {
+  const { fullName, password, allowedOperations, allowedPages, canManageMotoristas } = req.body as {
     fullName?: unknown;
     password?: unknown;
     allowedOperations?: unknown;
     allowedPages?: unknown;
+    canManageMotoristas?: unknown;
   };
 
   if (typeof fullName !== "string" || fullName.trim().length < 2) {
@@ -227,11 +245,13 @@ router.put("/admin/operator-users/:id", requireAdminClerk, async (req, res): Pro
       fullName: string;
       allowedOperations: string[];
       allowedPages: string[];
+      canManageMotoristas: boolean;
       passwordHash?: string;
     } = {
       fullName: fullName.trim(),
       allowedOperations: permissions.allowedOperations,
       allowedPages: permissions.allowedPages,
+      canManageMotoristas: canManageMotoristas === true,
     };
 
     if (typeof password === "string" && password.length > 0) {
@@ -248,6 +268,7 @@ router.put("/admin/operator-users/:id", requireAdminClerk, async (req, res): Pro
         fullName: operatorUsersTable.fullName,
         allowedOperations: operatorUsersTable.allowedOperations,
         allowedPages: operatorUsersTable.allowedPages,
+        canManageMotoristas: operatorUsersTable.canManageMotoristas,
         isActive: operatorUsersTable.isActive,
         createdAt: operatorUsersTable.createdAt,
       });

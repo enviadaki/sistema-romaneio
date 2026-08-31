@@ -37,6 +37,7 @@ interface OperatorUser {
   fullName: string;
   allowedOperations: string[];
   allowedPages: string[];
+  canManageMotoristas: boolean;
   isActive: boolean;
   createdAt: string;
 }
@@ -47,6 +48,7 @@ interface CreateForm {
   password: string;
   allowedOperations: string[];
   allowedPages: string[];
+  canManageMotoristas: boolean;
 }
 
 const emptyForm: CreateForm = {
@@ -55,6 +57,7 @@ const emptyForm: CreateForm = {
   password: "",
   allowedOperations: [],
   allowedPages: [],
+  canManageMotoristas: false,
 };
 
 const PAGE_GROUPS = groupedPages();
@@ -115,6 +118,7 @@ export default function OperatorUsuarios() {
             password: values.password || undefined,
             allowedOperations: values.allowedOperations,
             allowedPages: values.allowedPages,
+            canManageMotoristas: values.canManageMotoristas,
           }),
         });
       }
@@ -211,6 +215,7 @@ export default function OperatorUsuarios() {
       password: "",
       allowedOperations: operator.allowedOperations ?? [],
       allowedPages: operator.allowedPages ?? [],
+      canManageMotoristas: operator.canManageMotoristas === true,
     });
     setOpen(true);
   };
@@ -344,6 +349,23 @@ export default function OperatorUsuarios() {
                 </p>
               </div>
 
+              <div className="space-y-2 rounded-md border p-3">
+                <label className="flex items-start gap-2 cursor-pointer select-none">
+                  <Checkbox
+                    checked={form.canManageMotoristas}
+                    onCheckedChange={(checked) =>
+                      setForm((f) => ({ ...f, canManageMotoristas: checked === true }))
+                    }
+                  />
+                  <span className="space-y-0.5">
+                    <span className="block text-sm font-medium">Pode cadastrar motoristas</span>
+                    <span className="block text-xs text-muted-foreground">
+                      Permite criar, editar e excluir motoristas na área própria de motoristas.
+                    </span>
+                  </span>
+                </label>
+              </div>
+
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                   Cancelar
@@ -411,7 +433,13 @@ export default function OperatorUsuarios() {
                         )}
                       </div>
 
-                      {/* Expand/collapse modules */}
+                       {u.canManageMotoristas && (
+                         <Badge variant="outline" className="text-xs border-cyan-300 text-cyan-700">
+                           Motoristas
+                         </Badge>
+                       )}
+
+                       {/* Expand/collapse modules */}
                       <Button
                         variant="ghost"
                         size="icon"

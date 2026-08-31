@@ -36,3 +36,10 @@ uri = "file://attached_assets/listagem_organizada_24-08-2026.xlsx"
 type = "table"
 title = "Planilha organizada — pacotes de 24/08/2026"
 description = "512 pacotes filtrados e ordenados de Z a A. Contém somente Código de barras, Cidade e Prazo; cidades padronizadas em português e CEP 46197-000 convertido para Paramirim."
+
+[[outputs]]
+id = "cdxUjAesiW-KzScsmQuI6"
+uri = "file://attached_assets/enviadaki-logo-no-bg.png"
+type = "image"
+title = "Logo Envia Daki — fundo transparente"
+description = "PNG da logo Envia Daki com o fundo branco removido e transparência preservada."

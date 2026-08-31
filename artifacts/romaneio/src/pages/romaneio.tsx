@@ -72,6 +72,16 @@ async function fetchRomaneio(params: {
   return customFetch<RomaneioData>(url.toString());
 }
 
+async function getLogoImg() {
+  return new Promise<HTMLImageElement>((resolve) => {
+    const img = new Image();
+    const base = import.meta.env.BASE_URL === "/" ? "" : import.meta.env.BASE_URL;
+    img.src = `${base}/enviadaki-logo.png`;
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(img);
+  });
+}
+
 function addRomaneioToPDF(
   doc: jsPDF,
   data: RomaneioData,
@@ -81,6 +91,7 @@ function addRomaneioToPDF(
     endereco: string;
     isFirst: boolean;
     isRouteMode: boolean;
+    logoImg?: HTMLImageElement;
   },
 ) {
   if (!opts.isFirst) doc.addPage();
@@ -91,21 +102,32 @@ function addRomaneioToPDF(
   const contentWidth = pageWidth - margin * 2;
 
   // ── Header background ──
-  doc.setFillColor(235, 235, 235);
+  doc.setFillColor(245, 245, 245);
   doc.rect(0, 0, pageWidth, 38, "F");
   doc.setDrawColor(60, 60, 60);
   doc.setLineWidth(0.6);
   doc.line(0, 38, pageWidth, 38);
 
   doc.setTextColor(20, 20, 20);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.text(opts.empresa || "SISTEMA DE ROMANEIOS", margin, 14);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  if (opts.cnpj) doc.text(`CNPJ: ${opts.cnpj}`, margin, 21);
-  if (opts.endereco) doc.text(opts.endereco, margin, opts.endereco && opts.cnpj ? 27 : 21);
+  
+  if (opts.logoImg && opts.logoImg.complete && opts.logoImg.naturalWidth > 0) {
+    doc.addImage(opts.logoImg, "PNG", margin, 6, 36, 12);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text(opts.empresa || "Envia Daki", margin + 40, 10);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    if (opts.cnpj) doc.text(`CNPJ: ${opts.cnpj}`, margin + 40, 14);
+    if (opts.endereco) doc.text(opts.endereco, margin + 40, opts.endereco && opts.cnpj ? 18 : 14);
+  } else {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text(opts.empresa || "ENVIA DAKI", margin, 14);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    if (opts.cnpj) doc.text(`CNPJ: ${opts.cnpj}`, margin, 21);
+    if (opts.endereco) doc.text(opts.endereco, margin, opts.endereco && opts.cnpj ? 27 : 21);
+  }
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
@@ -327,10 +349,11 @@ export default function Romaneio() {
 
   const handlePrint = () => window.print();
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     if (!romaneio) return;
+    const logoImg = await getLogoImg();
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    addRomaneioToPDF(doc, romaneio, { empresa, cnpj, endereco, isFirst: true, isRouteMode });
+    addRomaneioToPDF(doc, romaneio, { empresa, cnpj, endereco, isFirst: true, isRouteMode, logoImg });
     const safeName = romaneio.city.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_-]/g, "");
     doc.save(`romaneio_${safeName}_${romaneio.date}.pdf`);
   };
@@ -383,9 +406,10 @@ export default function Romaneio() {
       return;
     }
 
+    const logoImg = await getLogoImg();
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     results.forEach(({ data }, idx) => {
-      addRomaneioToPDF(doc, data, { empresa, cnpj, endereco, isFirst: idx === 0, isRouteMode: true });
+      addRomaneioToPDF(doc, data, { empresa, cnpj, endereco, isFirst: idx === 0, isRouteMode: true, logoImg });
     });
 
     doc.save(`romaneios_massa_${date}.pdf`);
@@ -640,10 +664,13 @@ export default function Romaneio() {
           {!isLoading && romaneio && (
             <div className="bg-white text-black p-8 border rounded-lg shadow-sm print:shadow-none print:border-0 print:p-0">
               <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold uppercase tracking-wider">ROMANEIO DE ENTREGA</h2>
-                  {empresa && <p className="text-sm mt-1 text-gray-600">{empresa}{cnpj ? ` — CNPJ: ${cnpj}` : ""}</p>}
-                  {endereco && <p className="text-xs text-gray-500 mt-0.5">{endereco}</p>}
+                <div className="flex items-center gap-6">
+                  <img src={`${import.meta.env.BASE_URL === "/" ? "" : import.meta.env.BASE_URL}/enviadaki-logo.png`} alt="Envia Daki" className="h-10 w-auto" />
+                  <div>
+                    <h2 className="text-2xl font-bold uppercase tracking-wider">ROMANEIO DE ENTREGA</h2>
+                    {empresa && <p className="text-sm mt-1 text-gray-600">{empresa}{cnpj ? ` — CNPJ: ${cnpj}` : ""}</p>}
+                    {endereco && <p className="text-xs text-gray-500 mt-0.5">{endereco}</p>}
+                  </div>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-semibold">

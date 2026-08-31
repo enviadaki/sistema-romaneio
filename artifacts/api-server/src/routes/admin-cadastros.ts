@@ -1,10 +1,43 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type NextFunction } from "express";
 import { eq, asc, inArray, ne, and } from "drizzle-orm";
-import { db, routesTable, citiesTable, motoristasTable, conferentesTable, routeCitiesTable } from "@workspace/db";
+import {
+  db,
+  routesTable,
+  citiesTable,
+  motoristasTable,
+  conferentesTable,
+  routeCitiesTable,
+  operatorUsersTable,
+} from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();
+
+async function requireMotoristaManager(req: any, res: any, next: NextFunction): Promise<void> {
+  if (req.customRole !== "operator") {
+    await requireAdmin(req, res, next);
+    return;
+  }
+
+  const match = String(req.userId ?? "").match(/^operator_(\d+)$/);
+  if (!match) {
+    res.status(403).json({ error: "Acesso restrito a usuários autorizados." });
+    return;
+  }
+
+  const [operator] = await db
+    .select({ canManageMotoristas: operatorUsersTable.canManageMotoristas })
+    .from(operatorUsersTable)
+    .where(eq(operatorUsersTable.id, Number(match[1])));
+
+  if (!operator?.canManageMotoristas) {
+    res.status(403).json({ error: "Este usuário não tem permissão para gerenciar motoristas." });
+    return;
+  }
+
+  next();
+}
 
 // ── Rotas ──────────────────────────────────────────────────────────────────
 
@@ -115,12 +148,12 @@ router.delete("/admin/cities/:id", requireAuth, requireAdmin, async (req, res): 
 
 // ── Motoristas (lista mestra) ──────────────────────────────────────────────
 
-router.get("/admin/motoristas", requireAuth, requireAdmin, async (_req, res): Promise<void> => {
+router.get("/admin/motoristas", requireAuth, requireMotoristaManager, async (_req, res): Promise<void> => {
   const rows = await db.select().from(motoristasTable).orderBy(asc(motoristasTable.nome));
   res.json(rows);
 });
 
-router.post("/admin/motoristas", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+router.post("/admin/motoristas", requireAuth, requireMotoristaManager, async (req, res): Promise<void> => {
   const { nome, contato } = req.body as { nome?: string; contato?: string };
   if (!nome?.trim()) {
     res.status(400).json({ error: "Nome do motorista é obrigatório" });
@@ -130,7 +163,7 @@ router.post("/admin/motoristas", requireAuth, requireAdmin, async (req, res): Pr
   res.status(201).json(row);
 });
 
-router.put("/admin/motoristas/:id", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+router.put("/admin/motoristas/:id", requireAuth, requireMotoristaManager, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   const { nome, contato } = req.body as { nome?: string; contato?: string };
   if (!nome?.trim()) {
@@ -142,7 +175,7 @@ router.put("/admin/motoristas/:id", requireAuth, requireAdmin, async (req, res):
   res.json(row);
 });
 
-router.delete("/admin/motoristas/:id", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+router.delete("/admin/motoristas/:id", requireAuth, requireMotoristaManager, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   await db.delete(motoristasTable).where(eq(motoristasTable.id, id));
   res.json({ success: true });

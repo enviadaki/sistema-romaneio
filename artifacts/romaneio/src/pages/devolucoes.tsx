@@ -9,6 +9,17 @@ import {
 } from "@workspace/api-client-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+
+async function getLogoImg() {
+  return new Promise<HTMLImageElement>((resolve) => {
+    const img = new Image();
+    const base = import.meta.env.BASE_URL === "/" ? "" : import.meta.env.BASE_URL;
+    img.src = `${base}/enviadaki-logo.png`;
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(img);
+  });
+}
+
 import {
   AlertTriangle,
   Ban,
@@ -85,47 +96,54 @@ function protocolNumber(protocol: Pick<ReturnProtocol, "numero" | "dataDevolucao
 function statusBadge(status: ReturnProtocol["status"]) {
   if (status === "CANCELADO") return <Badge variant="destructive">Cancelado</Badge>;
   if (status === "RASCUNHO") return <Badge variant="secondary">Rascunho</Badge>;
-  return <Badge className="bg-emerald-600 hover:bg-emerald-600">Emitido</Badge>;
+  return <Badge className="bg-primary hover:bg-primary/90 text-primary-foreground">Emitido</Badge>;
 }
 
-function exportProtocolPdf(protocol: ReturnProtocol) {
+async function exportProtocolPdf(protocol: ReturnProtocol) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const number = protocolNumber(protocol);
   const totalVolumes = protocol.items.reduce((sum, item) => sum + item.quantidadeVolumes, 0);
+  const logoImg = await getLogoImg();
 
   const drawCopy = (top: number, copyLabel: string) => {
-    doc.setFillColor(15, 40, 80);
-    doc.rect(0, top, pageWidth, 11, "F");
-    doc.setTextColor(255, 255, 255);
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, top, pageWidth, 14, "F");
+    
+    if (logoImg && logoImg.complete && logoImg.naturalWidth > 0) {
+      doc.addImage(logoImg, "PNG", 10, top + 2, 30, 10);
+    }
+
+    doc.setTextColor(20, 30, 45);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.text("PROTOCOLO DE DEVOLUÇÃO", 10, top + 7);
+    doc.setFontSize(11);
+    doc.text("PROTOCOLO DE DEVOLUÇÃO", pageWidth / 2, top + 9, { align: "center" });
     doc.setFontSize(8);
-    doc.text(`${number} · ${copyLabel}`, pageWidth - 10, top + 7, { align: "right" });
+    doc.text(`${number} · ${copyLabel}`, pageWidth - 10, top + 9, { align: "right" });
+
+    doc.setFillColor(240, 244, 250);
+    doc.rect(0, top + 15, pageWidth, 24, "F");
 
     doc.setTextColor(20, 30, 45);
     doc.setFontSize(7.5);
     doc.setFont("helvetica", "bold");
-    doc.text(`DATA: ${formatDate(protocol.dataDevolucao)}`, 10, top + 17);
-    doc.text(`OPERAÇÃO: ${protocol.operacao}`, 62, top + 17);
-    doc.text(`STATUS: ${protocol.status}`, 135, top + 17);
-    doc.text(`MOTORISTA: ${protocol.motorista}`, 10, top + 23);
-    doc.text(`CONFERENTE: ${protocol.conferente}`, 105, top + 23);
-    doc.text(`MOTIVO: ${protocol.motivo}`, 10, top + 29);
+    doc.text(`DATA: ${formatDate(protocol.dataDevolucao)}`, 10, top + 20);
+     doc.text(`STATUS: ${protocol.status}`, 105, top + 20);
+    doc.text(`MOTORISTA: ${protocol.motorista}`, 10, top + 26);
+    doc.text(`CONFERENTE: ${protocol.conferente}`, 105, top + 26);
+    doc.text(`MOTIVO: ${protocol.motivo}`, 10, top + 32);
     if (protocol.observacoes) {
       const text = doc.splitTextToSize(`OBS.: ${protocol.observacoes}`, pageWidth - 20);
       doc.setFont("helvetica", "normal");
-      doc.text(text.slice(0, 2), 10, top + 35);
+      doc.text(text.slice(0, 2), 10, top + 37);
     }
 
     autoTable(doc, {
       startY: top + 42,
-      head: [["Código / referência", "Tipo", "Operação", "Cidade / rota", "Vol."]],
+      head: [["Código / referência", "Tipo", "Cidade / rota", "Vol."]],
       body: protocol.items.map((item) => [
         item.referencia,
         item.tipo === "MANUAL" ? "SEM RASTREABILIDADE" : "CADASTRO LOCAL",
-        item.operacao ?? "—",
         [item.cidade, item.rota].filter(Boolean).join(" / ") || "—",
         String(item.quantidadeVolumes),
       ]),
@@ -133,11 +151,10 @@ function exportProtocolPdf(protocol: ReturnProtocol) {
       styles: { fontSize: 6.3, cellPadding: 1.3, overflow: "linebreak" },
       headStyles: { fillColor: [30, 58, 95], fontSize: 6.5 },
       columnStyles: {
-        0: { cellWidth: 43 },
-        1: { cellWidth: 38 },
-        2: { cellWidth: 30 },
-        3: { cellWidth: 58 },
-        4: { cellWidth: 11, halign: "center" },
+        0: { cellWidth: 48 },
+        1: { cellWidth: 52 },
+        2: { cellWidth: 68 },
+        3: { cellWidth: 12, halign: "center" },
       },
       theme: "grid",
     });
@@ -390,13 +407,13 @@ export default function Devolucoes() {
       </div>
 
       {lastCreated && (
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900">
-          <CheckCircle2 className="h-5 w-5" />
-          <span className="font-medium">{protocolNumber(lastCreated)} emitido com sucesso.</span>
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-primary-foreground/90">
+          <CheckCircle2 className="h-5 w-5 text-primary" />
+          <span className="font-medium text-foreground">{protocolNumber(lastCreated)} emitido com sucesso.</span>
           <Button
             size="sm"
             variant="outline"
-            className="ml-auto border-emerald-300 bg-white"
+            className="ml-auto border-primary/30 bg-background text-foreground"
             onClick={() => exportProtocolPdf(lastCreated)}
           >
             <FileDown className="mr-2 h-4 w-4" />
@@ -494,13 +511,13 @@ export default function Devolucoes() {
               items.map((item, index) => (
                 <div
                   key={`${item.referencia}-${index}`}
-                  className={`rounded-lg border p-4 ${item.origem === "manual" ? "border-amber-300 bg-amber-50/60" : "border-emerald-200 bg-emerald-50/40"}`}
+                  className={`rounded-lg border p-4 ${item.origem === "manual" ? "border-amber-300 bg-amber-50/60" : "border-primary/20 bg-primary/5"}`}
                 >
                   <div className="mb-3 flex flex-wrap items-center gap-2">
                     {item.origem === "manual" ? (
                       <Badge className="bg-amber-600 hover:bg-amber-600">Sem rastreabilidade</Badge>
                     ) : (
-                      <Badge className="bg-emerald-600 hover:bg-emerald-600">Cadastro local</Badge>
+                      <Badge className="bg-primary hover:bg-primary/90 text-primary-foreground">Cadastro local</Badge>
                     )}
                     <span className="font-mono text-sm font-semibold">{item.referencia}</span>
                     <Button

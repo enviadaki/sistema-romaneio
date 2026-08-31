@@ -35,6 +35,16 @@ import {
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+async function getLogoImg() {
+  return new Promise<HTMLImageElement>((resolve) => {
+    const img = new Image();
+    const base = import.meta.env.BASE_URL === "/" ? "" : import.meta.env.BASE_URL;
+    img.src = `${base}/enviadaki-logo.png`;
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(img);
+  });
+}
+
 function formatDateBR(isoDate: string | null | undefined): string {
   if (!isoDate) return "—";
   const [y, m, d] = isoDate.slice(0, 10).split("-");
@@ -72,9 +82,10 @@ function ManifestViewer({ manifest, onClose }: { manifest: DeliveryManifest; onC
   const valorPorKm = manifest.valorPorKm ? parseFloat(String(manifest.valorPorKm)) : null;
   const valorCalculado = km && valorPorKm ? km * valorPorKm : null;
 
-  function handleExportPDF() {
+  async function handleExportPDF() {
     const numero = manifest.numero ?? "—";
     const dataStr = formatDateBR(manifest.createdAt);
+    const logoImg = await getLogoImg();
 
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     const W = doc.internal.pageSize.getWidth();
@@ -82,22 +93,25 @@ function ManifestViewer({ manifest, onClose }: { manifest: DeliveryManifest; onC
     const mg = 8;
 
     // Header
-    doc.setFillColor(15, 40, 80);
-    doc.rect(0, 0, W, 12, "F");
-    doc.setTextColor(255, 255, 255);
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, 0, W, 14, "F");
+    if (logoImg && logoImg.complete && logoImg.naturalWidth > 0) {
+      doc.addImage(logoImg, "PNG", mg, 2, 30, 10);
+    }
+    doc.setTextColor(20, 30, 45);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
-    doc.text("ROMANEIO DE ENTREGA", W / 2, 8, { align: "center" });
+    doc.text("ROMANEIO DE ENTREGA", W / 2, 9, { align: "center" });
     doc.setFontSize(10);
-    doc.text(`Nº: ${numero}`, W - mg, 8, { align: "right" });
+    doc.text(`Nº: ${numero}`, W - mg, 9, { align: "right" });
 
     // Info block
     doc.setFillColor(240, 244, 250);
-    doc.rect(0, 13, W, 22, "F");
+    doc.rect(0, 15, W, 22, "F");
     doc.setTextColor(15, 40, 80);
     doc.setFontSize(8.5);
     const c1 = mg, c2 = W * 0.22, c3 = W * 0.45, c4 = W * 0.66, c5 = W * 0.83;
-    const r1 = 20, r2 = 29;
+    const r1 = 22, r2 = 31;
     const bf = (label: string, val: string, x: number, y: number) => {
       doc.setFont("helvetica", "bold");
       doc.text(label, x, y);
@@ -132,7 +146,7 @@ function ManifestViewer({ manifest, onClose }: { manifest: DeliveryManifest; onC
     while (tableRows.length < 20) tableRows.push(["", "", "", "", "", "", "", ""]);
 
     autoTable(doc, {
-      startY: 37,
+      startY: 39,
       head: [["EMPRESA", "SACAS", "AVULSOS", "TOTAL", "CIDADES", "RESPONSÁVEL RECEBIMENTO", "CONTATO", "ASSINATURA DO ENTREGADOR"]],
       body: tableRows,
       margin: { left: mg, right: mg },
