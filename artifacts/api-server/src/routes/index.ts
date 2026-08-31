@@ -12,6 +12,7 @@ import motoristaAuthRouter from "./motorista-auth";
 import operatorAuthRouter from "./operator-auth";
 import adminCadastrosRouter from "./admin-cadastros";
 import arcoRouter from "./arco";
+import returnProtocolsRouter from "./return-protocols";
 
 const router: IRouter = Router();
 
@@ -27,6 +28,7 @@ router.use(motoristasRouter);
 router.use(motoristaAuthRouter);
 router.use(operatorAuthRouter);
 router.use(adminCadastrosRouter);
+router.use(returnProtocolsRouter);
 router.use(arcoRouter);
 
 export default router;

@@ -1,2 +1,3 @@
 - [Timezone — scan_date](timezone-scan-date.md) — use toLocaleDateString("en-CA", {timeZone:"America/Sao_Paulo"}) on server; never toISOString().slice(0,10) for BR-facing dates
 - [OpenAPI response names](openapi-response-names.md) — avoid Orval barrel collisions by naming component response schemas as domain results, not operation responses
+- [Devoluções sem Arco](devolucoes-sem-arco.md) — protocolos de devolução usam somente o cadastro local e nunca devem consultar ou alterar a integração Arco

@@ -155,6 +155,159 @@ export const DeletePackageParams = zod.object({
 });
 
 /**
+ * @summary List return protocols
+ */
+export const ListReturnProtocolsQueryParams = zod.object({
+  dateFrom: zod.coerce.string().optional(),
+  dateTo: zod.coerce.string().optional(),
+  operation: zod.coerce.string().optional(),
+  motorista: zod.coerce.string().optional(),
+  conferente: zod.coerce.string().optional(),
+  motivo: zod.coerce.string().optional(),
+  protocolo: zod.coerce.string().optional(),
+  code: zod.coerce.string().optional(),
+  status: zod.enum(["RASCUNHO", "EMITIDO", "CANCELADO"]).optional(),
+});
+
+export const ListReturnProtocolsResponseItem = zod.object({
+  id: zod.number(),
+  numero: zod.number(),
+  status: zod.enum(["RASCUNHO", "EMITIDO", "CANCELADO"]),
+  operacao: zod.string(),
+  motorista: zod.string(),
+  conferente: zod.string(),
+  dataDevolucao: zod.string(),
+  motivo: zod.string(),
+  observacoes: zod.string().nullable(),
+  cancelamentoMotivo: zod.string().nullish(),
+  createdAt: zod.string(),
+  items: zod.array(
+    zod.object({
+      id: zod.number(),
+      protocolId: zod.number(),
+      tipo: zod.enum(["RASTREAVEL", "MANUAL"]),
+      referencia: zod.string(),
+      descricao: zod.string().nullable(),
+      operacao: zod.string().nullable(),
+      cidade: zod.string().nullable(),
+      rota: zod.string().nullable(),
+      prazo: zod.string().nullable(),
+      quantidadeVolumes: zod.number(),
+      observacao: zod.string().nullable(),
+    }),
+  ),
+});
+export const ListReturnProtocolsResponse = zod.array(
+  ListReturnProtocolsResponseItem,
+);
+
+/**
+ * @summary Create an issued return protocol
+ */
+
+export const createReturnProtocolBodyDataDevolucaoMin = 10;
+
+export const CreateReturnProtocolBody = zod.object({
+  operacao: zod.string().min(1),
+  motorista: zod.string().min(1),
+  conferente: zod.string().min(1),
+  dataDevolucao: zod.string().min(createReturnProtocolBodyDataDevolucaoMin),
+  motivo: zod.string().min(1),
+  observacoes: zod.string().optional(),
+  items: zod
+    .array(
+      zod.object({
+        tipo: zod.enum(["RASTREAVEL", "MANUAL"]),
+        referencia: zod.string().min(1),
+        descricao: zod.string().optional(),
+        operacao: zod.string().optional(),
+        cidade: zod.string().optional(),
+        rota: zod.string().optional(),
+        prazo: zod.string().optional(),
+        quantidadeVolumes: zod.number().min(1),
+        observacao: zod.string().optional(),
+      }),
+    )
+    .min(1),
+});
+
+/**
+ * @summary Get a return protocol
+ */
+export const GetReturnProtocolParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetReturnProtocolResponse = zod.object({
+  id: zod.number(),
+  numero: zod.number(),
+  status: zod.enum(["RASCUNHO", "EMITIDO", "CANCELADO"]),
+  operacao: zod.string(),
+  motorista: zod.string(),
+  conferente: zod.string(),
+  dataDevolucao: zod.string(),
+  motivo: zod.string(),
+  observacoes: zod.string().nullable(),
+  cancelamentoMotivo: zod.string().nullish(),
+  createdAt: zod.string(),
+  items: zod.array(
+    zod.object({
+      id: zod.number(),
+      protocolId: zod.number(),
+      tipo: zod.enum(["RASTREAVEL", "MANUAL"]),
+      referencia: zod.string(),
+      descricao: zod.string().nullable(),
+      operacao: zod.string().nullable(),
+      cidade: zod.string().nullable(),
+      rota: zod.string().nullable(),
+      prazo: zod.string().nullable(),
+      quantidadeVolumes: zod.number(),
+      observacao: zod.string().nullable(),
+    }),
+  ),
+});
+
+/**
+ * @summary Cancel a return protocol
+ */
+export const CancelReturnProtocolParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CancelReturnProtocolBody = zod.object({
+  motivo: zod.string().min(1),
+});
+
+export const CancelReturnProtocolResponse = zod.object({
+  id: zod.number(),
+  numero: zod.number(),
+  status: zod.enum(["RASCUNHO", "EMITIDO", "CANCELADO"]),
+  operacao: zod.string(),
+  motorista: zod.string(),
+  conferente: zod.string(),
+  dataDevolucao: zod.string(),
+  motivo: zod.string(),
+  observacoes: zod.string().nullable(),
+  cancelamentoMotivo: zod.string().nullish(),
+  createdAt: zod.string(),
+  items: zod.array(
+    zod.object({
+      id: zod.number(),
+      protocolId: zod.number(),
+      tipo: zod.enum(["RASTREAVEL", "MANUAL"]),
+      referencia: zod.string(),
+      descricao: zod.string().nullable(),
+      operacao: zod.string().nullable(),
+      cidade: zod.string().nullable(),
+      rota: zod.string().nullable(),
+      prazo: zod.string().nullable(),
+      quantidadeVolumes: zod.number(),
+      observacao: zod.string().nullable(),
+    }),
+  ),
+});
+
+/**
  * @summary List distinct cities from packages
  */
 export const ListCitiesResponseItem = zod.string();

@@ -31,10 +31,14 @@ import type {
   GetStatsParams,
   HealthStatus,
   ListPackagesParams,
+  ListReturnProtocolsParams,
   ListScansParams,
   Package,
   PackageBulkInput,
   PackageInput,
+  ReturnProtocol,
+  ReturnProtocolCancelInput,
+  ReturnProtocolInput,
   Romaneio,
   Scan,
   ScanInput,
@@ -806,6 +810,367 @@ export const useDeletePackage = <
   TContext
 > => {
   return useMutation(getDeletePackageMutationOptions(options));
+};
+
+/**
+ * @summary List return protocols
+ */
+export const getListReturnProtocolsUrl = (
+  params?: ListReturnProtocolsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/return-protocols?${stringifiedParams}`
+    : `/api/return-protocols`;
+};
+
+export const listReturnProtocols = async (
+  params?: ListReturnProtocolsParams,
+  options?: RequestInit,
+): Promise<ReturnProtocol[]> => {
+  return customFetch<ReturnProtocol[]>(getListReturnProtocolsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListReturnProtocolsQueryKey = (
+  params?: ListReturnProtocolsParams,
+) => {
+  return [`/api/return-protocols`, ...(params ? [params] : [])] as const;
+};
+
+export const getListReturnProtocolsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listReturnProtocols>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListReturnProtocolsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listReturnProtocols>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListReturnProtocolsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listReturnProtocols>>
+  > = ({ signal }) =>
+    listReturnProtocols(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listReturnProtocols>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListReturnProtocolsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listReturnProtocols>>
+>;
+export type ListReturnProtocolsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List return protocols
+ */
+
+export function useListReturnProtocols<
+  TData = Awaited<ReturnType<typeof listReturnProtocols>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListReturnProtocolsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listReturnProtocols>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListReturnProtocolsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create an issued return protocol
+ */
+export const getCreateReturnProtocolUrl = () => {
+  return `/api/return-protocols`;
+};
+
+export const createReturnProtocol = async (
+  returnProtocolInput: ReturnProtocolInput,
+  options?: RequestInit,
+): Promise<ReturnProtocol> => {
+  return customFetch<ReturnProtocol>(getCreateReturnProtocolUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(returnProtocolInput),
+  });
+};
+
+export const getCreateReturnProtocolMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createReturnProtocol>>,
+    TError,
+    { data: BodyType<ReturnProtocolInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createReturnProtocol>>,
+  TError,
+  { data: BodyType<ReturnProtocolInput> },
+  TContext
+> => {
+  const mutationKey = ["createReturnProtocol"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createReturnProtocol>>,
+    { data: BodyType<ReturnProtocolInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createReturnProtocol(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateReturnProtocolMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createReturnProtocol>>
+>;
+export type CreateReturnProtocolMutationBody = BodyType<ReturnProtocolInput>;
+export type CreateReturnProtocolMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Create an issued return protocol
+ */
+export const useCreateReturnProtocol = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createReturnProtocol>>,
+    TError,
+    { data: BodyType<ReturnProtocolInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createReturnProtocol>>,
+  TError,
+  { data: BodyType<ReturnProtocolInput> },
+  TContext
+> => {
+  return useMutation(getCreateReturnProtocolMutationOptions(options));
+};
+
+/**
+ * @summary Get a return protocol
+ */
+export const getGetReturnProtocolUrl = (id: number) => {
+  return `/api/return-protocols/${id}`;
+};
+
+export const getReturnProtocol = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ReturnProtocol> => {
+  return customFetch<ReturnProtocol>(getGetReturnProtocolUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetReturnProtocolQueryKey = (id: number) => {
+  return [`/api/return-protocols/${id}`] as const;
+};
+
+export const getGetReturnProtocolQueryOptions = <
+  TData = Awaited<ReturnType<typeof getReturnProtocol>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getReturnProtocol>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetReturnProtocolQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getReturnProtocol>>
+  > = ({ signal }) => getReturnProtocol(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getReturnProtocol>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetReturnProtocolQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getReturnProtocol>>
+>;
+export type GetReturnProtocolQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get a return protocol
+ */
+
+export function useGetReturnProtocol<
+  TData = Awaited<ReturnType<typeof getReturnProtocol>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getReturnProtocol>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetReturnProtocolQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Cancel a return protocol
+ */
+export const getCancelReturnProtocolUrl = (id: number) => {
+  return `/api/return-protocols/${id}/cancel`;
+};
+
+export const cancelReturnProtocol = async (
+  id: number,
+  returnProtocolCancelInput: ReturnProtocolCancelInput,
+  options?: RequestInit,
+): Promise<ReturnProtocol> => {
+  return customFetch<ReturnProtocol>(getCancelReturnProtocolUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(returnProtocolCancelInput),
+  });
+};
+
+export const getCancelReturnProtocolMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelReturnProtocol>>,
+    TError,
+    { id: number; data: BodyType<ReturnProtocolCancelInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof cancelReturnProtocol>>,
+  TError,
+  { id: number; data: BodyType<ReturnProtocolCancelInput> },
+  TContext
+> => {
+  const mutationKey = ["cancelReturnProtocol"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof cancelReturnProtocol>>,
+    { id: number; data: BodyType<ReturnProtocolCancelInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return cancelReturnProtocol(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CancelReturnProtocolMutationResult = NonNullable<
+  Awaited<ReturnType<typeof cancelReturnProtocol>>
+>;
+export type CancelReturnProtocolMutationBody =
+  BodyType<ReturnProtocolCancelInput>;
+export type CancelReturnProtocolMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Cancel a return protocol
+ */
+export const useCancelReturnProtocol = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelReturnProtocol>>,
+    TError,
+    { id: number; data: BodyType<ReturnProtocolCancelInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof cancelReturnProtocol>>,
+  TError,
+  { id: number; data: BodyType<ReturnProtocolCancelInput> },
+  TContext
+> => {
+  return useMutation(getCancelReturnProtocolMutationOptions(options));
 };
 
 /**

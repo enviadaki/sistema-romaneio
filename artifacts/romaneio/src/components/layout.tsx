@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, Package, ScanLine, History, FileText, LogOut, User,
   Search, Truck, ClipboardList, DollarSign, Users, Shield, QrCode, Settings,
+  RotateCcw,
 } from "lucide-react";
 import { useClerk, useUser } from "@clerk/react";
 import { useOperation, OPERATIONS } from "@/contexts/operation-context";
@@ -83,6 +84,7 @@ export function Layout({ children }: { children: ReactNode }) {
     { href: "/consulta", label: "Consulta", icon: Search },
     { href: "/entrega", label: "Checagem Entrega", icon: Truck },
     { href: "/historico", label: "Histórico", icon: History },
+    { href: "/devolucoes", label: "Devoluções", icon: RotateCcw },
     { href: "/romaneio", label: "Romaneio", icon: FileText },
     { href: "/romaneio-motorista", label: "Romaneio Motorista", icon: ClipboardList },
     { href: "/financeiro", label: "Financeiro", icon: DollarSign },

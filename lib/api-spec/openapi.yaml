@@ -276,6 +276,141 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /return-protocols:
+    get:
+      operationId: listReturnProtocols
+      tags: [return-protocols]
+      summary: List return protocols
+      parameters:
+        - name: dateFrom
+          in: query
+          required: false
+          schema: { type: string }
+        - name: dateTo
+          in: query
+          required: false
+          schema: { type: string }
+        - name: operation
+          in: query
+          required: false
+          schema: { type: string }
+        - name: motorista
+          in: query
+          required: false
+          schema: { type: string }
+        - name: conferente
+          in: query
+          required: false
+          schema: { type: string }
+        - name: motivo
+          in: query
+          required: false
+          schema: { type: string }
+        - name: protocolo
+          in: query
+          required: false
+          schema: { type: string }
+        - name: code
+          in: query
+          required: false
+          schema: { type: string }
+        - name: status
+          in: query
+          required: false
+          schema: { type: string, enum: [RASCUNHO, EMITIDO, CANCELADO] }
+      responses:
+        "200":
+          description: Return protocols
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReturnProtocol"
+    post:
+      operationId: createReturnProtocol
+      tags: [return-protocols]
+      summary: Create an issued return protocol
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnProtocolInput"
+      responses:
+        "201":
+          description: Return protocol created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReturnProtocol"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /return-protocols/{id}:
+    get:
+      operationId: getReturnProtocol
+      tags: [return-protocols]
+      summary: Get a return protocol
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Return protocol
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReturnProtocol"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /return-protocols/{id}/cancel:
+    patch:
+      operationId: cancelReturnProtocol
+      tags: [return-protocols]
+      summary: Cancel a return protocol
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnProtocolCancelInput"
+      responses:
+        "200":
+          description: Cancelled return protocol
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReturnProtocol"
+        "400":
+          description: Invalid cancellation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /cities:
     get:
       operationId: listCities
@@ -772,6 +907,127 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DeliveryManifestItem"
+
+    ReturnProtocolItem:
+      type: object
+      required: [id, protocolId, tipo, referencia, descricao, operacao, cidade, rota, prazo, quantidadeVolumes, observacao]
+      properties:
+        id:
+          type: integer
+        protocolId:
+          type: integer
+        tipo:
+          type: string
+          enum: [RASTREAVEL, MANUAL]
+        referencia:
+          type: string
+        descricao:
+          type: ["string", "null"]
+        operacao:
+          type: ["string", "null"]
+        cidade:
+          type: ["string", "null"]
+        rota:
+          type: ["string", "null"]
+        prazo:
+          type: ["string", "null"]
+        quantidadeVolumes:
+          type: integer
+        observacao:
+          type: ["string", "null"]
+
+    ReturnProtocol:
+      type: object
+      required: [id, numero, status, operacao, motorista, conferente, dataDevolucao, motivo, observacoes, createdAt, items]
+      properties:
+        id:
+          type: integer
+        numero:
+          type: integer
+        status:
+          type: string
+          enum: [RASCUNHO, EMITIDO, CANCELADO]
+        operacao:
+          type: string
+        motorista:
+          type: string
+        conferente:
+          type: string
+        dataDevolucao:
+          type: string
+        motivo:
+          type: string
+        observacoes:
+          type: ["string", "null"]
+        cancelamentoMotivo:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReturnProtocolItem"
+
+    ReturnProtocolItemInput:
+      type: object
+      required: [tipo, referencia, quantidadeVolumes]
+      properties:
+        tipo:
+          type: string
+          enum: [RASTREAVEL, MANUAL]
+        referencia:
+          type: string
+          minLength: 1
+        descricao:
+          type: string
+        operacao:
+          type: string
+        cidade:
+          type: string
+        rota:
+          type: string
+        prazo:
+          type: string
+        quantidadeVolumes:
+          type: integer
+          minimum: 1
+        observacao:
+          type: string
+
+    ReturnProtocolInput:
+      type: object
+      required: [operacao, motorista, conferente, dataDevolucao, motivo, items]
+      properties:
+        operacao:
+          type: string
+          minLength: 1
+        motorista:
+          type: string
+          minLength: 1
+        conferente:
+          type: string
+          minLength: 1
+        dataDevolucao:
+          type: string
+          minLength: 10
+        motivo:
+          type: string
+          minLength: 1
+        observacoes:
+          type: string
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ReturnProtocolItemInput"
+
+    ReturnProtocolCancelInput:
+      type: object
+      required: [motivo]
+      properties:
+        motivo:
+          type: string
+          minLength: 1
 
     CityContact:
       type: object

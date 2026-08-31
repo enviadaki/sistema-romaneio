@@ -173,6 +173,103 @@ export interface DeliveryManifest {
   items: DeliveryManifestItem[];
 }
 
+export type ReturnProtocolItemTipo =
+  (typeof ReturnProtocolItemTipo)[keyof typeof ReturnProtocolItemTipo];
+
+export const ReturnProtocolItemTipo = {
+  RASTREAVEL: "RASTREAVEL",
+  MANUAL: "MANUAL",
+} as const;
+
+export interface ReturnProtocolItem {
+  id: number;
+  protocolId: number;
+  tipo: ReturnProtocolItemTipo;
+  referencia: string;
+  /** @nullable */
+  descricao: string | null;
+  /** @nullable */
+  operacao: string | null;
+  /** @nullable */
+  cidade: string | null;
+  /** @nullable */
+  rota: string | null;
+  /** @nullable */
+  prazo: string | null;
+  quantidadeVolumes: number;
+  /** @nullable */
+  observacao: string | null;
+}
+
+export type ReturnProtocolStatus =
+  (typeof ReturnProtocolStatus)[keyof typeof ReturnProtocolStatus];
+
+export const ReturnProtocolStatus = {
+  RASCUNHO: "RASCUNHO",
+  EMITIDO: "EMITIDO",
+  CANCELADO: "CANCELADO",
+} as const;
+
+export interface ReturnProtocol {
+  id: number;
+  numero: number;
+  status: ReturnProtocolStatus;
+  operacao: string;
+  motorista: string;
+  conferente: string;
+  dataDevolucao: string;
+  motivo: string;
+  /** @nullable */
+  observacoes: string | null;
+  /** @nullable */
+  cancelamentoMotivo?: string | null;
+  createdAt: string;
+  items: ReturnProtocolItem[];
+}
+
+export type ReturnProtocolItemInputTipo =
+  (typeof ReturnProtocolItemInputTipo)[keyof typeof ReturnProtocolItemInputTipo];
+
+export const ReturnProtocolItemInputTipo = {
+  RASTREAVEL: "RASTREAVEL",
+  MANUAL: "MANUAL",
+} as const;
+
+export interface ReturnProtocolItemInput {
+  tipo: ReturnProtocolItemInputTipo;
+  /** @minLength 1 */
+  referencia: string;
+  descricao?: string;
+  operacao?: string;
+  cidade?: string;
+  rota?: string;
+  prazo?: string;
+  /** @minimum 1 */
+  quantidadeVolumes: number;
+  observacao?: string;
+}
+
+export interface ReturnProtocolInput {
+  /** @minLength 1 */
+  operacao: string;
+  /** @minLength 1 */
+  motorista: string;
+  /** @minLength 1 */
+  conferente: string;
+  /** @minLength 10 */
+  dataDevolucao: string;
+  /** @minLength 1 */
+  motivo: string;
+  observacoes?: string;
+  /** @minItems 1 */
+  items: ReturnProtocolItemInput[];
+}
+
+export interface ReturnProtocolCancelInput {
+  /** @minLength 1 */
+  motivo: string;
+}
+
 export interface CityContact {
   id: number;
   city: string;
@@ -241,6 +338,27 @@ export type ListPackagesParams = {
    */
   dateTo?: string;
 };
+
+export type ListReturnProtocolsParams = {
+  dateFrom?: string;
+  dateTo?: string;
+  operation?: string;
+  motorista?: string;
+  conferente?: string;
+  motivo?: string;
+  protocolo?: string;
+  code?: string;
+  status?: ListReturnProtocolsStatus;
+};
+
+export type ListReturnProtocolsStatus =
+  (typeof ListReturnProtocolsStatus)[keyof typeof ListReturnProtocolsStatus];
+
+export const ListReturnProtocolsStatus = {
+  RASCUNHO: "RASCUNHO",
+  EMITIDO: "EMITIDO",
+  CANCELADO: "CANCELADO",
+} as const;
 
 export type ListScansParams = {
   city?: string;
