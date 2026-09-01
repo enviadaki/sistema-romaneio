@@ -65,6 +65,11 @@ interface ManualItem {
   contato: string;
 }
 
+interface RegisteredCity {
+  id: number;
+  name: string;
+}
+
 function emptyItem(): ManualItem {
   return { empresa: "LOGGI", sacas: 0, avulsos: 0, cidade: "", responsavel: "", contato: "" };
 }
@@ -91,7 +96,7 @@ function CidadeCombobox({
 }: {
   value: string;
   onChange: (v: string) => void;
-  cities: CityContact[];
+  cities: RegisteredCity[];
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -112,18 +117,18 @@ function CidadeCombobox({
           <CommandList>
             <CommandEmpty>Nenhuma cidade encontrada.</CommandEmpty>
             <CommandGroup>
-              {cities.map((c) => (
+              {cities.map((city) => (
                 <CommandItem
-                  key={c.city}
-                  value={c.city}
+                  key={city.id}
+                  value={city.name}
                   onSelect={(val) => {
                     onChange(val.toUpperCase());
                     setOpen(false);
                   }}
                   className="text-xs"
                 >
-                  <Check className={cn("mr-2 h-3 w-3", value === c.city ? "opacity-100" : "opacity-0")} />
-                  {c.city}
+                  <Check className={cn("mr-2 h-3 w-3", value === city.name ? "opacity-100" : "opacity-0")} />
+                  {city.name}
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -149,6 +154,10 @@ export default function RomaneioMotorista() {
   const { data: cityContacts = [] } = useQuery<CityContact[]>({
     queryKey: ["city-contacts"],
     queryFn: () => customFetch<CityContact[]>("/api/city-contacts"),
+  });
+  const { data: registeredCities = [] } = useQuery<RegisteredCity[]>({
+    queryKey: ["admin-cities"],
+    queryFn: () => customFetch<RegisteredCity[]>("/api/admin/cities"),
   });
   const conferenteOptions = useMemo(() => {
     const existingNames = new Set(conferentes.map((conferente) => conferente.nome.toLowerCase()));
@@ -630,7 +639,7 @@ export default function RomaneioMotorista() {
                         <CidadeCombobox
                           value={item.cidade}
                           onChange={(v) => handleCidadeChange(idx, v)}
-                          cities={cityContacts}
+                          cities={registeredCities}
                         />
                       </TableCell>
                       <TableCell className="px-1">

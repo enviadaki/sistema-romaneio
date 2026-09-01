@@ -113,7 +113,7 @@ router.put("/admin/routes/:id/cities", requireAuth, requireAdmin, async (req, re
 
 // ── Cidades ────────────────────────────────────────────────────────────────
 
-router.get("/admin/cities", requireAuth, requireAdmin, async (_req, res): Promise<void> => {
+router.get("/admin/cities", requireAuth, async (_req, res): Promise<void> => {
   const rows = await db.select().from(citiesTable).orderBy(asc(citiesTable.name));
   res.json(rows);
 });
