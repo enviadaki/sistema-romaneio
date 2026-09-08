@@ -379,7 +379,7 @@ export default function RomaneioMotorista() {
     }
     if (operacaoBreakdown.length > 0) {
       const breakdownText = operacaoBreakdown
-        .map((op) => `${op.empresa}: ${formatBRL(op.valor)} (${(op.percentual * 100).toFixed(0)}%)`)
+        .map((op) => `${op.empresa}: ${op.volume} vol. - ${formatBRL(op.valor)} (${(op.percentual * 100).toFixed(0)}%)`)
         .join("   |   ");
       doc.setFont("helvetica", "bold");
       doc.setFontSize(7.5);
@@ -585,7 +585,7 @@ export default function RomaneioMotorista() {
                     <div key={op.empresa} className="flex items-center justify-between text-xs">
                       <span>
                         {op.empresa}{" "}
-                        <span className="text-muted-foreground">({(op.percentual * 100).toFixed(0)}%)</span>
+                        <span className="text-muted-foreground">{op.volume} vol. ({(op.percentual * 100).toFixed(0)}%)</span>
                       </span>
                       <span className="font-semibold">{formatBRL(op.valor)}</span>
                     </div>

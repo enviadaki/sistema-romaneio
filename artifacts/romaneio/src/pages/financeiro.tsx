@@ -200,7 +200,7 @@ function ManifestViewer({ manifest, onClose }: { manifest: DeliveryManifest; onC
     }
     if (operacaoBreakdown.length > 0) {
       const breakdownText = operacaoBreakdown
-        .map((op) => `${op.empresa}: ${formatCurrencyBR(op.valor)} (${(op.percentual * 100).toFixed(0)}%)`)
+        .map((op) => `${op.empresa}: ${op.volume} vol. - ${formatCurrencyBR(op.valor)} (${(op.percentual * 100).toFixed(0)}%)`)
         .join("   |   ");
       doc.setFont("helvetica", "bold");
       doc.setFontSize(7.5);
@@ -307,7 +307,7 @@ function ManifestViewer({ manifest, onClose }: { manifest: DeliveryManifest; onC
                     className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-2 py-1 text-xs"
                   >
                     <span className="font-semibold">{op.empresa}</span>
-                    <span className="text-muted-foreground">({(op.percentual * 100).toFixed(0)}%)</span>
+                    <span className="text-muted-foreground">{op.volume} vol. ({(op.percentual * 100).toFixed(0)}%)</span>
                     <span className="font-bold text-primary">{formatCurrencyBR(op.valor)}</span>
                   </span>
                 ))}
