@@ -47,3 +47,7 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+# Deploy secrets (AWS) - never commit, see .env.example
+.env
+.env.*
+!.env.example
