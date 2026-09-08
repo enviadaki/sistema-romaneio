@@ -377,6 +377,15 @@ export default function RomaneioMotorista() {
     if (km) {
       doc.text(`${km} km × R$ ${parseDec(valorPorKm).toFixed(4).replace(".", ",")} = ${formatBRL(valorPagamento)}`, W - mg, finalY + 6, { align: "right" });
     }
+    if (operacaoBreakdown.length > 0) {
+      const breakdownText = operacaoBreakdown
+        .map((op) => `${op.empresa}: ${formatBRL(op.valor)} (${(op.percentual * 100).toFixed(0)}%)`)
+        .join("   |   ");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(15, 40, 80);
+      doc.text(`DIVISÃO DO FRETE POR OPERAÇÃO: ${breakdownText}`, mg, finalY + 11);
+    }
 
     // Observações em destaque
     const observacaoTexto = observacoes.trim();
@@ -440,6 +449,26 @@ export default function RomaneioMotorista() {
   const validItems = items.filter((it) => it.cidade.trim() !== "");
   const totalSacas = validItems.reduce((s, i) => s + i.sacas, 0);
   const totalAvulsos = validItems.reduce((s, i) => s + i.avulsos, 0);
+
+  // Divisão do valor total do frete entre as operações, proporcional ao volume de cada uma
+  const operacaoBreakdown = useMemo(() => {
+    const totalVolumes = validItems.reduce((s, i) => s + i.sacas + i.avulsos, 0);
+    if (totalVolumes === 0 || valorPagamento <= 0) return [];
+    const volumesPorEmpresa = new Map<string, number>();
+    for (const it of validItems) {
+      const volume = it.sacas + it.avulsos;
+      if (volume === 0) continue;
+      volumesPorEmpresa.set(it.empresa, (volumesPorEmpresa.get(it.empresa) ?? 0) + volume);
+    }
+    return Array.from(volumesPorEmpresa.entries())
+      .map(([empresa, volume]) => ({
+        empresa,
+        volume,
+        percentual: volume / totalVolumes,
+        valor: (volume / totalVolumes) * valorPagamento,
+      }))
+      .sort((a, b) => b.volume - a.volume);
+  }, [validItems, valorPagamento]);
 
   return (
     <div className="space-y-6">
@@ -546,6 +575,23 @@ export default function RomaneioMotorista() {
                   {valorPagamento > 0 ? formatBRL(valorPagamento) : "—"}
                 </span>
               </div>
+
+              {operacaoBreakdown.length > 0 && (
+                <div className="space-y-1 pt-1 border-t">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Divisão do frete por operação
+                  </p>
+                  {operacaoBreakdown.map((op) => (
+                    <div key={op.empresa} className="flex items-center justify-between text-xs">
+                      <span>
+                        {op.empresa}{" "}
+                        <span className="text-muted-foreground">({(op.percentual * 100).toFixed(0)}%)</span>
+                      </span>
+                      <span className="font-semibold">{formatBRL(op.valor)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Observações */}

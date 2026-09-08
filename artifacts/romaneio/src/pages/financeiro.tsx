@@ -82,6 +82,26 @@ function ManifestViewer({ manifest, onClose }: { manifest: DeliveryManifest; onC
   const valorPorKm = manifest.valorPorKm ? parseFloat(String(manifest.valorPorKm)) : null;
   const valorCalculado = km && valorPorKm ? km * valorPorKm : null;
 
+  // Divisão do valor total do frete entre as operações, proporcional ao volume de cada uma
+  const operacaoBreakdown = useMemo(() => {
+    if (!valorCalculado || valorCalculado <= 0 || totalVolumes === 0) return [];
+    const volumesPorEmpresa = new Map<string, number>();
+    for (const it of manifest.items) {
+      const volume = it.sacas + it.avulsos;
+      if (volume === 0) continue;
+      const empresa = it.empresa ?? "—";
+      volumesPorEmpresa.set(empresa, (volumesPorEmpresa.get(empresa) ?? 0) + volume);
+    }
+    return Array.from(volumesPorEmpresa.entries())
+      .map(([empresa, volume]) => ({
+        empresa,
+        volume,
+        percentual: volume / totalVolumes,
+        valor: (volume / totalVolumes) * valorCalculado,
+      }))
+      .sort((a, b) => b.volume - a.volume);
+  }, [manifest.items, totalVolumes, valorCalculado]);
+
   async function handleExportPDF() {
     const numero = manifest.numero ?? "—";
     const dataStr = formatDateBR(manifest.createdAt);
@@ -178,6 +198,15 @@ function ManifestViewer({ manifest, onClose }: { manifest: DeliveryManifest; onC
         { align: "right" }
       );
     }
+    if (operacaoBreakdown.length > 0) {
+      const breakdownText = operacaoBreakdown
+        .map((op) => `${op.empresa}: ${formatCurrencyBR(op.valor)} (${(op.percentual * 100).toFixed(0)}%)`)
+        .join("   |   ");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(15, 40, 80);
+      doc.text(`DIVISÃO DO FRETE POR OPERAÇÃO: ${breakdownText}`, mg, finalY + 11);
+    }
 
     const fy = H - 12;
     doc.setDrawColor(15, 40, 80);
@@ -266,6 +295,23 @@ function ManifestViewer({ manifest, onClose }: { manifest: DeliveryManifest; onC
             <div className="col-span-2 sm:col-span-3">
               <p className="text-xs text-muted-foreground">Observações</p>
               <p className="font-medium">{manifest.observacoes}</p>
+            </div>
+          )}
+          {operacaoBreakdown.length > 0 && (
+            <div className="col-span-2 sm:col-span-3">
+              <p className="text-xs text-muted-foreground mb-1">Divisão do frete por operação</p>
+              <div className="flex flex-wrap gap-2">
+                {operacaoBreakdown.map((op) => (
+                  <span
+                    key={op.empresa}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-2 py-1 text-xs"
+                  >
+                    <span className="font-semibold">{op.empresa}</span>
+                    <span className="text-muted-foreground">({(op.percentual * 100).toFixed(0)}%)</span>
+                    <span className="font-bold text-primary">{formatCurrencyBR(op.valor)}</span>
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </div>
