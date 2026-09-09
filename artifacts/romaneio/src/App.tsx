@@ -229,15 +229,15 @@ function SignInPage() {
           />
         </div>
 
-        <div className="flex bg-white/10 backdrop-blur-sm rounded-xl mb-5 p-1 gap-1">
+        <div className="flex bg-white/60 border border-sky-100 backdrop-blur-sm rounded-xl mb-5 p-1 gap-1">
           {tabs.map((t) => (
             <button
               key={t.key}
               onClick={() => setMode(t.key)}
               className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
                 mode === t.key
-                  ? "bg-white text-slate-900 shadow"
-                  : "text-white/70 hover:text-white"
+                 ? "bg-[#35a7df] text-white shadow-[0_3px_8px_-2px_rgba(53,167,223,0.55)]"
+                  : "text-[#4c7a93] hover:text-[#1c6fa0]"
               }`}
             >
               {t.label}
