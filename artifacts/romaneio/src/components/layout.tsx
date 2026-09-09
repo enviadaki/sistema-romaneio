@@ -169,7 +169,6 @@ export function Layout({ children }: { children: ReactNode }) {
                     : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
                 }`}
               >
-              >
                 <Icon className="h-5 w-5" />
                 {item.label}
               </Link>
