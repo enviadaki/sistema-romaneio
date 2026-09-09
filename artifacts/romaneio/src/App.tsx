@@ -219,7 +219,7 @@ function SignInPage() {
   ];
 
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-gradient-to-br from-slate-900 via-black to-slate-800 px-4">
+        <div className="flex min-h-[100dvh] items-center justify-center bg-[radial-gradient(circle_at_22%_-6%,#DCEFFA_0%,#F3FAFD_42%,#FFFFFF_75%)] px-4">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <img
