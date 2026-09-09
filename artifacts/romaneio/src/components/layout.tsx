@@ -160,13 +160,15 @@ export function Layout({ children }: { children: ReactNode }) {
             const Icon = item.icon;
             const isActive = location === item.href;
             return (
-              <Link
+            <Link
                 key={item.href}
                 href={item.href}
-                                 isActive
+                className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${
+                  isActive
                     ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium shadow-sm"
                     : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
                 }`}
+              >
               >
                 <Icon className="h-5 w-5" />
                 {item.label}
