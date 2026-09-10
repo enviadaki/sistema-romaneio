@@ -154,23 +154,44 @@ router.get("/admin/motoristas", requireAuth, requireMotoristaManager, async (_re
 });
 
 router.post("/admin/motoristas", requireAuth, requireMotoristaManager, async (req, res): Promise<void> => {
-  const { nome, contato } = req.body as { nome?: string; contato?: string };
+  const { nome, contato, chavePix, favorecido } = req.body as {
+    nome?: string; contato?: string; chavePix?: string; favorecido?: string;
+  };
   if (!nome?.trim()) {
     res.status(400).json({ error: "Nome do motorista é obrigatório" });
     return;
   }
-  const [row] = await db.insert(motoristasTable).values({ nome: nome.trim(), contato: contato?.trim() ?? "" }).returning();
+  const [row] = await db
+    .insert(motoristasTable)
+    .values({
+      nome: nome.trim(),
+      contato: contato?.trim() ?? "",
+      chavePix: chavePix?.trim() ?? "",
+      favorecido: favorecido?.trim() ?? "",
+    })
+    .returning();
   res.status(201).json(row);
 });
 
 router.put("/admin/motoristas/:id", requireAuth, requireMotoristaManager, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
-  const { nome, contato } = req.body as { nome?: string; contato?: string };
+  const { nome, contato, chavePix, favorecido } = req.body as {
+    nome?: string; contato?: string; chavePix?: string; favorecido?: string;
+  };
   if (!nome?.trim()) {
     res.status(400).json({ error: "Nome do motorista é obrigatório" });
     return;
   }
-  const [row] = await db.update(motoristasTable).set({ nome: nome.trim(), contato: contato?.trim() ?? "" }).where(eq(motoristasTable.id, id)).returning();
+  const [row] = await db
+    .update(motoristasTable)
+    .set({
+      nome: nome.trim(),
+      contato: contato?.trim() ?? "",
+      chavePix: chavePix?.trim() ?? "",
+      favorecido: favorecido?.trim() ?? "",
+    })
+    .where(eq(motoristasTable.id, id))
+    .returning();
   if (!row) { res.status(404).json({ error: "Motorista não encontrado" }); return; }
   res.json(row);
 });

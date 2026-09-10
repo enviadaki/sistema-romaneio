@@ -28,12 +28,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import {
   DollarSign, Truck, CheckCircle, Clock, Loader2, Trash2, Eye, FileDown,
+  PieChart, ClipboardList,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import FinanceiroRateio from "./financeiro-rateio";
+import FinanceiroFechamento from "./financeiro-fechamento";
 
 async function getLogoImg() {
   return new Promise<HTMLImageElement>((resolve) => {
@@ -501,6 +505,21 @@ export default function Financeiro() {
         </p>
       </div>
 
+      <Tabs defaultValue="romaneios">
+        <TabsList>
+          <TabsTrigger value="romaneios" className="gap-1.5">
+            <Truck className="h-4 w-4" /> Romaneios
+          </TabsTrigger>
+          <TabsTrigger value="rateio" className="gap-1.5">
+            <PieChart className="h-4 w-4" /> Rateio por Operação
+          </TabsTrigger>
+          <TabsTrigger value="fechamento" className="gap-1.5">
+            <ClipboardList className="h-4 w-4" /> Fechamento Mensal
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="romaneios" className="space-y-6 pt-4">
+
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
@@ -818,6 +837,17 @@ export default function Financeiro() {
       {viewing && (
         <ManifestViewer manifest={viewing} onClose={() => setViewing(null)} />
       )}
+
+        </TabsContent>
+
+        <TabsContent value="rateio" className="pt-4">
+          <FinanceiroRateio />
+        </TabsContent>
+
+        <TabsContent value="fechamento" className="pt-4">
+          <FinanceiroFechamento />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

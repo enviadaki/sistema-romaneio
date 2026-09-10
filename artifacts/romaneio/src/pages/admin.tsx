@@ -28,7 +28,7 @@ import OperatorUsuarios from "@/pages/operator-usuarios";
 interface RouteRow { id: number; name: string; createdAt: string }
 interface CityRow  { id: number; name: string; createdAt?: string }
 interface RouteCityRow { id: number; name: string }
-interface MotoristaRow { id: number; nome: string; contato: string; createdAt: string }
+interface MotoristaRow { id: number; nome: string; contato: string; chavePix: string; favorecido: string; createdAt: string }
 interface ConferenteRow { id: number; nome: string; createdAt: string }
 
 // ── Generic CRUD tab ───────────────────────────────────────────────────────
@@ -632,9 +632,9 @@ export function MotoristasTab() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ nome: "", contato: "" });
+  const [form, setForm] = useState({ nome: "", contato: "", chavePix: "", favorecido: "" });
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState({ nome: "", contato: "" });
+  const [editForm, setEditForm] = useState({ nome: "", contato: "", chavePix: "", favorecido: "" });
 
   const { data: motoristas = [], isLoading } = useQuery<MotoristaRow[]>({
     queryKey: ["admin-motoristas"],
@@ -642,7 +642,7 @@ export function MotoristasTab() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: { nome: string; contato: string }) =>
+    mutationFn: (data: { nome: string; contato: string; chavePix: string; favorecido: string }) =>
       customFetch<MotoristaRow>("/api/admin/motoristas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -650,7 +650,7 @@ export function MotoristasTab() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-motoristas"] });
-      setForm({ nome: "", contato: "" });
+      setForm({ nome: "", contato: "", chavePix: "", favorecido: "" });
       setOpen(false);
       toast({ title: "Motorista adicionado" });
     },
@@ -658,7 +658,7 @@ export function MotoristasTab() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, ...data }: { id: number; nome: string; contato: string }) =>
+    mutationFn: ({ id, ...data }: { id: number; nome: string; contato: string; chavePix: string; favorecido: string }) =>
       customFetch<MotoristaRow>(`/api/admin/motoristas/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -684,7 +684,7 @@ export function MotoristasTab() {
 
   const startEdit = (m: MotoristaRow) => {
     setEditingId(m.id);
-    setEditForm({ nome: m.nome, contato: m.contato });
+    setEditForm({ nome: m.nome, contato: m.contato, chavePix: m.chavePix ?? "", favorecido: m.favorecido ?? "" });
   };
 
   return (
@@ -705,7 +705,13 @@ export function MotoristasTab() {
               className="space-y-4 pt-1"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (form.nome.trim()) createMutation.mutate({ nome: form.nome.trim(), contato: form.contato.trim() });
+                if (form.nome.trim())
+                  createMutation.mutate({
+                    nome: form.nome.trim(),
+                    contato: form.contato.trim(),
+                    chavePix: form.chavePix.trim(),
+                    favorecido: form.favorecido.trim(),
+                  });
               }}
             >
               <div className="space-y-1.5">
@@ -722,6 +728,22 @@ export function MotoristasTab() {
                   placeholder="Ex: (11) 9 9999-9999"
                   value={form.contato}
                   onChange={(e) => setForm((f) => ({ ...f, contato: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Chave PIX</Label>
+                <Input
+                  placeholder="CPF, e-mail, telefone ou chave aleatória"
+                  value={form.chavePix}
+                  onChange={(e) => setForm((f) => ({ ...f, chavePix: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Favorecido</Label>
+                <Input
+                  placeholder="Nome de quem recebe o pagamento (se diferente do motorista)"
+                  value={form.favorecido}
+                  onChange={(e) => setForm((f) => ({ ...f, favorecido: e.target.value }))}
                 />
               </div>
               <div className="flex gap-2 justify-end">
@@ -762,13 +784,31 @@ export function MotoristasTab() {
                     value={editForm.contato}
                     onChange={(e) => setEditForm((f) => ({ ...f, contato: e.target.value }))}
                   />
+                  <Input
+                    className="h-8 text-sm flex-1 min-w-32"
+                    placeholder="Chave PIX"
+                    value={editForm.chavePix}
+                    onChange={(e) => setEditForm((f) => ({ ...f, chavePix: e.target.value }))}
+                  />
+                  <Input
+                    className="h-8 text-sm flex-1 min-w-32"
+                    placeholder="Favorecido"
+                    value={editForm.favorecido}
+                    onChange={(e) => setEditForm((f) => ({ ...f, favorecido: e.target.value }))}
+                  />
                   <Button
                     size="icon"
                     variant="ghost"
                     className="h-8 w-8 text-green-600"
                     onClick={() => {
                       if (editForm.nome.trim())
-                        updateMutation.mutate({ id: m.id, nome: editForm.nome.trim(), contato: editForm.contato.trim() });
+                        updateMutation.mutate({
+                          id: m.id,
+                          nome: editForm.nome.trim(),
+                          contato: editForm.contato.trim(),
+                          chavePix: editForm.chavePix.trim(),
+                          favorecido: editForm.favorecido.trim(),
+                        });
                     }}
                   >
                     <Check className="h-4 w-4" />
@@ -791,6 +831,11 @@ export function MotoristasTab() {
                     <p className="text-sm font-medium">{m.nome}</p>
                     {m.contato && (
                       <p className="text-xs text-muted-foreground">{m.contato}</p>
+                    )}
+                    {(m.chavePix || m.favorecido) && (
+                      <p className="text-xs text-muted-foreground truncate">
+                        PIX: {m.chavePix || "—"}{m.favorecido ? ` · ${m.favorecido}` : ""}
+                      </p>
                     )}
                   </div>
                   <Button

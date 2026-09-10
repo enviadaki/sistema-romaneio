@@ -4,6 +4,7 @@ export * from "./deliveries";
 export * from "./city-contacts";
 export * from "./delivery-manifests";
 export * from "./motoristas";
+export * from "./driver-settlements";
 export * from "./conferentes";
 export * from "./motorista-users";
 export * from "./operator-users";
