@@ -62,9 +62,11 @@ interface SettlementRow {
   favorecido: string;
 }
 
-// Campos preenchidos manualmente pelo financeiro. "Viagem" e "Saldo" foram
-// removidos — o fechamento completo (valores + lista de romaneios do
-// período) agora é exportado em PDF pelo botão "Exportar Completo".
+// Campos preenchidos manualmente pelo financeiro. "Saldo" foi removido e
+// "Viagem" NÃO entra aqui — é calculada (acumulado do mês menos
+// abastecimento, mais o restante) e exibida como somente leitura. O
+// fechamento completo (valores + lista de romaneios do período) pode ser
+// exportado em PDF pelo botão "Exportar Completo".
 const EDITABLE_FIELDS = [
   { key: "abastecimento", label: "Abastecimento" },
   { key: "totalDesconto", label: "Total de Desconto" },
@@ -125,6 +127,19 @@ function formatDateBR(isoDate: string | null | undefined): string {
   return `${d}/${m}/${y}`;
 }
 
+// Viagem = acumulado do mês (puxado dos romaneios) − abastecimento (único
+// desconto) + todos os outros campos (que entram como acréscimo).
+function computeViagem(row: SettlementRow, acumulado: number): number {
+  return (
+    acumulado -
+    parseNum(row.abastecimento) +
+    parseNum(row.totalDesconto) +
+    parseNum(row.fechamentoAnterior) +
+    parseNum(row.ajudante) +
+    parseNum(row.dezPorCentoAMais)
+  );
+}
+
 function slugify(str: string): string {
   return str
     .normalize("NFD")
@@ -144,8 +159,8 @@ async function getLogoImg() {
   });
 }
 
-// Fechamento financeiro mensal por motorista — o "Acumulado do Mês" é puxado
-// automaticamente a partir dos romaneios pagos na competência; os demais
+// Fechamento financeiro mensal por motorista — o "Acumulado do Mês" e a
+// "Viagem" são puxados/calculados automaticamente (não editáveis); os demais
 // campos (abastecimento, descontos, ajudante, 10% a mais) são preenchidos
 // manualmente pelo financeiro todo mês. O fechamento completo de cada
 // motorista (valores + lista de romaneios do período) pode ser exportado em
@@ -231,6 +246,7 @@ export default function FinanceiroFechamento() {
 
   const saveMutation = useMutation({
     mutationFn: async (row: SettlementRow) => {
+      const acumulado = acumuladoPorMotorista.get(row.motorista) ?? 0;
       const body = {
         motorista: row.motorista,
         competencia,
@@ -239,6 +255,7 @@ export default function FinanceiroFechamento() {
         fechamentoAnterior: parseNum(row.fechamentoAnterior),
         ajudante: parseNum(row.ajudante),
         dezPorCentoAMais: parseNum(row.dezPorCentoAMais),
+        viagem: computeViagem(row, acumulado),
         chavePix: row.chavePix.trim(),
         favorecido: row.favorecido.trim(),
       };
@@ -321,6 +338,7 @@ export default function FinanceiroFechamento() {
       ["Fechamento Anterior", formatCurrencyBR(parseNum(row.fechamentoAnterior))],
       ["Ajudante", formatCurrencyBR(parseNum(row.ajudante))],
       ["10% a Mais", formatCurrencyBR(parseNum(row.dezPorCentoAMais))],
+      ["Viagem", formatCurrencyBR(computeViagem(row, acumulado))],
       ["Chave PIX", row.chavePix || "—"],
       ["Favorecido", row.favorecido || "—"],
     ];
@@ -386,21 +404,25 @@ export default function FinanceiroFechamento() {
 
   const rowsWithComputed = useMemo(
     () =>
-      rows.map((r) => ({ row: r, acumulado: acumuladoPorMotorista.get(r.motorista) ?? 0 })),
+      rows.map((r) => {
+        const acumulado = acumuladoPorMotorista.get(r.motorista) ?? 0;
+        return { row: r, acumulado, viagem: computeViagem(r, acumulado) };
+      }),
     [rows, acumuladoPorMotorista]
   );
 
   const totals = useMemo(() => {
-    const t: Record<string, number> = { acumulado: 0 };
+    const t: Record<string, number> = { acumulado: 0, viagem: 0 };
     for (const f of EDITABLE_FIELDS) t[f.key] = 0;
-    for (const { row: r, acumulado } of rowsWithComputed) {
+    for (const { row: r, acumulado, viagem } of rowsWithComputed) {
       t.acumulado += acumulado;
+      t.viagem += viagem;
       for (const f of EDITABLE_FIELDS) t[f.key] += parseNum((r as any)[f.key]);
     }
     return t;
   }, [rowsWithComputed]);
 
-  const colCount = 1 /* motorista */ + 1 /* acumulado */ + EDITABLE_FIELDS.length + 2 /* pix/favorecido */ + 1 /* ações */;
+  const colCount = 1 /* motorista */ + 1 /* acumulado */ + EDITABLE_FIELDS.length + 1 /* viagem */ + 2 /* pix/favorecido */ + 1 /* ações */;
 
   return (
     <div className="space-y-6">
@@ -408,8 +430,9 @@ export default function FinanceiroFechamento() {
         <div>
           <h2 className="text-xl font-bold tracking-tight">Fechamento Mensal de Motoristas</h2>
           <p className="text-muted-foreground mt-1 text-sm">
-            Acumulado do mês é calculado automaticamente a partir dos romaneios. Os demais campos são
-            preenchidos manualmente. Use "Exportar Completo" para gerar o PDF do fechamento de cada motorista.
+            Acumulado do mês e Viagem são calculados automaticamente a partir dos romaneios. Os demais
+            campos são preenchidos manualmente — abastecimento é descontado, os outros somam. Use "Exportar
+            Completo" para gerar o PDF do fechamento de cada motorista.
           </p>
         </div>
         <div>
@@ -464,10 +487,11 @@ export default function FinanceiroFechamento() {
                     "Fechamento Anterior",
                     "Ajudante",
                     "10% a Mais",
+                    "Viagem",
                     "Chave PIX",
                     "Favorecido",
                   ],
-                  rowsWithComputed.map(({ row: r, acumulado }) => [
+                  rowsWithComputed.map(({ row: r, acumulado, viagem }) => [
                     r.motorista,
                     acumulado,
                     parseNum(r.abastecimento),
@@ -475,10 +499,11 @@ export default function FinanceiroFechamento() {
                     parseNum(r.fechamentoAnterior),
                     parseNum(r.ajudante),
                     parseNum(r.dezPorCentoAMais),
+                    viagem,
                     r.chavePix,
                     r.favorecido,
                   ]),
-                  [22, 16, 14, 16, 16, 12, 12, 22, 22]
+                  [22, 16, 14, 16, 16, 12, 12, 14, 22, 22]
                 )
               }
             >
@@ -496,6 +521,7 @@ export default function FinanceiroFechamento() {
                   {EDITABLE_FIELDS.map((f) => (
                     <TableHead key={f.key} className="text-center min-w-[110px]">{f.label}</TableHead>
                   ))}
+                  <TableHead className="text-center min-w-[110px]">Viagem</TableHead>
                   <TableHead className="min-w-[160px]">Chave PIX</TableHead>
                   <TableHead className="min-w-[160px]">Favorecido</TableHead>
                   <TableHead className="w-[120px]"></TableHead>
@@ -515,7 +541,7 @@ export default function FinanceiroFechamento() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  rowsWithComputed.map(({ row: r, acumulado }, i) => (
+                  rowsWithComputed.map(({ row: r, acumulado, viagem }, i) => (
                     <TableRow key={r.id ?? `new-${r.motorista}`}>
                       <TableCell className="font-medium whitespace-nowrap">{r.motorista}</TableCell>
                       <TableCell className="text-center text-sm text-muted-foreground whitespace-nowrap">
@@ -531,6 +557,9 @@ export default function FinanceiroFechamento() {
                           />
                         </TableCell>
                       ))}
+                      <TableCell className="text-center text-sm font-bold text-primary whitespace-nowrap">
+                        {formatCurrencyBR(viagem)}
+                      </TableCell>
                       <TableCell>
                         <Input
                           className="h-8 text-sm w-36"
@@ -592,6 +621,7 @@ export default function FinanceiroFechamento() {
                         {formatCurrencyBR(totals[f.key])}
                       </TableCell>
                     ))}
+                    <TableCell className="text-center text-primary">{formatCurrencyBR(totals.viagem)}</TableCell>
                     <TableCell colSpan={3} />
                   </TableRow>
                 )}
