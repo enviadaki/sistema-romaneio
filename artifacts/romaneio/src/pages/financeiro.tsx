@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { exportRowsToExcel } from "@/lib/export-xlsx";
 import FinanceiroRateio from "./financeiro-rateio";
 import FinanceiroFechamento from "./financeiro-fechamento";
 
@@ -627,6 +628,38 @@ export default function Financeiro() {
       </div>
 
       {/* Manifests table */}
+      <div className="flex items-center justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          disabled={manifests.length === 0}
+          onClick={() => {
+            const rows = manifests.map((m) => {
+              const volumes = m.items.reduce((s, it) => s + it.sacas + it.avulsos, 0);
+              return [
+                m.numero,
+                formatDateBR(m.createdAt),
+                m.motorista,
+                m.rota,
+                volumes,
+                m.valorPagamento ? parseFloat(m.valorPagamento) : 0,
+                STATUS_CONFIG[m.status]?.label ?? m.status,
+                formatDateBR(m.dataPagamento),
+              ];
+            });
+            exportRowsToExcel(
+              `romaneios_${getTodayDateString()}.xlsx`,
+              "Romaneios",
+              ["Nº", "Data", "Motorista", "Rota", "Volumes", "Valor", "Status", "Pgto em"],
+              rows,
+              [8, 12, 24, 24, 10, 14, 12, 12]
+            );
+          }}
+        >
+          <FileDown className="h-4 w-4" /> Exportar Excel
+        </Button>
+      </div>
       <Card>
         <Table>
           <TableHeader>

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { customFetch } from "@workspace/api-client-react";
 import type { DeliveryManifest } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
+import { getTodayDateString } from "@/lib/date-utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2 } from "lucide-react";
+import { FileDown, Loader2 } from "lucide-react";
+import { exportRowsToExcel } from "@/lib/export-xlsx";
 
 interface FlatItemRow {
   manifestId: number;
@@ -203,9 +205,28 @@ export default function FinanceiroRateio() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center justify-between">
+          <CardTitle className="text-base flex items-center justify-between gap-3 flex-wrap">
             <span>Cidade × Operação × Motorista</span>
-            <span className="text-sm font-normal text-muted-foreground">{totalVolumes} volumes</span>
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-normal text-muted-foreground">{totalVolumes} volumes</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                disabled={grouped.length === 0}
+                onClick={() =>
+                  exportRowsToExcel(
+                    `rateio_por_operacao_${getTodayDateString()}.xlsx`,
+                    "Rateio",
+                    ["Cidade", "Operação", "Motorista", "Romaneios", "Sacas", "Avulsos", "Volumes"],
+                    grouped.map((r) => [r.cidade, r.empresa, r.motorista, r.romaneios, r.sacas, r.avulsos, r.volumes]),
+                    [22, 14, 24, 12, 10, 10, 10]
+                  )
+                }
+              >
+                <FileDown className="h-4 w-4" /> Exportar Excel
+              </Button>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
