@@ -113,20 +113,28 @@ export default function FinanceiroFechamento() {
   const [rows, setRows] = useState<SettlementRow[]>([]);
   const [addMotorista, setAddMotorista] = useState("");
 
-  const { data: settlements = [], isLoading } = useQuery<DriverSettlement[]>({
+  const { data: settlementsData, isLoading } = useQuery<DriverSettlement[]>({
     queryKey: ["driver-settlements", competencia],
     queryFn: () => customFetch<DriverSettlement[]>(`/api/driver-settlements?competencia=${competencia}`),
   });
 
-  const { data: motoristas = [] } = useQuery<MotoristaRow[]>({
+  const { data: motoristasData } = useQuery<MotoristaRow[]>({
     queryKey: ["motoristas-list"],
     queryFn: () => customFetch<MotoristaRow[]>("/api/motoristas"),
   });
+  const motoristas = motoristasData ?? [];
 
-  // Sincroniza as linhas locais sempre que a competência muda ou os dados do servidor são recarregados
+  // Sincroniza as linhas locais sempre que a competência muda ou os dados do servidor são recarregados.
+  // Importante: depende de `settlementsData` (a referência estável vinda do react-query), nunca de um
+  // array com fallback "= []" no destructuring — esse fallback cria um array novo a cada render e,
+  // combinado com um useEffect, entra em loop infinito de atualização.
   useEffect(() => {
-    setRows(settlements.map(fromSettlement));
-  }, [settlements]);
+    if (settlementsData) {
+      setRows(settlementsData.map(fromSettlement));
+    } else {
+      setRows([]);
+    }
+  }, [settlementsData]);
 
   const motoristasDisponiveis = useMemo(
     () => motoristas.filter((m) => !rows.some((r) => r.motorista === m.nome)),
