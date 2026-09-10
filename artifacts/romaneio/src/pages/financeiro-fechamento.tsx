@@ -23,7 +23,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { FileDown, Loader2, Save, Trash2 } from "lucide-react";
+import { FileDown, FileText, Loader2, Save, Trash2 } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface MotoristaRow {
   id: number;
@@ -56,21 +58,19 @@ interface SettlementRow {
   fechamentoAnterior: string;
   ajudante: string;
   dezPorCentoAMais: string;
-  saldo: string;
   chavePix: string;
   favorecido: string;
 }
 
-// Campos preenchidos manualmente pelo financeiro. "Viagem" NÃO entra aqui — é
-// calculada (acumulado do mês menos abastecimento, mais o restante) e exibida
-// como somente leitura, junto com "Acumulado do Mês".
+// Campos preenchidos manualmente pelo financeiro. "Viagem" e "Saldo" foram
+// removidos — o fechamento completo (valores + lista de romaneios do
+// período) agora é exportado em PDF pelo botão "Exportar Completo".
 const EDITABLE_FIELDS = [
   { key: "abastecimento", label: "Abastecimento" },
   { key: "totalDesconto", label: "Total de Desconto" },
   { key: "fechamentoAnterior", label: "Fechamento Anterior" },
   { key: "ajudante", label: "Ajudante" },
   { key: "dezPorCentoAMais", label: "10% a Mais" },
-  { key: "saldo", label: "Saldo" },
 ] as const;
 
 function toDisplay(val: string): string {
@@ -87,7 +87,6 @@ function fromSettlement(s: DriverSettlement): SettlementRow {
     fechamentoAnterior: toDisplay(s.fechamentoAnterior),
     ajudante: toDisplay(s.ajudante),
     dezPorCentoAMais: toDisplay(s.dezPorCentoAMais),
-    saldo: toDisplay(s.saldo),
     chavePix: s.chavePix,
     favorecido: s.favorecido,
   };
@@ -120,23 +119,37 @@ function formatCurrencyBR(n: number): string {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-// Viagem = acumulado do mês (puxado dos romaneios) − abastecimento (único
-// desconto) + todos os outros campos (que entram como acréscimo).
-function computeViagem(row: SettlementRow, acumulado: number): number {
-  return (
-    acumulado -
-    parseNum(row.abastecimento) +
-    parseNum(row.totalDesconto) +
-    parseNum(row.fechamentoAnterior) +
-    parseNum(row.ajudante) +
-    parseNum(row.dezPorCentoAMais)
-  );
+function formatDateBR(isoDate: string | null | undefined): string {
+  if (!isoDate) return "—";
+  const [y, m, d] = isoDate.slice(0, 10).split("-");
+  return `${d}/${m}/${y}`;
 }
 
-// Fechamento financeiro mensal por motorista — o "Acumulado do Mês" e a
-// "Viagem" são puxados/calculados automaticamente (não editáveis); os demais
-// campos (abastecimento, descontos, ajudante, 10% a mais, saldo) são
-// preenchidos manualmente pelo financeiro todo mês.
+function slugify(str: string): string {
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+}
+
+async function getLogoImg() {
+  return new Promise<HTMLImageElement>((resolve) => {
+    const img = new Image();
+    const base = import.meta.env.BASE_URL === "/" ? "" : import.meta.env.BASE_URL;
+    img.src = `${base}/enviadaki-logo.png`;
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(img);
+  });
+}
+
+// Fechamento financeiro mensal por motorista — o "Acumulado do Mês" é puxado
+// automaticamente a partir dos romaneios pagos na competência; os demais
+// campos (abastecimento, descontos, ajudante, 10% a mais) são preenchidos
+// manualmente pelo financeiro todo mês. O fechamento completo de cada
+// motorista (valores + lista de romaneios do período) pode ser exportado em
+// PDF pelo botão "Exportar Completo".
 export default function FinanceiroFechamento() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -158,7 +171,8 @@ export default function FinanceiroFechamento() {
   });
   const motoristas = motoristasData ?? [];
 
-  // Romaneios do mês da competência, para calcular o acumulado por motorista.
+  // Romaneios do mês da competência, para calcular o acumulado por motorista
+  // e para listar no PDF de "Exportar Completo".
   const { data: manifestsData } = useQuery<DeliveryManifest[]>({
     queryKey: ["delivery-manifests-for-settlement", dateFrom, dateTo],
     queryFn: () => customFetch<DeliveryManifest[]>(`/api/delivery-manifests?dateFrom=${dateFrom}&dateTo=${dateTo}`),
@@ -208,7 +222,6 @@ export default function FinanceiroFechamento() {
         fechamentoAnterior: "",
         ajudante: "",
         dezPorCentoAMais: "",
-        saldo: "",
         chavePix: cadastro?.chavePix ?? "",
         favorecido: cadastro?.favorecido ?? "",
       },
@@ -218,7 +231,6 @@ export default function FinanceiroFechamento() {
 
   const saveMutation = useMutation({
     mutationFn: async (row: SettlementRow) => {
-      const acumulado = acumuladoPorMotorista.get(row.motorista) ?? 0;
       const body = {
         motorista: row.motorista,
         competencia,
@@ -227,8 +239,6 @@ export default function FinanceiroFechamento() {
         fechamentoAnterior: parseNum(row.fechamentoAnterior),
         ajudante: parseNum(row.ajudante),
         dezPorCentoAMais: parseNum(row.dezPorCentoAMais),
-        viagem: computeViagem(row, acumulado),
-        saldo: parseNum(row.saldo),
         chavePix: row.chavePix.trim(),
         favorecido: row.favorecido.trim(),
       };
@@ -270,27 +280,127 @@ export default function FinanceiroFechamento() {
     }
   }
 
+  // Gera o PDF de "Exportar Completo": valores do fechamento do motorista +
+  // lista dos romaneios dele na competência selecionada.
+  async function handleExportCompleto(row: SettlementRow, acumulado: number) {
+    const logoImg = await getLogoImg();
+    const romaneiosDoMotorista = manifestsInMonth
+      .filter((m) => m.motorista === row.motorista)
+      .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
+
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const W = doc.internal.pageSize.getWidth();
+    const mg = 10;
+
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, 0, W, 16, "F");
+    if (logoImg && logoImg.complete && logoImg.naturalWidth > 0) {
+      doc.addImage(logoImg, "PNG", mg, 3, 32, 10);
+    }
+    doc.setTextColor(20, 30, 45);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.text("FECHAMENTO MENSAL", W - mg, 9, { align: "right" });
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Competência ${competencia} (${formatDateBR(dateFrom)} a ${formatDateBR(dateTo)})`, W - mg, 14, { align: "right" });
+
+    doc.setDrawColor(15, 40, 80);
+    doc.setLineWidth(0.3);
+    doc.line(mg, 18, W - mg, 18);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(15, 40, 80);
+    doc.text(row.motorista.toUpperCase(), mg, 26);
+
+    const infoRows: [string, string][] = [
+      ["Acumulado do Mês", formatCurrencyBR(acumulado)],
+      ["Abastecimento", formatCurrencyBR(parseNum(row.abastecimento))],
+      ["Total de Desconto", formatCurrencyBR(parseNum(row.totalDesconto))],
+      ["Fechamento Anterior", formatCurrencyBR(parseNum(row.fechamentoAnterior))],
+      ["Ajudante", formatCurrencyBR(parseNum(row.ajudante))],
+      ["10% a Mais", formatCurrencyBR(parseNum(row.dezPorCentoAMais))],
+      ["Chave PIX", row.chavePix || "—"],
+      ["Favorecido", row.favorecido || "—"],
+    ];
+
+    autoTable(doc, {
+      startY: 31,
+      body: infoRows,
+      margin: { left: mg, right: mg },
+      theme: "plain",
+      styles: { fontSize: 9.5, cellPadding: 1.2 },
+      columnStyles: {
+        0: { fontStyle: "bold", cellWidth: 55, textColor: [15, 40, 80] },
+        1: { cellWidth: 80 },
+      },
+    });
+
+    const afterInfoY = (doc as any).lastAutoTable?.finalY ?? 60;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(15, 40, 80);
+    doc.text(`ROMANEIOS DO PERÍODO (${romaneiosDoMotorista.length})`, mg, afterInfoY + 8);
+
+    const totalVolumesRomaneios = romaneiosDoMotorista.reduce(
+      (s, m) => s + m.items.reduce((si, it) => si + it.sacas + it.avulsos, 0),
+      0
+    );
+    const totalValorRomaneios = romaneiosDoMotorista.reduce(
+      (s, m) => s + (m.valorPagamento ? parseFloat(m.valorPagamento) : 0),
+      0
+    );
+
+    const romaneioRows = romaneiosDoMotorista.map((m) => [
+      String(m.numero ?? "—"),
+      formatDateBR(m.createdAt),
+      m.rota,
+      String(m.items.reduce((si, it) => si + it.sacas + it.avulsos, 0)),
+      m.status,
+      m.valorPagamento ? formatCurrencyBR(parseFloat(m.valorPagamento)) : "—",
+    ]);
+
+    autoTable(doc, {
+      startY: afterInfoY + 12,
+      head: [["Nº", "Data", "Rota", "Volumes", "Status", "Valor"]],
+      body: romaneioRows.length > 0 ? romaneioRows : [["—", "—", "Nenhum romaneio no período", "—", "—", "—"]],
+      foot: [["", "", "TOTAL", String(totalVolumesRomaneios), "", formatCurrencyBR(totalValorRomaneios)]],
+      margin: { left: mg, right: mg },
+      theme: "grid",
+      styles: { fontSize: 8.5, cellPadding: 1.8 },
+      headStyles: { fillColor: [15, 40, 80], textColor: [255, 255, 255], fontStyle: "bold" },
+      footStyles: { fillColor: [240, 244, 250], textColor: [15, 40, 80], fontStyle: "bold" },
+      columnStyles: {
+        0: { halign: "center", cellWidth: 18 },
+        1: { halign: "center", cellWidth: 24 },
+        3: { halign: "center", cellWidth: 22 },
+        4: { halign: "center", cellWidth: 24 },
+        5: { halign: "right", cellWidth: 30 },
+      },
+    });
+
+    doc.save(`fechamento-completo-${slugify(row.motorista)}-${competencia}.pdf`);
+  }
+
   const rowsWithComputed = useMemo(
     () =>
-      rows.map((r) => {
-        const acumulado = acumuladoPorMotorista.get(r.motorista) ?? 0;
-        return { row: r, acumulado, viagem: computeViagem(r, acumulado) };
-      }),
+      rows.map((r) => ({ row: r, acumulado: acumuladoPorMotorista.get(r.motorista) ?? 0 })),
     [rows, acumuladoPorMotorista]
   );
 
   const totals = useMemo(() => {
-    const t: Record<string, number> = { acumulado: 0, viagem: 0 };
+    const t: Record<string, number> = { acumulado: 0 };
     for (const f of EDITABLE_FIELDS) t[f.key] = 0;
-    for (const { row: r, acumulado, viagem } of rowsWithComputed) {
+    for (const { row: r, acumulado } of rowsWithComputed) {
       t.acumulado += acumulado;
-      t.viagem += viagem;
       for (const f of EDITABLE_FIELDS) t[f.key] += parseNum((r as any)[f.key]);
     }
     return t;
   }, [rowsWithComputed]);
 
-  const colCount = 1 /* motorista */ + 1 /* acumulado */ + EDITABLE_FIELDS.length + 1 /* viagem */ + 2 /* pix/favorecido */ + 1 /* ações */;
+  const colCount = 1 /* motorista */ + 1 /* acumulado */ + EDITABLE_FIELDS.length + 2 /* pix/favorecido */ + 1 /* ações */;
 
   return (
     <div className="space-y-6">
@@ -298,8 +408,8 @@ export default function FinanceiroFechamento() {
         <div>
           <h2 className="text-xl font-bold tracking-tight">Fechamento Mensal de Motoristas</h2>
           <p className="text-muted-foreground mt-1 text-sm">
-            Acumulado do mês e Viagem são calculados automaticamente a partir dos romaneios. Os demais
-            campos são preenchidos manualmente — abastecimento é descontado, os outros somam.
+            Acumulado do mês é calculado automaticamente a partir dos romaneios. Os demais campos são
+            preenchidos manualmente. Use "Exportar Completo" para gerar o PDF do fechamento de cada motorista.
           </p>
         </div>
         <div>
@@ -354,12 +464,10 @@ export default function FinanceiroFechamento() {
                     "Fechamento Anterior",
                     "Ajudante",
                     "10% a Mais",
-                    "Viagem",
-                    "Saldo",
                     "Chave PIX",
                     "Favorecido",
                   ],
-                  rowsWithComputed.map(({ row: r, acumulado, viagem }) => [
+                  rowsWithComputed.map(({ row: r, acumulado }) => [
                     r.motorista,
                     acumulado,
                     parseNum(r.abastecimento),
@@ -367,12 +475,10 @@ export default function FinanceiroFechamento() {
                     parseNum(r.fechamentoAnterior),
                     parseNum(r.ajudante),
                     parseNum(r.dezPorCentoAMais),
-                    viagem,
-                    parseNum(r.saldo),
                     r.chavePix,
                     r.favorecido,
                   ]),
-                  [22, 16, 14, 16, 16, 12, 12, 14, 14, 22, 22]
+                  [22, 16, 14, 16, 16, 12, 12, 22, 22]
                 )
               }
             >
@@ -387,14 +493,12 @@ export default function FinanceiroFechamento() {
                 <TableRow>
                   <TableHead className="min-w-[140px]">Motorista</TableHead>
                   <TableHead className="text-center min-w-[120px]">Acumulado do Mês</TableHead>
-                  {EDITABLE_FIELDS.filter((f) => f.key !== "saldo").map((f) => (
+                  {EDITABLE_FIELDS.map((f) => (
                     <TableHead key={f.key} className="text-center min-w-[110px]">{f.label}</TableHead>
                   ))}
-                  <TableHead className="text-center min-w-[110px]">Viagem</TableHead>
-                  <TableHead className="text-center min-w-[110px]">Saldo</TableHead>
                   <TableHead className="min-w-[160px]">Chave PIX</TableHead>
                   <TableHead className="min-w-[160px]">Favorecido</TableHead>
-                  <TableHead className="w-[90px]"></TableHead>
+                  <TableHead className="w-[120px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -411,13 +515,13 @@ export default function FinanceiroFechamento() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  rowsWithComputed.map(({ row: r, acumulado, viagem }, i) => (
+                  rowsWithComputed.map(({ row: r, acumulado }, i) => (
                     <TableRow key={r.id ?? `new-${r.motorista}`}>
                       <TableCell className="font-medium whitespace-nowrap">{r.motorista}</TableCell>
                       <TableCell className="text-center text-sm text-muted-foreground whitespace-nowrap">
                         {formatCurrencyBR(acumulado)}
                       </TableCell>
-                      {EDITABLE_FIELDS.filter((f) => f.key !== "saldo").map((f) => (
+                      {EDITABLE_FIELDS.map((f) => (
                         <TableCell key={f.key}>
                           <Input
                             className="h-8 text-sm text-right w-24"
@@ -427,17 +531,6 @@ export default function FinanceiroFechamento() {
                           />
                         </TableCell>
                       ))}
-                      <TableCell className="text-center text-sm font-bold text-primary whitespace-nowrap">
-                        {formatCurrencyBR(viagem)}
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          className="h-8 text-sm text-right w-24"
-                          placeholder="0,00"
-                          value={r.saldo}
-                          onChange={(e) => updateField(i, "saldo", e.target.value)}
-                        />
-                      </TableCell>
                       <TableCell>
                         <Input
                           className="h-8 text-sm w-36"
@@ -476,6 +569,15 @@ export default function FinanceiroFechamento() {
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-primary"
+                            title="Exportar Completo (PDF)"
+                            onClick={() => handleExportCompleto(r, acumulado)}
+                          >
+                            <FileText className="h-4 w-4" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -485,13 +587,11 @@ export default function FinanceiroFechamento() {
                   <TableRow className="bg-primary/5 font-bold border-t-2">
                     <TableCell className="text-right text-xs text-muted-foreground">TOTAL</TableCell>
                     <TableCell className="text-center">{formatCurrencyBR(totals.acumulado)}</TableCell>
-                    {EDITABLE_FIELDS.filter((f) => f.key !== "saldo").map((f) => (
+                    {EDITABLE_FIELDS.map((f) => (
                       <TableCell key={f.key} className="text-right">
                         {formatCurrencyBR(totals[f.key])}
                       </TableCell>
                     ))}
-                    <TableCell className="text-center text-primary">{formatCurrencyBR(totals.viagem)}</TableCell>
-                    <TableCell className="text-right">{formatCurrencyBR(totals.saldo)}</TableCell>
                     <TableCell colSpan={3} />
                   </TableRow>
                 )}
