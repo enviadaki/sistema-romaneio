@@ -1,4 +1,5 @@
 export * from "./packages";
+export * from "./scan-sessions";
 export * from "./scans";
 export * from "./deliveries";
 export * from "./city-contacts";
