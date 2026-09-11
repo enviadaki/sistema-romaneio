@@ -9,18 +9,26 @@ import {
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireOperationAccess, isOperationAllowed } from "../middlewares/requireOperationAccess";
+import { validateTbrFormat, tbrValidationMessage, normalizeTbrCode } from "../modules/amazon/tbr";
 
 const router: IRouter = Router();
 
 // GET /packages/lookup?trackingNumber=XXX&operation=LOGGI — must come BEFORE /packages/:id
 router.get("/packages/lookup", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
-  const trackingNumber = (req.query.trackingNumber as string | undefined)?.trim();
+  let trackingNumber = (req.query.trackingNumber as string | undefined)?.trim();
   if (!trackingNumber) {
     res.status(400).json({ error: "trackingNumber é obrigatório" });
     return;
   }
 
   const operation = (req.query.operation as string | undefined)?.trim() ?? "LOGGI";
+
+  // Normaliza (maiúsculas, sem espaços) antes de buscar — o cadastro da
+  // AMAZON já grava o código normalizado; sem isso, uma busca digitada em
+  // minúsculas ou com espaço extra não encontraria o pacote.
+  if (operation === "AMAZON") {
+    trackingNumber = normalizeTbrCode(trackingNumber);
+  }
 
   const [pkg] = await db
     .select()
@@ -168,11 +176,22 @@ router.post("/packages", requireAuth, requireOperationAccess, async (req, res): 
 
   const operation = parsed.data.operation ?? "LOGGI";
 
+  // Código TBR é obrigatório só na AMAZON — LOGGI continua sem formato exigido.
+  let trackingNumber = parsed.data.trackingNumber;
+  if (operation === "AMAZON") {
+    const tbr = validateTbrFormat(trackingNumber);
+    if (!tbr.valid) {
+      res.status(400).json({ error: tbrValidationMessage(tbr.reason) });
+      return;
+    }
+    trackingNumber = tbr.normalized;
+  }
+
   const existing = await db
     .select()
     .from(packagesTable)
     .where(and(
-      eq(packagesTable.trackingNumber, parsed.data.trackingNumber),
+      eq(packagesTable.trackingNumber, trackingNumber),
       eq(packagesTable.operation, operation),
     ));
 
@@ -184,7 +203,7 @@ router.post("/packages", requireAuth, requireOperationAccess, async (req, res): 
   const [pkg] = await db
     .insert(packagesTable)
     .values({
-      trackingNumber: parsed.data.trackingNumber,
+      trackingNumber,
       city: parsed.data.city,
       promisedDeliveryDate: parsed.data.promisedDeliveryDate,
       operation,
@@ -225,11 +244,23 @@ router.post("/packages/bulk", requireAuth, requireOperationAccess, async (req, r
         errors.push(`${pkg.trackingNumber}: sem permissão para a operação '${pkgOperation}'`);
         continue;
       }
+
+      // Código TBR é obrigatório só na AMAZON — LOGGI continua sem formato exigido.
+      let trackingNumber = pkg.trackingNumber;
+      if (pkgOperation === "AMAZON") {
+        const tbr = validateTbrFormat(trackingNumber);
+        if (!tbr.valid) {
+          errors.push(`${pkg.trackingNumber}: ${tbrValidationMessage(tbr.reason)}`);
+          continue;
+        }
+        trackingNumber = tbr.normalized;
+      }
+
       const existing = await db
         .select()
         .from(packagesTable)
         .where(and(
-          eq(packagesTable.trackingNumber, pkg.trackingNumber),
+          eq(packagesTable.trackingNumber, trackingNumber),
           eq(packagesTable.operation, pkgOperation),
         ));
 
@@ -239,7 +270,7 @@ router.post("/packages/bulk", requireAuth, requireOperationAccess, async (req, r
       }
 
       await db.insert(packagesTable).values({
-        trackingNumber: pkg.trackingNumber,
+        trackingNumber,
         city: pkg.city,
         promisedDeliveryDate: pkg.promisedDeliveryDate,
         operation: pkgOperation,

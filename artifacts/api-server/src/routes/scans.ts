@@ -9,6 +9,7 @@ import {
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireOperationAccess } from "../middlewares/requireOperationAccess";
+import { normalizeTbrCode } from "../modules/amazon/tbr";
 
 const router: IRouter = Router();
 
@@ -69,13 +70,18 @@ router.post("/scans/bulk", requireAuth, requireOperationAccess, async (req, res)
     return;
   }
 
-  const { trackingNumbers } = parsed.data;
+  const bulkOperation = (parsed.data.operation ?? "LOGGI").trim();
+
+  // Normaliza (maiúsculas, sem espaços) antes de buscar os pacotes — o
+  // cadastro da AMAZON já grava o código normalizado.
+  const trackingNumbers =
+    bulkOperation === "AMAZON"
+      ? parsed.data.trackingNumbers.map((tn) => normalizeTbrCode(tn))
+      : parsed.data.trackingNumbers;
   if (trackingNumbers.length === 0) {
     res.json({ created: 0, skipped: 0 });
     return;
   }
-
-  const bulkOperation = (parsed.data.operation ?? "LOGGI").trim();
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
   const userFullName = (req as any).userFullName ?? null;
 
@@ -125,11 +131,16 @@ router.post("/scans", requireAuth, requireOperationAccess, async (req, res): Pro
 
   const scanOperation = (parsed.data.operation ?? "LOGGI").trim();
 
+  // Normaliza (maiúsculas, sem espaços) antes de buscar — o cadastro da
+  // AMAZON já grava o código normalizado.
+  const trackingNumber =
+    scanOperation === "AMAZON" ? normalizeTbrCode(parsed.data.trackingNumber) : parsed.data.trackingNumber;
+
   const [pkg] = await db
     .select()
     .from(packagesTable)
     .where(and(
-      eq(packagesTable.trackingNumber, parsed.data.trackingNumber),
+      eq(packagesTable.trackingNumber, trackingNumber),
       eq(packagesTable.operation, scanOperation),
     ));
 

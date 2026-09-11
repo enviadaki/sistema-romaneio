@@ -15,6 +15,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { formatDate, getTodayDateString, getYesterdayDateString, getWeekStartDateString } from "@/lib/date-utils";
 import { useOperation } from "@/contexts/operation-context";
+import { validateTbrFormat, tbrValidationMessage } from "@/lib/tbr";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
@@ -212,6 +213,10 @@ export default function Cadastro() {
   const [city, setCity] = useState("");
   const [promisedDeliveryDate, setPromisedDeliveryDate] = useState("");
 
+  // Feedback em tempo real do formato TBR (só se aplica à operação AMAZON).
+  const singleTbrCheck =
+    operation === "AMAZON" && trackingNumber ? validateTbrFormat(trackingNumber) : null;
+
   // Bulk mode state
   const [bulkData, setBulkData] = useState("");
 
@@ -285,8 +290,19 @@ export default function Cadastro() {
     e.preventDefault();
     if (!trackingNumber || !city || !promisedDeliveryDate) return;
 
+    // Código TBR é obrigatório só na AMAZON — LOGGI continua sem formato exigido.
+    let finalTrackingNumber = trackingNumber;
+    if (operation === "AMAZON") {
+      const tbr = validateTbrFormat(trackingNumber);
+      if (!tbr.valid) {
+        toast({ title: tbrValidationMessage(tbr.reason), variant: "destructive" });
+        return;
+      }
+      finalTrackingNumber = tbr.normalized;
+    }
+
     createPkg.mutate(
-      { data: { trackingNumber, city, promisedDeliveryDate, operation } },
+      { data: { trackingNumber: finalTrackingNumber, city, promisedDeliveryDate, operation } },
       {
         onSuccess: () => {
           toast({ title: "Pacote registrado com sucesso!" });
@@ -402,6 +418,16 @@ export default function Cadastro() {
       if (!cityVal) {
         errors.push(`Linha ${idx + 2}: cidade vazia`);
         return;
+      }
+
+      // Código TBR é obrigatório só na AMAZON — LOGGI continua sem formato exigido.
+      if (operation === "AMAZON") {
+        const tbr = validateTbrFormat(trackingVal);
+        if (!tbr.valid) {
+          errors.push(`Linha ${idx + 2}: ${tbrValidationMessage(tbr.reason)}`);
+          return;
+        }
+        trackingVal = tbr.normalized;
       }
 
       const normalizedDate = normalizeImportedDate(dateVal);
@@ -580,7 +606,15 @@ export default function Cadastro() {
               <form onSubmit={handleSingleSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label>Rastreador (Tracking Number)</Label>
-                  <Input value={trackingNumber} onChange={e => setTrackingNumber(e.target.value)} placeholder="Ex: BR123456789" required />
+                  <Input
+                    value={trackingNumber}
+                    onChange={e => setTrackingNumber(e.target.value)}
+                    placeholder={operation === "AMAZON" ? "Ex: TBR426326094" : "Ex: BR123456789"}
+                    required
+                  />
+                  {singleTbrCheck && !singleTbrCheck.valid && (
+                    <p className="text-xs text-destructive">{tbrValidationMessage(singleTbrCheck.reason)}</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Cidade</Label>
