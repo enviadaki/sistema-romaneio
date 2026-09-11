@@ -23,7 +23,6 @@ const VALID_PAGES = [
   "romaneio",
   "romaneio-motorista",
   "financeiro",
-  "qr-autoplay",
 ];
 
 function sanitizePermissions(allowedOperations: unknown, allowedPages: unknown) {

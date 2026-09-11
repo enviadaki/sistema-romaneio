@@ -23,7 +23,6 @@ import RomaneioMotorista from "@/pages/romaneio-motorista";
 import Financeiro from "@/pages/financeiro";
 import MotoristaUsuarios from "@/pages/motorista-usuarios";
 import Motoristas from "@/pages/motoristas";
-import QrAutoplay from "@/pages/qr-autoplay";
 import Admin from "@/pages/admin";
 import Devolucoes from "@/pages/devolucoes";
 
@@ -296,7 +295,6 @@ function ProtectedApp() {
           <Route path="/usuarios" component={MotoristaUsuarios} />
           <Route path="/operadores" component={() => <Redirect to="/admin" />} />
           <Route path="/motoristas" component={Motoristas} />
-          <Route path="/qr-autoplay" component={QrAutoplay} />
           <Route path="/admin" component={Admin} />
           <Route path="/devolucoes" component={Devolucoes} />
           <Route component={NotFound} />
