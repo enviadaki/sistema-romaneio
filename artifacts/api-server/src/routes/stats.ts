@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, sql, and, isNull } from "drizzle-orm";
-import { db, packagesTable, scansTable } from "@workspace/db";
+import { db, packagesTable, scansTable, avariasTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireOperationAccess } from "../middlewares/requireOperationAccess";
 
@@ -25,7 +25,10 @@ router.get("/stats", requireAuth, requireOperationAccess, async (req, res): Prom
     .from(packagesTable)
     .where(eq(packagesTable.operation, operation));
 
-  // Packages with no scan record at all — ordered by promised delivery date (most urgent first)
+  // Packages with no scan record and no avaria registrada — ordered by
+  // promised delivery date (most urgent first). Um objeto avariado já foi
+  // tratado pelo operador (Passo 6), então deixa de contar como "pendente"
+  // mesmo sem ter passado pela bipagem normal.
   const unscannedPackages = await db
     .select({
       id: packagesTable.id,
@@ -42,7 +45,20 @@ router.get("/stats", requireAuth, requireOperationAccess, async (req, res): Prom
         eq(scansTable.operation, packagesTable.operation),
       ),
     )
-    .where(and(eq(packagesTable.operation, operation), isNull(scansTable.id)))
+    .leftJoin(
+      avariasTable,
+      and(
+        eq(avariasTable.trackingNumber, packagesTable.trackingNumber),
+        eq(avariasTable.operation, packagesTable.operation),
+      ),
+    )
+    .where(
+      and(
+        eq(packagesTable.operation, operation),
+        isNull(scansTable.id),
+        isNull(avariasTable.id),
+      ),
+    )
     .orderBy(packagesTable.promisedDeliveryDate)
     .limit(20);
 
@@ -56,7 +72,20 @@ router.get("/stats", requireAuth, requireOperationAccess, async (req, res): Prom
         eq(scansTable.operation, packagesTable.operation),
       ),
     )
-    .where(and(eq(packagesTable.operation, operation), isNull(scansTable.id)));
+    .leftJoin(
+      avariasTable,
+      and(
+        eq(avariasTable.trackingNumber, packagesTable.trackingNumber),
+        eq(avariasTable.operation, packagesTable.operation),
+      ),
+    )
+    .where(
+      and(
+        eq(packagesTable.operation, operation),
+        isNull(scansTable.id),
+        isNull(avariasTable.id),
+      ),
+    );
 
   const packagesByCity = await db
     .select({
