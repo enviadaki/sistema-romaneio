@@ -14,7 +14,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { getTodayDateString, formatTime } from "@/lib/date-utils";
+import { getTodayDateString, formatTime, formatDateTime } from "@/lib/date-utils";
 import { useOperation } from "@/contexts/operation-context";
 import { playScanSuccess, playScanError, playScanWarning, playScanInvalid } from "@/lib/scan-sounds";
 import { ROUTES } from "@/lib/routes-data";
@@ -27,10 +27,19 @@ import {
   type ScanEventType,
 } from "@/hooks/use-scan-session";
 import { validateTbrFormat, tbrValidationMessage } from "@/lib/tbr";
+import {
+  useCreateAvaria,
+  getExistingAvaria,
+  AVARIA_CATEGORIES,
+  type AvariaCategory,
+} from "@/hooks/use-avarias";
+import { compressImageFile } from "@/lib/image-utils";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -45,7 +54,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle2, XCircle, AlertCircle, MapPin, Route, Zap, Calendar, Camera, PackageOpen, Lock, Ban, WifiOff } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, MapPin, Route, Zap, Calendar, Camera, PackageOpen, Lock, Ban, WifiOff, TriangleAlert } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { CameraScanner } from "@/components/camera-scanner";
@@ -121,6 +130,73 @@ export default function PreSorter() {
     not_found: "Pacotes não encontrados",
     invalid_format: "Códigos fora do padrão",
     other_error: "Outros erros",
+  };
+
+  // Passo 6: registro manual de avaria — ação separada da bipagem normal,
+  // disponível pra LOGGI e AMAZON, com ou sem sessão aberta.
+  const createAvaria = useCreateAvaria();
+  const [avariaOpen, setAvariaOpen] = useState(false);
+  const [avariaTracking, setAvariaTracking] = useState("");
+  const [avariaCategory, setAvariaCategory] = useState<AvariaCategory | "">("");
+  const [avariaDescription, setAvariaDescription] = useState("");
+  const [avariaPhoto, setAvariaPhoto] = useState<string | null>(null);
+  const [avariaPhotoProcessing, setAvariaPhotoProcessing] = useState(false);
+  const [avariaExisting, setAvariaExisting] = useState<{
+    category: string;
+    createdAt: string;
+    registeredBy: string | null;
+  } | null>(null);
+
+  const resetAvariaForm = () => {
+    setAvariaTracking("");
+    setAvariaCategory("");
+    setAvariaDescription("");
+    setAvariaPhoto(null);
+    setAvariaExisting(null);
+  };
+
+  const handleAvariaPhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvariaPhotoProcessing(true);
+    try {
+      const dataUrl = await compressImageFile(file);
+      setAvariaPhoto(dataUrl);
+    } catch {
+      toast({ title: "Erro ao processar a foto", variant: "destructive" });
+    } finally {
+      setAvariaPhotoProcessing(false);
+    }
+  };
+
+  const submitAvaria = (confirm: boolean) => {
+    if (!avariaTracking.trim() || !avariaCategory) return;
+    createAvaria.mutate(
+      {
+        trackingNumber: avariaTracking.trim(),
+        operation,
+        sessionId,
+        category: avariaCategory,
+        description: avariaDescription.trim() || null,
+        photo: avariaPhoto,
+        confirm,
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "Avaria registrada" });
+          setAvariaOpen(false);
+          resetAvariaForm();
+        },
+        onError: (error) => {
+          const existing = getExistingAvaria(error);
+          if (existing) {
+            setAvariaExisting(existing);
+            return;
+          }
+          toast({ title: "Erro ao registrar avaria", variant: "destructive" });
+        },
+      },
+    );
   };
 
   const { data: cities } = useListCities({
@@ -652,6 +728,24 @@ export default function PreSorter() {
             </div>
           </div>
 
+          {/* Passo 6: ação separada da bipagem normal — não altera o status
+              do pacote original, disponível independente de sessão aberta */}
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-red-700 border-red-200 hover:bg-red-50"
+              onClick={() => {
+                setAvariaTracking(scanInput.trim());
+                setAvariaOpen(true);
+              }}
+            >
+              <TriangleAlert className="h-4 w-4 mr-1.5" />
+              Registrar objeto avariado
+            </Button>
+          </div>
+
           <CameraScanner
             open={cameraOpen}
             onClose={() => setCameraOpen(false)}
@@ -690,6 +784,119 @@ export default function PreSorter() {
                   );
                 })()}
               </ScrollArea>
+            </DialogContent>
+          </Dialog>
+
+          {/* Passo 6: registro manual de avaria */}
+          <Dialog
+            open={avariaOpen}
+            onOpenChange={(open) => {
+              setAvariaOpen(open);
+              if (!open) resetAvariaForm();
+            }}
+          >
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Registrar objeto avariado</DialogTitle>
+              </DialogHeader>
+
+              {avariaExisting ? (
+                <div className="space-y-4">
+                  <div className="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-900">
+                    Já existe uma avaria registrada para este código em{" "}
+                    {formatDateTime(avariaExisting.createdAt)}
+                    {avariaExisting.registeredBy ? ` por ${avariaExisting.registeredBy}` : ""}
+                    {" "}(
+                    {AVARIA_CATEGORIES.find((c) => c.value === avariaExisting.category)?.label ??
+                      avariaExisting.category}
+                    ). Registrar mesmo assim?
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="outline" onClick={() => setAvariaExisting(null)}>
+                      Cancelar
+                    </Button>
+                    <Button type="button" onClick={() => submitAvaria(true)} disabled={createAvaria.isPending}>
+                      Registrar mesmo assim
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Código de rastreio</Label>
+                    <Input
+                      value={avariaTracking}
+                      onChange={(e) => setAvariaTracking(e.target.value)}
+                      className="font-mono"
+                      placeholder="Ex: TBR426326094"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Tipo de avaria</Label>
+                    <Select
+                      value={avariaCategory}
+                      onValueChange={(v) => setAvariaCategory(v as AvariaCategory)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {AVARIA_CATEGORIES.map((c) => (
+                          <SelectItem key={c.value} value={c.value}>
+                            {c.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Descrição (opcional)</Label>
+                    <Textarea
+                      value={avariaDescription}
+                      onChange={(e) => setAvariaDescription(e.target.value)}
+                      rows={3}
+                      placeholder="Detalhes do que aconteceu..."
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Foto (opcional)</Label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handleAvariaPhotoChange}
+                      className="text-sm"
+                    />
+                    {avariaPhotoProcessing && (
+                      <p className="text-xs text-muted-foreground">Processando imagem...</p>
+                    )}
+                    {avariaPhoto && (
+                      <img
+                        src={avariaPhoto}
+                        alt="Prévia da avaria"
+                        className="mt-2 max-h-40 rounded-md border"
+                      />
+                    )}
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="outline" onClick={() => setAvariaOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => submitAvaria(false)}
+                      disabled={
+                        !avariaTracking.trim() ||
+                        !avariaCategory ||
+                        createAvaria.isPending ||
+                        avariaPhotoProcessing
+                      }
+                    >
+                      Registrar avaria
+                    </Button>
+                  </div>
+                </div>
+              )}
             </DialogContent>
           </Dialog>
 
