@@ -18,7 +18,14 @@ import { getTodayDateString, formatTime } from "@/lib/date-utils";
 import { useOperation } from "@/contexts/operation-context";
 import { playScanSuccess, playScanError, playScanWarning } from "@/lib/scan-sounds";
 import { ROUTES } from "@/lib/routes-data";
-import { useCurrentScanSession, useOpenScanSession, useCloseScanSession } from "@/hooks/use-scan-session";
+import {
+  useCurrentScanSession,
+  useOpenScanSession,
+  useCloseScanSession,
+  useScanEvents,
+  useLogScanEvent,
+  type ScanEventType,
+} from "@/hooks/use-scan-session";
 import { validateTbrFormat, tbrValidationMessage } from "@/lib/tbr";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -94,6 +101,23 @@ export default function PreSorter() {
   }, [sessionId]);
   const bumpStat = (key: keyof typeof sessionStats) => {
     setSessionStats((prev) => ({ ...prev, total: prev.total + 1, [key]: prev[key] + 1 }));
+  };
+  // Só registra a ocorrência (pra relação consultável) quando a operação usa
+  // sessão — hoje só a AMAZON. Fire-and-forget: nunca trava a bipagem.
+  const logEvent = (trackingNumber: string, eventType: ScanEventType) => {
+    if (!usesSession) return;
+    logScanEvent.mutate({ sessionId, operation, trackingNumber, eventType });
+  };
+
+  // Relação de ocorrências (não só o número) — pedido logo após o Passo 4b.
+  const logScanEvent = useLogScanEvent();
+  const { data: scanEvents } = useScanEvents(sessionId, operation);
+  const [eventsDialogType, setEventsDialogType] = useState<ScanEventType | null>(null);
+  const eventsDialogLabels: Record<ScanEventType, string> = {
+    duplicate: "Pacotes bipados duplicados",
+    not_found: "Pacotes não encontrados",
+    invalid_format: "Códigos fora do padrão",
+    other_error: "Outros erros",
   };
 
   const { data: cities } = useListCities({
@@ -225,6 +249,7 @@ export default function PreSorter() {
       const tbrCheck = validateTbrFormat(code);
       if (!tbrCheck.valid) {
         bumpStat("invalidFormat");
+        logEvent(code, "invalid_format");
         triggerResult({
           status: "error",
           message: tbrValidationMessage(tbrCheck.reason),
@@ -241,6 +266,7 @@ export default function PreSorter() {
           ? `rota ${selectedRoute}`
           : `cidade ${selectedCity}`;
       bumpStat("notFound");
+      logEvent(code, "not_found");
       triggerResult({
         status: "error",
         message: `Pacote não encontrado para ${label}`,
@@ -252,6 +278,7 @@ export default function PreSorter() {
     const alreadyScanned = scans?.find((s: any) => s.trackingNumber === code);
     if (alreadyScanned) {
       bumpStat("duplicate");
+      logEvent(code, "duplicate");
       triggerResult({
         status: "warning",
         message: describeDuplicate(alreadyScanned.scannedBy, alreadyScanned.scannedAt),
@@ -280,6 +307,7 @@ export default function PreSorter() {
           if (error instanceof ApiError && error.status === 409) {
             playScanWarning();
             bumpStat("duplicate");
+            logEvent(code, "duplicate");
             const data = error.data as { scannedBy?: string | null; scannedAt?: string | null } | null;
             triggerResult({
               status: "warning",
@@ -293,6 +321,7 @@ export default function PreSorter() {
           }
           if (error instanceof ApiError && error.status === 404) {
             bumpStat("notFound");
+            logEvent(code, "not_found");
             triggerResult({
               status: "error",
               message: "Rastreio não encontrado na base",
@@ -301,6 +330,7 @@ export default function PreSorter() {
             return;
           }
           bumpStat("otherErrors");
+          logEvent(code, "other_error");
           triggerResult({
             status: "error",
             message: "Erro ao registrar bipagem",
@@ -528,23 +558,39 @@ export default function PreSorter() {
                     <div className="text-xl font-bold tabular-nums text-green-700">{sessionStats.accepted}</div>
                     <div className="text-[11px] text-green-700 leading-tight">Aceito</div>
                   </div>
-                  <div className="rounded-md border border-yellow-200 bg-yellow-50 px-2 py-2 text-center">
+                  <button
+                    type="button"
+                    onClick={() => setEventsDialogType("duplicate")}
+                    className="rounded-md border border-yellow-200 bg-yellow-50 px-2 py-2 text-center hover:bg-yellow-100 transition-colors"
+                  >
                     <div className="text-xl font-bold tabular-nums text-yellow-700">{sessionStats.duplicate}</div>
                     <div className="text-[11px] text-yellow-700 leading-tight">Duplicado</div>
-                  </div>
-                  <div className="rounded-md border border-red-200 bg-red-50 px-2 py-2 text-center">
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEventsDialogType("not_found")}
+                    className="rounded-md border border-red-200 bg-red-50 px-2 py-2 text-center hover:bg-red-100 transition-colors"
+                  >
                     <div className="text-xl font-bold tabular-nums text-red-700">{sessionStats.notFound}</div>
                     <div className="text-[11px] text-red-700 leading-tight">Não encontrado</div>
-                  </div>
-                  <div className="rounded-md border border-red-200 bg-red-50 px-2 py-2 text-center">
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEventsDialogType("invalid_format")}
+                    className="rounded-md border border-red-200 bg-red-50 px-2 py-2 text-center hover:bg-red-100 transition-colors"
+                  >
                     <div className="text-xl font-bold tabular-nums text-red-700">{sessionStats.invalidFormat}</div>
                     <div className="text-[11px] text-red-700 leading-tight">Fora do padrão</div>
-                  </div>
+                  </button>
                   {sessionStats.otherErrors > 0 && (
-                    <div className="rounded-md border border-gray-200 bg-gray-50 px-2 py-2 text-center">
+                    <button
+                      type="button"
+                      onClick={() => setEventsDialogType("other_error")}
+                      className="rounded-md border border-gray-200 bg-gray-50 px-2 py-2 text-center hover:bg-gray-100 transition-colors"
+                    >
                       <div className="text-xl font-bold tabular-nums text-gray-700">{sessionStats.otherErrors}</div>
                       <div className="text-[11px] text-gray-700 leading-tight">Outros erros</div>
-                    </div>
+                    </button>
                   )}
                 </div>
               )}
@@ -593,6 +639,41 @@ export default function PreSorter() {
             onClose={() => setCameraOpen(false)}
             onScan={handleCameraScan}
           />
+
+          {/* Relação de ocorrências da sessão (duplicado / não encontrado /
+              fora do padrão / outros erros) — pedido logo após o Passo 4b */}
+          <Dialog open={eventsDialogType !== null} onOpenChange={(open) => !open && setEventsDialogType(null)}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>{eventsDialogType ? eventsDialogLabels[eventsDialogType] : ""}</DialogTitle>
+              </DialogHeader>
+              <ScrollArea className="h-[350px] pr-4">
+                {(() => {
+                  const filtered = (scanEvents ?? []).filter((e) => e.eventType === eventsDialogType);
+                  if (filtered.length === 0) {
+                    return (
+                      <p className="text-sm text-muted-foreground py-4">
+                        Nada registrado nessa categoria ainda nesta sessão.
+                      </p>
+                    );
+                  }
+                  return (
+                    <div className="space-y-2">
+                      {filtered.map((e) => (
+                        <div key={e.id} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
+                          <span className="font-mono text-sm">{e.trackingNumber}</span>
+                          <span className="text-xs text-muted-foreground text-right">
+                            {formatTime(e.createdAt)}
+                            {e.scannedBy ? ` · ${e.scannedBy}` : ""}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </ScrollArea>
+            </DialogContent>
+          </Dialog>
 
           {/* Feedback visual + sonoro */}
           {scanResult &&

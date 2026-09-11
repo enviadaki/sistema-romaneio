@@ -56,3 +56,55 @@ export function useCloseScanSession() {
     },
   });
 }
+
+// Relação de ocorrências (duplicado / não encontrado / fora do padrão)
+// dentro de uma sessão — pedido logo depois do Passo 4b: os contadores
+// mostram "quantos", isso mostra "quais".
+export type ScanEventType = "duplicate" | "not_found" | "invalid_format" | "other_error";
+
+export interface ScanEvent {
+  id: number;
+  sessionId: number | null;
+  operation: string;
+  trackingNumber: string;
+  eventType: ScanEventType;
+  scannedBy: string | null;
+  createdAt: string;
+}
+
+function scanEventsQueryKey(sessionId: number | null, operation: Operation) {
+  return ["scan-events", sessionId, operation] as const;
+}
+
+export function useScanEvents(sessionId: number | null, operation: Operation) {
+  return useQuery({
+    queryKey: scanEventsQueryKey(sessionId, operation),
+    queryFn: () =>
+      customFetch<ScanEvent[]>(`/api/scan-events?sessionId=${sessionId}&operation=${operation}`),
+    enabled: sessionId !== null,
+  });
+}
+
+export function useLogScanEvent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      sessionId: number | null;
+      operation: Operation;
+      trackingNumber: string;
+      eventType: ScanEventType;
+    }) =>
+      customFetch<ScanEvent>("/api/scan-events", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: (_event, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: scanEventsQueryKey(variables.sessionId, variables.operation),
+      });
+    },
+    // Fire-and-forget: um erro ao registrar a ocorrência nunca deve
+    // interromper a bipagem em si, só fica sem entrar na relação.
+    onError: () => {},
+  });
+}
