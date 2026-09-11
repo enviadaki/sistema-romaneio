@@ -24,6 +24,7 @@ import {
   useCloseScanSession,
   useScanEvents,
   useLogScanEvent,
+  useScanSessionSummary,
   type ScanEventType,
 } from "@/hooks/use-scan-session";
 import { validateTbrFormat, tbrValidationMessage } from "@/lib/tbr";
@@ -97,6 +98,12 @@ export default function PreSorter() {
   const openSession = useOpenScanSession();
   const closeSession = useCloseScanSession();
   const sessionId = usesSession ? currentSession?.id ?? null : null;
+
+  // Passo 8: resumo de encerramento — abre sozinho assim que a sessão é
+  // fechada, calculado no servidor (não no contador ao vivo, que zeraria
+  // se a página tivesse recarregado no meio da sessão).
+  const [summarySessionId, setSummarySessionId] = useState<number | null>(null);
+  const { data: sessionSummary } = useScanSessionSummary(summarySessionId);
 
   // Passo 4b: indicadores em tempo real da sessão aberta. Zera sempre que a
   // sessão muda (abriu uma nova, ou fechou) — os contadores são por sessão,
@@ -616,8 +623,9 @@ export default function PreSorter() {
                       disabled={closeSession.isPending}
                       onClick={() =>
                         closeSession.mutate(currentSession, {
-                          onSuccess: () => {
+                          onSuccess: (closed) => {
                             toast({ title: "Sessão encerrada" });
+                            setSummarySessionId(closed.id);
                           },
                           onError: () => {
                             toast({ title: "Erro ao encerrar sessão", variant: "destructive" });
@@ -909,6 +917,66 @@ export default function PreSorter() {
                     </Button>
                   </div>
                 </div>
+              )}
+            </DialogContent>
+          </Dialog>
+
+          {/* Passo 8: resumo de encerramento de sessão */}
+          <Dialog open={summarySessionId !== null} onOpenChange={(open) => !open && setSummarySessionId(null)}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Resumo da sessão</DialogTitle>
+              </DialogHeader>
+              {sessionSummary ? (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Sessão aberta{sessionSummary.session.openedBy ? ` por ${sessionSummary.session.openedBy}` : ""}
+                    {" "}às {formatTime(sessionSummary.session.openedAt)}
+                    {sessionSummary.session.closedAt && (
+                      <> — encerrada às {formatTime(sessionSummary.session.closedAt)}</>
+                    )}
+                  </p>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Total processado</p>
+                      <p className="text-2xl font-bold">{sessionSummary.totals.total}</p>
+                    </div>
+                    <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                      <p className="text-xs text-green-700">Aceitos</p>
+                      <p className="text-2xl font-bold text-green-700">{sessionSummary.totals.accepted}</p>
+                    </div>
+                    <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
+                      <p className="text-xs text-yellow-700">Duplicados</p>
+                      <p className="text-2xl font-bold text-yellow-700">{sessionSummary.totals.duplicate}</p>
+                    </div>
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                      <p className="text-xs text-red-700">Não encontrados</p>
+                      <p className="text-2xl font-bold text-red-700">{sessionSummary.totals.notFound}</p>
+                    </div>
+                    <div className="rounded-lg border border-orange-200 bg-orange-50 p-3">
+                      <p className="text-xs text-orange-700">Fora do padrão</p>
+                      <p className="text-2xl font-bold text-orange-700">{sessionSummary.totals.invalidFormat}</p>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                      <p className="text-xs text-gray-700">Outros erros</p>
+                      <p className="text-2xl font-bold text-gray-700">{sessionSummary.totals.otherErrors}</p>
+                    </div>
+                    <div className="rounded-lg border p-3 col-span-2">
+                      <p className="text-xs text-muted-foreground">Avarias registradas nesta sessão</p>
+                      <p className="text-2xl font-bold">{sessionSummary.avarias}</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground border-t pt-3">
+                    Pendências da operação {sessionSummary.session.operation} no momento: <strong>{sessionSummary.pendingOperation}</strong> pacote{sessionSummary.pendingOperation !== 1 ? "s" : ""} ainda sem bipagem ou avaria (não é exclusivo desta sessão).
+                  </p>
+                  <div className="flex justify-end">
+                    <Button type="button" onClick={() => setSummarySessionId(null)}>
+                      Fechar
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-center text-muted-foreground py-8">Carregando resumo...</p>
               )}
             </DialogContent>
           </Dialog>

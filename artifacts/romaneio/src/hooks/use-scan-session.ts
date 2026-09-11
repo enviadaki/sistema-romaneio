@@ -57,6 +57,31 @@ export function useCloseScanSession() {
   });
 }
 
+// Passo 8: resumo de encerramento de sessão — calculado no servidor (não a
+// partir do contador ao vivo do navegador, que zera se a página
+// recarregar), então funciona tanto pra sessão aberta quanto já encerrada.
+export interface ScanSessionSummary {
+  session: ScanSession;
+  totals: {
+    total: number;
+    accepted: number;
+    duplicate: number;
+    notFound: number;
+    invalidFormat: number;
+    otherErrors: number;
+  };
+  avarias: number;
+  pendingOperation: number;
+}
+
+export function useScanSessionSummary(sessionId: number | null) {
+  return useQuery({
+    queryKey: ["scan-session-summary", sessionId] as const,
+    queryFn: () => customFetch<ScanSessionSummary>(`/api/scan-sessions/${sessionId}/summary`),
+    enabled: sessionId !== null,
+  });
+}
+
 // Relação de ocorrências (duplicado / não encontrado / fora do padrão)
 // dentro de uma sessão — pedido logo depois do Passo 4b: os contadores
 // mostram "quantos", isso mostra "quais".
