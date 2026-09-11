@@ -18,6 +18,7 @@ import { getTodayDateString, formatTime } from "@/lib/date-utils";
 import { useOperation } from "@/contexts/operation-context";
 import { playScanSuccess, playScanError, playScanWarning } from "@/lib/scan-sounds";
 import { ROUTES } from "@/lib/routes-data";
+import { useCurrentScanSession, useOpenScanSession, useCloseScanSession } from "@/hooks/use-scan-session";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -36,7 +37,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle2, XCircle, AlertCircle, MapPin, Route, Zap, Calendar, Camera } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, MapPin, Route, Zap, Calendar, Camera, PackageOpen, Lock } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { CameraScanner } from "@/components/camera-scanner";
@@ -66,6 +67,16 @@ export default function PreSorter() {
 
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Passo 4a: só a AMAZON usa sessão/lote de bipagem — a LOGGI continua
+  // bipando exatamente como antes, sem sessão nenhuma.
+  const usesSession = operation === "AMAZON";
+  const { data: currentSession, isLoading: sessionLoading } = useCurrentScanSession(operation, {
+    enabled: usesSession,
+  });
+  const openSession = useOpenScanSession();
+  const closeSession = useCloseScanSession();
+  const sessionId = usesSession ? currentSession?.id ?? null : null;
+
   const { data: cities } = useListCities({
     query: {
       queryKey: [...getListCitiesQueryKey(), operation],
@@ -86,6 +97,9 @@ export default function PreSorter() {
   }, [filterMode, routeCities, selectedCity]);
 
   const isReady = filterMode === "cidade" ? !!selectedCity : !!selectedRoute;
+  // Além de escolher rota/cidade, a AMAZON também precisa ter uma sessão
+  // aberta antes de liberar a bipagem (Passo 4a). A LOGGI não usa isso.
+  const canScan = isReady && (!usesSession || !!sessionId);
 
   // Fetch packages for all cities in route (or single city)
   const { data: packages } = useListPackages(
@@ -131,7 +145,13 @@ export default function PreSorter() {
   const handleAutoRegister = () => {
     if (!pendingPackages.length) return;
     bulkCreateScans.mutate(
-      { data: { trackingNumbers: pendingPackages.map((p: any) => p.trackingNumber), operation } },
+      {
+        data: {
+          trackingNumbers: pendingPackages.map((p: any) => p.trackingNumber),
+          operation,
+          sessionId,
+        },
+      },
       {
         onSuccess: (res) => {
           toast({
@@ -150,8 +170,8 @@ export default function PreSorter() {
   };
 
   useEffect(() => {
-    if (isReady && inputRef.current) inputRef.current.focus();
-  }, [isReady, selectedCity, selectedRoute]);
+    if (canScan && inputRef.current) inputRef.current.focus();
+  }, [canScan, selectedCity, selectedRoute]);
 
   // Reset selection when switching modes
   useEffect(() => {
@@ -177,7 +197,7 @@ export default function PreSorter() {
   };
 
   const processCode = (code: string) => {
-    if (!code || !isReady) return;
+    if (!code || !canScan) return;
 
     const expectedPkg = packages?.find((p: any) => p.trackingNumber === code);
     if (!expectedPkg) {
@@ -205,7 +225,7 @@ export default function PreSorter() {
     }
 
     createScan.mutate(
-      { data: { trackingNumber: code, operation } },
+      { data: { trackingNumber: code, operation, sessionId } },
       {
         onSuccess: () => {
           triggerResult({
@@ -391,9 +411,74 @@ export default function PreSorter() {
             )}
           </div>
 
+          {/* Sessão de bipagem (só AMAZON — Passo 4a) */}
+          {usesSession && isReady && (
+            <div
+              className={`flex items-center justify-between gap-3 rounded-lg border-2 px-4 py-3 ${
+                currentSession
+                  ? "border-orange-200 bg-orange-50"
+                  : "border-dashed border-muted-foreground/30 bg-muted/30"
+              }`}
+            >
+              {currentSession ? (
+                <>
+                  <div className="flex items-center gap-2 text-orange-800">
+                    <PackageOpen className="h-5 w-5 flex-shrink-0" />
+                    <span className="text-sm font-medium">
+                      Sessão aberta{currentSession.openedBy ? ` por ${currentSession.openedBy}` : ""}
+                      {" "}às {formatTime(currentSession.openedAt)}
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="border-orange-300 text-orange-800 hover:bg-orange-100"
+                    disabled={closeSession.isPending}
+                    onClick={() =>
+                      closeSession.mutate(currentSession, {
+                        onSuccess: () => {
+                          toast({ title: "Sessão encerrada" });
+                        },
+                        onError: () => {
+                          toast({ title: "Erro ao encerrar sessão", variant: "destructive" });
+                        },
+                      })
+                    }
+                  >
+                    Encerrar sessão
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Lock className="h-5 w-5 flex-shrink-0" />
+                    <span className="text-sm font-medium">
+                      Abra uma sessão para começar a bipar
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={openSession.isPending || sessionLoading}
+                    onClick={() =>
+                      openSession.mutate(operation, {
+                        onError: () => {
+                          toast({ title: "Erro ao abrir sessão", variant: "destructive" });
+                        },
+                      })
+                    }
+                  >
+                    Abrir sessão
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Barcode input */}
           <div
-            className={`transition-opacity duration-300 ${isReady ? "opacity-100" : "opacity-50 pointer-events-none"}`}
+            className={`transition-opacity duration-300 ${canScan ? "opacity-100" : "opacity-50 pointer-events-none"}`}
           >
             <div className="space-y-2">
               <label className="text-sm font-medium">3. Bipar Rastreador</label>
@@ -404,19 +489,21 @@ export default function PreSorter() {
                   onChange={(e) => setScanInput(e.target.value)}
                   onKeyDown={handleScan}
                   placeholder={
-                    isReady
+                    canScan
                       ? "Escaneie o código ou digite e pressione Enter..."
-                      : `Selecione uma ${filterMode === "rota" ? "rota" : "cidade"} primeiro`
+                      : !isReady
+                        ? `Selecione uma ${filterMode === "rota" ? "rota" : "cidade"} primeiro`
+                        : "Abra uma sessão para começar a bipar"
                   }
                   className="text-2xl py-8 font-mono tracking-wider"
-                  disabled={!isReady || createScan.isPending}
+                  disabled={!canScan || createScan.isPending}
                 />
                 <Button
                   type="button"
                   variant="outline"
                   size="icon"
                   className="h-auto px-4 py-8 border-2 border-primary/30 hover:border-primary hover:bg-primary/5"
-                  disabled={!isReady}
+                  disabled={!canScan}
                   onClick={() => setCameraOpen(true)}
                   title="Escanear via câmera"
                 >

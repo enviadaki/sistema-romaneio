@@ -77,6 +77,10 @@ export interface ScanInput {
   trackingNumber: string;
   /** Operation identifier (e.g. LOGGI, AMAZON). Defaults to LOGGI. */
   operation?: string;
+  /** Scan session/lot id (AMAZON operation, Passo 4). Optional.
+   * @nullable
+   */
+  sessionId?: number | null;
 }
 
 export interface RomaneioItem {
@@ -124,6 +128,10 @@ export interface BulkScansInput {
   trackingNumbers: string[];
   /** Operation identifier (e.g. LOGGI, AMAZON). Defaults to LOGGI. */
   operation?: string;
+  /** Scan session/lot id (AMAZON operation, Passo 4). Optional.
+   * @nullable
+   */
+  sessionId?: number | null;
 }
 
 export interface BulkScansResult {

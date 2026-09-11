@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, inArray, gte, lte, sql, SQL } from "drizzle-orm";
-import { db, scansTable, packagesTable } from "@workspace/db";
+import { db, scansTable, packagesTable, scanSessionsTable } from "@workspace/db";
 import {
   CreateScanBody,
   BulkCreateScansBody,
@@ -10,6 +10,28 @@ import {
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireOperationAccess } from "../middlewares/requireOperationAccess";
 import { normalizeTbrCode } from "../modules/amazon/tbr";
+
+// Passo 4a: se vier um sessionId, confere que a sessão existe, está aberta
+// e é da mesma operação do scan — senão a bipagem não fica "perdida" numa
+// sessão errada ou já encerrada. Retorna null quando não há sessionId (uso
+// normal fora de sessão, ou LOGGI).
+async function resolveScanSession(
+  sessionId: number | null | undefined,
+  operation: string,
+): Promise<{ ok: true; sessionId: number | null } | { ok: false; error: string }> {
+  if (sessionId === null || sessionId === undefined) return { ok: true, sessionId: null };
+
+  const [session] = await db
+    .select()
+    .from(scanSessionsTable)
+    .where(eq(scanSessionsTable.id, sessionId));
+
+  if (!session) return { ok: false, error: "Sessão de bipagem não encontrada" };
+  if (session.operation !== operation) return { ok: false, error: "Sessão de bipagem não pertence a esta operação" };
+  if (session.status !== "open") return { ok: false, error: "Sessão de bipagem já encerrada" };
+
+  return { ok: true, sessionId: session.id };
+}
 
 const router: IRouter = Router();
 
@@ -72,6 +94,13 @@ router.post("/scans/bulk", requireAuth, requireOperationAccess, async (req, res)
 
   const bulkOperation = (parsed.data.operation ?? "LOGGI").trim();
 
+  const sessionResolution = await resolveScanSession(parsed.data.sessionId, bulkOperation);
+  if (!sessionResolution.ok) {
+    res.status(400).json({ error: sessionResolution.error });
+    return;
+  }
+  const sessionId = sessionResolution.sessionId;
+
   // Normaliza (maiúsculas, sem espaços) antes de buscar os pacotes — o
   // cadastro da AMAZON já grava o código normalizado.
   const trackingNumbers =
@@ -110,6 +139,7 @@ router.post("/scans/bulk", requireAuth, requireOperationAccess, async (req, res)
         city: pkg.city,
         scanDate: today,
         scannedBy: userFullName,
+        sessionId,
         operation: pkg.operation,
       })
       .onConflictDoNothing()
@@ -130,6 +160,13 @@ router.post("/scans", requireAuth, requireOperationAccess, async (req, res): Pro
   }
 
   const scanOperation = (parsed.data.operation ?? "LOGGI").trim();
+
+  const sessionResolution = await resolveScanSession(parsed.data.sessionId, scanOperation);
+  if (!sessionResolution.ok) {
+    res.status(400).json({ error: sessionResolution.error });
+    return;
+  }
+  const sessionId = sessionResolution.sessionId;
 
   // Normaliza (maiúsculas, sem espaços) antes de buscar — o cadastro da
   // AMAZON já grava o código normalizado.
@@ -160,6 +197,7 @@ router.post("/scans", requireAuth, requireOperationAccess, async (req, res): Pro
       scanDate: today,
       scannedBy: userFullName,
       operation: pkg.operation,
+      sessionId,
     })
     .onConflictDoNothing()
     .returning();

@@ -354,6 +354,10 @@ export const CreateScanBody = zod.object({
     .string()
     .optional()
     .describe("Operation identifier (e.g. LOGGI, AMAZON). Defaults to LOGGI."),
+  sessionId: zod
+    .number()
+    .nullish()
+    .describe("Scan session/lot id (AMAZON operation, Passo 4). Optional."),
 });
 
 /**
@@ -365,6 +369,10 @@ export const BulkCreateScansBody = zod.object({
     .string()
     .optional()
     .describe("Operation identifier (e.g. LOGGI, AMAZON). Defaults to LOGGI."),
+  sessionId: zod
+    .number()
+    .nullish()
+    .describe("Scan session/lot id (AMAZON operation, Passo 4). Optional."),
 });
 
 export const BulkCreateScansResponse = zod.object({
