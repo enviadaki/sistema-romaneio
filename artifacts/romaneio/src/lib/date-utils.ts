@@ -7,6 +7,21 @@ export function formatDate(dateStr: string): string {
   return dateStr;
 }
 
+// Só a hora:minuto — usado para mostrar quando uma bipagem duplicada
+// aconteceu (a data já se sabe que é hoje, não precisa repetir).
+export function formatTime(dateTimeStr: string): string {
+  if (!dateTimeStr) return "";
+  try {
+    const d = new Date(dateTimeStr);
+    return new Intl.DateTimeFormat("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(d);
+  } catch (e) {
+    return dateTimeStr;
+  }
+}
+
 export function formatDateTime(dateTimeStr: string): string {
   if (!dateTimeStr) return "";
   try {

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import QRCode from "react-qr-code";
-import { customFetch, createScan } from "@workspace/api-client-react";
+import { customFetch, createScan, ApiError } from "@workspace/api-client-react";
 import { useOperation } from "@/contexts/operation-context";
-import { getTodayDateString } from "@/lib/date-utils";
+import { getTodayDateString, formatTime } from "@/lib/date-utils";
 import { ROUTES } from "@/lib/routes-data";
 import { useMotoristaAuth } from "@/contexts/motorista-auth-context";
 
@@ -99,7 +99,14 @@ export default function QrAutoplay() {
         await createScan({ trackingNumber });
         setScannedSet((prev) => new Set(prev).add(trackingNumber));
         setScanError(null);
-      } catch {
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 409) {
+          const data = error.data as { scannedBy?: string | null; scannedAt?: string | null } | null;
+          const when = data?.scannedAt ? ` às ${formatTime(data.scannedAt)}` : "";
+          const who = data?.scannedBy ? ` por ${data.scannedBy}` : "";
+          setScanError(`${trackingNumber}: já bipado hoje${when}${who}`);
+          return;
+        }
         setScanError(`Falha ao registrar bipagem: ${trackingNumber}`);
       }
     },

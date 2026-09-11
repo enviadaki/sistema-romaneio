@@ -165,7 +165,24 @@ router.post("/scans", requireAuth, requireOperationAccess, async (req, res): Pro
     .returning();
 
   if (!scan) {
-    res.status(409).json({ error: "Pacote já bipado hoje" });
+    // Duplicidade: busca a bipagem original pra informar quando e por quem
+    // ela aconteceu, em vez de só recusar sem contexto (item 9 do plano —
+    // "mostrar dados suficientes para o operador entender quando ou onde
+    // ocorreu a primeira bipagem").
+    const [original] = await db
+      .select()
+      .from(scansTable)
+      .where(and(
+        eq(scansTable.trackingNumber, pkg.trackingNumber),
+        eq(scansTable.scanDate, today),
+        eq(scansTable.operation, pkg.operation),
+      ))
+      .limit(1);
+    res.status(409).json({
+      error: "Pacote já bipado hoje",
+      scannedBy: original?.scannedBy ?? null,
+      scannedAt: original?.scannedAt.toISOString() ?? null,
+    });
     return;
   }
 

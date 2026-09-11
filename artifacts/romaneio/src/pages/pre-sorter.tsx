@@ -14,7 +14,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { getTodayDateString } from "@/lib/date-utils";
+import { getTodayDateString, formatTime } from "@/lib/date-utils";
 import { useOperation } from "@/contexts/operation-context";
 import { playScanSuccess, playScanError, playScanWarning } from "@/lib/scan-sounds";
 import { ROUTES } from "@/lib/routes-data";
@@ -160,6 +160,15 @@ export default function PreSorter() {
     setScanResult(null);
   }, [filterMode]);
 
+  // "às 14:32 por João Silva" — sufixo usado nas duas mensagens de
+  // duplicidade (a checagem local e a resposta 409 do servidor), pra dizer
+  // ao operador quando e por quem a bipagem original aconteceu.
+  const describeDuplicate = (scannedBy?: string | null, scannedAt?: string | null): string => {
+    const when = scannedAt ? ` às ${formatTime(scannedAt)}` : "";
+    const who = scannedBy ? ` por ${scannedBy}` : "";
+    return `Pacote já bipado hoje${when}${who}`;
+  };
+
   const triggerResult = (result: ScanResult) => {
     setScanResult(result);
     if (result.status === "success") playScanSuccess();
@@ -188,7 +197,7 @@ export default function PreSorter() {
     if (alreadyScanned) {
       triggerResult({
         status: "warning",
-        message: "Pacote já foi bipado hoje",
+        message: describeDuplicate(alreadyScanned.scannedBy, alreadyScanned.scannedAt),
         trackingNumber: code,
         city: expectedPkg.city,
       });
@@ -212,9 +221,10 @@ export default function PreSorter() {
         onError: (error) => {
           if (error instanceof ApiError && error.status === 409) {
             playScanWarning();
+            const data = error.data as { scannedBy?: string | null; scannedAt?: string | null } | null;
             triggerResult({
               status: "warning",
-              message: "Pacote já bipado (outro período)",
+              message: describeDuplicate(data?.scannedBy, data?.scannedAt),
               trackingNumber: code,
               city: expectedPkg.city,
             });
