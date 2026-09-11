@@ -3,6 +3,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { db, avariasTable, avariaCategories, type AvariaCategory } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireOperationAccess } from "../middlewares/requireOperationAccess";
+import { normalizeTbrCode } from "../modules/amazon/tbr";
 
 // Passo 6 do plano da AMAZON: registro manual de avaria — ação separada da
 // bipagem normal, não altera o status do pacote original. Decisões do
@@ -21,7 +22,14 @@ const MAX_PHOTO_BASE64_LENGTH = 2_000_000; // ~1.5MB de imagem original
 
 router.post("/avarias", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
   const operation = (req.body?.operation as string | undefined)?.trim() || "LOGGI";
-  const trackingNumber = (req.body?.trackingNumber as string | undefined)?.trim();
+  // Mesma normalização usada em /scans e /packages para AMAZON (maiúsculas,
+  // sem espaços) — sem isso, um código digitado em caixa diferente da
+  // registrada no cadastro do pacote não bate na comparação exata usada
+  // pelo /stats para tirar o pacote da lista de pendentes.
+  let trackingNumber = (req.body?.trackingNumber as string | undefined)?.trim();
+  if (operation === "AMAZON" && trackingNumber) {
+    trackingNumber = normalizeTbrCode(trackingNumber);
+  }
   const category = req.body?.category;
   const description = (req.body?.description as string | undefined)?.trim() || null;
   const photo = (req.body?.photo as string | undefined) || null;
