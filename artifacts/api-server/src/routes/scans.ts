@@ -8,10 +8,11 @@ import {
   ListScansQueryParams,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
+import { requireOperationAccess } from "../middlewares/requireOperationAccess";
 
 const router: IRouter = Router();
 
-router.get("/scans", requireAuth, async (req, res): Promise<void> => {
+router.get("/scans", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
   const parsed = ListScansQueryParams.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -61,7 +62,7 @@ router.get("/scans", requireAuth, async (req, res): Promise<void> => {
 });
 
 // POST /scans/bulk — must come BEFORE /scans/:id pattern
-router.post("/scans/bulk", requireAuth, async (req, res): Promise<void> => {
+router.post("/scans/bulk", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
   const parsed = BulkCreateScansBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -115,7 +116,7 @@ router.post("/scans/bulk", requireAuth, async (req, res): Promise<void> => {
   res.json({ created, skipped });
 });
 
-router.post("/scans", requireAuth, async (req, res): Promise<void> => {
+router.post("/scans", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
   const parsed = CreateScanBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -168,7 +169,7 @@ router.post("/scans", requireAuth, async (req, res): Promise<void> => {
   });
 });
 
-router.delete("/scans/:id", requireAuth, async (req, res): Promise<void> => {
+router.delete("/scans/:id", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = DeleteScanParams.safeParse({ id: parseInt(raw, 10) });
   if (!params.success) {

@@ -8,11 +8,12 @@ import {
   ListPackagesQueryParams,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
+import { requireOperationAccess, isOperationAllowed } from "../middlewares/requireOperationAccess";
 
 const router: IRouter = Router();
 
 // GET /packages/lookup?trackingNumber=XXX&operation=LOGGI — must come BEFORE /packages/:id
-router.get("/packages/lookup", requireAuth, async (req, res): Promise<void> => {
+router.get("/packages/lookup", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
   const trackingNumber = (req.query.trackingNumber as string | undefined)?.trim();
   if (!trackingNumber) {
     res.status(400).json({ error: "trackingNumber é obrigatório" });
@@ -62,7 +63,7 @@ router.get("/packages/lookup", requireAuth, async (req, res): Promise<void> => {
 });
 
 // DELETE /packages/clear — must come BEFORE /packages/:id
-router.delete("/packages/clear", requireAuth, async (req, res): Promise<void> => {
+router.delete("/packages/clear", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
   const date      = (req.query.date      as string | undefined)?.trim();
   const dateFrom  = (req.query.dateFrom  as string | undefined)?.trim();
   const dateTo    = (req.query.dateTo    as string | undefined)?.trim();
@@ -105,7 +106,7 @@ router.delete("/packages/clear", requireAuth, async (req, res): Promise<void> =>
   res.json({ deleted: deleted.length });
 });
 
-router.get("/packages", requireAuth, async (req, res): Promise<void> => {
+router.get("/packages", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
   const parsed = ListPackagesQueryParams.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -158,7 +159,7 @@ router.get("/packages", requireAuth, async (req, res): Promise<void> => {
   );
 });
 
-router.post("/packages", requireAuth, async (req, res): Promise<void> => {
+router.post("/packages", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
   const parsed = CreatePackageBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -200,14 +201,17 @@ router.post("/packages", requireAuth, async (req, res): Promise<void> => {
   });
 });
 
-router.post("/packages/bulk", requireAuth, async (req, res): Promise<void> => {
+router.post("/packages/bulk", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
   const parsed = BulkCreatePackagesBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
 
-  // Top-level operation override (all packages in the bulk use the same operation)
+  // Top-level operation override (all packages in the bulk use the same operation).
+  // requireOperationAccess above already checked this against the caller's
+  // permission — but each item CAN override it individually (pkg.operation),
+  // so that override is checked per-item below too, not just at the top level.
   const bulkOperation = (req.body?.operation as string | undefined) ?? "LOGGI";
 
   let imported = 0;
@@ -217,6 +221,10 @@ router.post("/packages/bulk", requireAuth, async (req, res): Promise<void> => {
   for (const pkg of parsed.data.packages) {
     try {
       const pkgOperation = pkg.operation ?? bulkOperation;
+      if (!isOperationAllowed(req, pkgOperation)) {
+        errors.push(`${pkg.trackingNumber}: sem permissão para a operação '${pkgOperation}'`);
+        continue;
+      }
       const existing = await db
         .select()
         .from(packagesTable)
@@ -253,20 +261,29 @@ router.delete("/packages/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const [pkg] = await db
-    .delete(packagesTable)
-    .where(eq(packagesTable.id, params.data.id))
-    .returning();
+  // Não há parâmetro de operação nesta rota — busca o pacote primeiro para
+  // saber a qual operação ele pertence antes de decidir se pode apagar.
+  const [existing] = await db
+    .select()
+    .from(packagesTable)
+    .where(eq(packagesTable.id, params.data.id));
 
-  if (!pkg) {
+  if (!existing) {
     res.status(404).json({ error: "Pacote não encontrado" });
     return;
   }
 
+  if (!isOperationAllowed(req, existing.operation)) {
+    res.status(403).json({ error: `Acesso negado para a operação '${existing.operation}'.` });
+    return;
+  }
+
+  await db.delete(packagesTable).where(eq(packagesTable.id, params.data.id));
+
   res.sendStatus(204);
 });
 
-router.get("/cities", requireAuth, async (req, res): Promise<void> => {
+router.get("/cities", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
   const operation = (req.query.operation as string | undefined)?.trim() ?? "LOGGI";
   const rows = await db
     .selectDistinct({ city: packagesTable.city })

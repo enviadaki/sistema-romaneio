@@ -2,10 +2,11 @@ import { Router, type IRouter } from "express";
 import { eq, sql, and, isNull } from "drizzle-orm";
 import { db, packagesTable, scansTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { requireOperationAccess } from "../middlewares/requireOperationAccess";
 
 const router: IRouter = Router();
 
-router.get("/stats", requireAuth, async (req, res): Promise<void> => {
+router.get("/stats", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
   const operation = (req.query.operation as string | undefined)?.trim() ?? "LOGGI";
 

@@ -2,10 +2,11 @@ import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, packagesTable, deliveriesTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { requireOperationAccess, isOperationAllowed } from "../middlewares/requireOperationAccess";
 
 const router: IRouter = Router();
 
-router.get("/deliveries", requireAuth, async (req, res): Promise<void> => {
+router.get("/deliveries", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
   const route = (req.query.route as string | undefined)?.trim();
   const date = (req.query.date as string | undefined)?.trim();
   const operation = (req.query.operation as string | undefined)?.trim() ?? "LOGGI";
@@ -54,6 +55,13 @@ router.post("/deliveries", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  // Esta rota não recebe "operation" no corpo — a operação é a do pacote
+  // encontrado, então a permissão só pode ser checada depois da busca.
+  if (!isOperationAllowed(req, pkg.operation)) {
+    res.status(403).json({ error: `Acesso negado para a operação '${pkg.operation}'.` });
+    return;
+  }
+
   const today = new Date().toISOString().slice(0, 10);
   const deliveredBy = (req as any).auth?.sessionClaims?.email as string | undefined
     ?? (req as any).auth?.userId ?? null;
@@ -97,22 +105,31 @@ router.delete("/deliveries/:id", requireAuth, async (req, res): Promise<void> =>
     return;
   }
 
-  const [deleted] = await db
-    .delete(deliveriesTable)
-    .where(eq(deliveriesTable.id, id))
-    .returning();
+  // Não há parâmetro de operação nesta rota — busca a entrega primeiro para
+  // saber a qual operação ela pertence antes de decidir se pode apagar.
+  const [existing] = await db
+    .select()
+    .from(deliveriesTable)
+    .where(eq(deliveriesTable.id, id));
 
-  if (!deleted) {
+  if (!existing) {
     res.status(404).json({ error: "Confirmação não encontrada" });
     return;
   }
+
+  if (!isOperationAllowed(req, existing.operation)) {
+    res.status(403).json({ error: `Acesso negado para a operação '${existing.operation}'.` });
+    return;
+  }
+
+  await db.delete(deliveriesTable).where(eq(deliveriesTable.id, id));
 
   res.sendStatus(204);
 });
 
 // GET /deliveries/summary?route=XXX&date=YYYY-MM-DD&operation=LOGGI
 // Returns confirmed deliveries for a route+date+operation
-router.get("/deliveries/summary", requireAuth, async (req, res): Promise<void> => {
+router.get("/deliveries/summary", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
   const route = (req.query.route as string | undefined)?.trim();
   const date = (req.query.date as string | undefined)?.trim();
   const operation = (req.query.operation as string | undefined)?.trim() ?? "LOGGI";

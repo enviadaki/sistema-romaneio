@@ -92,6 +92,17 @@ function tryCustomJwt(req: Request): boolean {
     (req as any).userId = `${role}_${payload.id}`;
     (req as any).userFullName = payload.fullName ?? payload.username;
     (req as any).customRole = role;
+    // Operator accounts (username/password login) carry their allowed
+    // operations right in the token — see operator-auth.ts login. This is
+    // read by requireOperationAccess to enforce it on every operation-scoped
+    // route. Motorista tokens and Clerk-authenticated staff are left
+    // unrestricted (req.allowedOperations stays unset), matching how the
+    // frontend already treats them (layout.tsx: "everyone else sees all").
+    if (role === "operator" && Array.isArray(payload.allowedOperations)) {
+      (req as any).allowedOperations = (payload.allowedOperations as unknown[]).filter(
+        (op): op is string => typeof op === "string"
+      );
+    }
     return true;
   } catch (err: any) {
     (req as any).log?.warn?.({ auth: "jwt-error", err: err?.message }, "requireAuth: JWT verify failed");

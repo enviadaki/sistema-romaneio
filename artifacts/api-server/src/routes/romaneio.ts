@@ -2,10 +2,11 @@ import { Router, type IRouter } from "express";
 import { eq, and, inArray, sql, SQL } from "drizzle-orm";
 import { db, scansTable, packagesTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { requireOperationAccess } from "../middlewares/requireOperationAccess";
 
 const router: IRouter = Router();
 
-router.get("/romaneio", requireAuth, async (req, res): Promise<void> => {
+router.get("/romaneio", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
   const date = (req.query.date as string | undefined)?.trim();
   if (!date) {
     res.status(400).json({ error: "date is required" });
