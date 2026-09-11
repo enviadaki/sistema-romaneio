@@ -19,6 +19,7 @@ import { useOperation } from "@/contexts/operation-context";
 import { playScanSuccess, playScanError, playScanWarning } from "@/lib/scan-sounds";
 import { ROUTES } from "@/lib/routes-data";
 import { useCurrentScanSession, useOpenScanSession, useCloseScanSession } from "@/hooks/use-scan-session";
+import { validateTbrFormat, tbrValidationMessage } from "@/lib/tbr";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -76,6 +77,24 @@ export default function PreSorter() {
   const openSession = useOpenScanSession();
   const closeSession = useCloseScanSession();
   const sessionId = usesSession ? currentSession?.id ?? null : null;
+
+  // Passo 4b: indicadores em tempo real da sessão aberta. Zera sempre que a
+  // sessão muda (abriu uma nova, ou fechou) — os contadores são por sessão,
+  // não acumulam entre sessões diferentes.
+  const [sessionStats, setSessionStats] = useState({
+    total: 0,
+    accepted: 0,
+    duplicate: 0,
+    notFound: 0,
+    invalidFormat: 0,
+    otherErrors: 0,
+  });
+  useEffect(() => {
+    setSessionStats({ total: 0, accepted: 0, duplicate: 0, notFound: 0, invalidFormat: 0, otherErrors: 0 });
+  }, [sessionId]);
+  const bumpStat = (key: keyof typeof sessionStats) => {
+    setSessionStats((prev) => ({ ...prev, total: prev.total + 1, [key]: prev[key] + 1 }));
+  };
 
   const { data: cities } = useListCities({
     query: {
@@ -199,12 +218,29 @@ export default function PreSorter() {
   const processCode = (code: string) => {
     if (!code || !canScan) return;
 
+    // Passo 4b: na AMAZON, código fora do padrão TBR nem chega a procurar
+    // pacote — é rejeitado na hora, com indicador próprio (distinto de
+    // "não encontrado").
+    if (usesSession) {
+      const tbrCheck = validateTbrFormat(code);
+      if (!tbrCheck.valid) {
+        bumpStat("invalidFormat");
+        triggerResult({
+          status: "error",
+          message: tbrValidationMessage(tbrCheck.reason),
+          trackingNumber: code,
+        });
+        return;
+      }
+    }
+
     const expectedPkg = packages?.find((p: any) => p.trackingNumber === code);
     if (!expectedPkg) {
       const label =
         filterMode === "rota"
           ? `rota ${selectedRoute}`
           : `cidade ${selectedCity}`;
+      bumpStat("notFound");
       triggerResult({
         status: "error",
         message: `Pacote não encontrado para ${label}`,
@@ -215,6 +251,7 @@ export default function PreSorter() {
 
     const alreadyScanned = scans?.find((s: any) => s.trackingNumber === code);
     if (alreadyScanned) {
+      bumpStat("duplicate");
       triggerResult({
         status: "warning",
         message: describeDuplicate(alreadyScanned.scannedBy, alreadyScanned.scannedAt),
@@ -228,6 +265,7 @@ export default function PreSorter() {
       { data: { trackingNumber: code, operation, sessionId } },
       {
         onSuccess: () => {
+          bumpStat("accepted");
           triggerResult({
             status: "success",
             message: `Scan confirmado`,
@@ -241,6 +279,7 @@ export default function PreSorter() {
         onError: (error) => {
           if (error instanceof ApiError && error.status === 409) {
             playScanWarning();
+            bumpStat("duplicate");
             const data = error.data as { scannedBy?: string | null; scannedAt?: string | null } | null;
             triggerResult({
               status: "warning",
@@ -253,6 +292,7 @@ export default function PreSorter() {
             return;
           }
           if (error instanceof ApiError && error.status === 404) {
+            bumpStat("notFound");
             triggerResult({
               status: "error",
               message: "Rastreio não encontrado na base",
@@ -260,6 +300,7 @@ export default function PreSorter() {
             });
             return;
           }
+          bumpStat("otherErrors");
           triggerResult({
             status: "error",
             message: "Erro ao registrar bipagem",
@@ -413,65 +454,99 @@ export default function PreSorter() {
 
           {/* Sessão de bipagem (só AMAZON — Passo 4a) */}
           {usesSession && isReady && (
-            <div
-              className={`flex items-center justify-between gap-3 rounded-lg border-2 px-4 py-3 ${
-                currentSession
-                  ? "border-orange-200 bg-orange-50"
-                  : "border-dashed border-muted-foreground/30 bg-muted/30"
-              }`}
-            >
-              {currentSession ? (
-                <>
-                  <div className="flex items-center gap-2 text-orange-800">
-                    <PackageOpen className="h-5 w-5 flex-shrink-0" />
-                    <span className="text-sm font-medium">
-                      Sessão aberta{currentSession.openedBy ? ` por ${currentSession.openedBy}` : ""}
-                      {" "}às {formatTime(currentSession.openedAt)}
-                    </span>
+            <div className="space-y-2">
+              <div
+                className={`flex items-center justify-between gap-3 rounded-lg border-2 px-4 py-3 ${
+                  currentSession
+                    ? "border-orange-200 bg-orange-50"
+                    : "border-dashed border-muted-foreground/30 bg-muted/30"
+                }`}
+              >
+                {currentSession ? (
+                  <>
+                    <div className="flex items-center gap-2 text-orange-800">
+                      <PackageOpen className="h-5 w-5 flex-shrink-0" />
+                      <span className="text-sm font-medium">
+                        Sessão aberta{currentSession.openedBy ? ` por ${currentSession.openedBy}` : ""}
+                        {" "}às {formatTime(currentSession.openedAt)}
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="border-orange-300 text-orange-800 hover:bg-orange-100"
+                      disabled={closeSession.isPending}
+                      onClick={() =>
+                        closeSession.mutate(currentSession, {
+                          onSuccess: () => {
+                            toast({ title: "Sessão encerrada" });
+                          },
+                          onError: () => {
+                            toast({ title: "Erro ao encerrar sessão", variant: "destructive" });
+                          },
+                        })
+                      }
+                    >
+                      Encerrar sessão
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Lock className="h-5 w-5 flex-shrink-0" />
+                      <span className="text-sm font-medium">
+                        Abra uma sessão para começar a bipar
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={openSession.isPending || sessionLoading}
+                      onClick={() =>
+                        openSession.mutate(operation, {
+                          onError: () => {
+                            toast({ title: "Erro ao abrir sessão", variant: "destructive" });
+                          },
+                        })
+                      }
+                    >
+                      Abrir sessão
+                    </Button>
+                  </>
+                )}
+              </div>
+
+              {/* Passo 4b: indicadores em tempo real da sessão aberta */}
+              {currentSession && (
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                  <div className="rounded-md border bg-card px-2 py-2 text-center">
+                    <div className="text-xl font-bold tabular-nums">{sessionStats.total}</div>
+                    <div className="text-[11px] text-muted-foreground leading-tight">Total</div>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="border-orange-300 text-orange-800 hover:bg-orange-100"
-                    disabled={closeSession.isPending}
-                    onClick={() =>
-                      closeSession.mutate(currentSession, {
-                        onSuccess: () => {
-                          toast({ title: "Sessão encerrada" });
-                        },
-                        onError: () => {
-                          toast({ title: "Erro ao encerrar sessão", variant: "destructive" });
-                        },
-                      })
-                    }
-                  >
-                    Encerrar sessão
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Lock className="h-5 w-5 flex-shrink-0" />
-                    <span className="text-sm font-medium">
-                      Abra uma sessão para começar a bipar
-                    </span>
+                  <div className="rounded-md border border-green-200 bg-green-50 px-2 py-2 text-center">
+                    <div className="text-xl font-bold tabular-nums text-green-700">{sessionStats.accepted}</div>
+                    <div className="text-[11px] text-green-700 leading-tight">Aceito</div>
                   </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={openSession.isPending || sessionLoading}
-                    onClick={() =>
-                      openSession.mutate(operation, {
-                        onError: () => {
-                          toast({ title: "Erro ao abrir sessão", variant: "destructive" });
-                        },
-                      })
-                    }
-                  >
-                    Abrir sessão
-                  </Button>
-                </>
+                  <div className="rounded-md border border-yellow-200 bg-yellow-50 px-2 py-2 text-center">
+                    <div className="text-xl font-bold tabular-nums text-yellow-700">{sessionStats.duplicate}</div>
+                    <div className="text-[11px] text-yellow-700 leading-tight">Duplicado</div>
+                  </div>
+                  <div className="rounded-md border border-red-200 bg-red-50 px-2 py-2 text-center">
+                    <div className="text-xl font-bold tabular-nums text-red-700">{sessionStats.notFound}</div>
+                    <div className="text-[11px] text-red-700 leading-tight">Não encontrado</div>
+                  </div>
+                  <div className="rounded-md border border-red-200 bg-red-50 px-2 py-2 text-center">
+                    <div className="text-xl font-bold tabular-nums text-red-700">{sessionStats.invalidFormat}</div>
+                    <div className="text-[11px] text-red-700 leading-tight">Fora do padrão</div>
+                  </div>
+                  {sessionStats.otherErrors > 0 && (
+                    <div className="rounded-md border border-gray-200 bg-gray-50 px-2 py-2 text-center">
+                      <div className="text-xl font-bold tabular-nums text-gray-700">{sessionStats.otherErrors}</div>
+                      <div className="text-[11px] text-gray-700 leading-tight">Outros erros</div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           )}
