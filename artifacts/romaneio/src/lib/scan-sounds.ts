@@ -99,3 +99,13 @@ export async function playScanWarning() {
   playTone(520, t,        0.15, 8.0, "square", ac);
   playTone(520, t + 0.20, 0.15, 8.0, "square", ac);
 }
+
+/** Passo 5: bipe curto único e grave — distinto do erro (que é descendente e
+ * mais longo) — código fora do padrão TBR, pra não confundir com "não
+ * encontrado". */
+export async function playScanInvalid() {
+  navigator.vibrate?.([120]);
+  const ac = await getCtx();
+  const t = ac.currentTime;
+  playTone(220, t, 0.22, 8.0, "square", ac);
+}

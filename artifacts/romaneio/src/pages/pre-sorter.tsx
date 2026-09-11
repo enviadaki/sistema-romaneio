@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, type ReactNode } from "react";
 import {
   useListCities,
   getListCitiesQueryKey,
@@ -16,7 +16,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { getTodayDateString, formatTime } from "@/lib/date-utils";
 import { useOperation } from "@/contexts/operation-context";
-import { playScanSuccess, playScanError, playScanWarning } from "@/lib/scan-sounds";
+import { playScanSuccess, playScanError, playScanWarning, playScanInvalid } from "@/lib/scan-sounds";
 import { ROUTES } from "@/lib/routes-data";
 import {
   useCurrentScanSession,
@@ -45,13 +45,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle2, XCircle, AlertCircle, MapPin, Route, Zap, Calendar, Camera, PackageOpen, Lock } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, MapPin, Route, Zap, Calendar, Camera, PackageOpen, Lock, Ban, WifiOff } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { CameraScanner } from "@/components/camera-scanner";
 
 type FilterMode = "cidade" | "rota";
-type ScanStatus = "success" | "error" | "warning";
+// Passo 5: cada tipo de resultado tem cor/ícone/som próprio, pra nunca
+// confundir um erro com outro (ex: "fora do padrão" não é a mesma coisa que
+// "não encontrado", mesmo os dois sendo erros).
+type ScanStatus = "success" | "duplicate" | "not_found" | "invalid_format" | "other_error";
 
 interface ScanResult {
   status: ScanStatus;
@@ -235,7 +238,8 @@ export default function PreSorter() {
   const triggerResult = (result: ScanResult) => {
     setScanResult(result);
     if (result.status === "success") playScanSuccess();
-    else if (result.status === "warning") playScanWarning();
+    else if (result.status === "duplicate") playScanWarning();
+    else if (result.status === "invalid_format") playScanInvalid();
     else playScanError();
   };
 
@@ -251,7 +255,7 @@ export default function PreSorter() {
         bumpStat("invalidFormat");
         logEvent(code, "invalid_format");
         triggerResult({
-          status: "error",
+          status: "invalid_format",
           message: tbrValidationMessage(tbrCheck.reason),
           trackingNumber: code,
         });
@@ -268,7 +272,7 @@ export default function PreSorter() {
       bumpStat("notFound");
       logEvent(code, "not_found");
       triggerResult({
-        status: "error",
+        status: "not_found",
         message: `Pacote não encontrado para ${label}`,
         trackingNumber: code,
       });
@@ -280,7 +284,7 @@ export default function PreSorter() {
       bumpStat("duplicate");
       logEvent(code, "duplicate");
       triggerResult({
-        status: "warning",
+        status: "duplicate",
         message: describeDuplicate(alreadyScanned.scannedBy, alreadyScanned.scannedAt),
         trackingNumber: code,
         city: expectedPkg.city,
@@ -305,12 +309,11 @@ export default function PreSorter() {
         },
         onError: (error) => {
           if (error instanceof ApiError && error.status === 409) {
-            playScanWarning();
             bumpStat("duplicate");
             logEvent(code, "duplicate");
             const data = error.data as { scannedBy?: string | null; scannedAt?: string | null } | null;
             triggerResult({
-              status: "warning",
+              status: "duplicate",
               message: describeDuplicate(data?.scannedBy, data?.scannedAt),
               trackingNumber: code,
               city: expectedPkg.city,
@@ -323,7 +326,7 @@ export default function PreSorter() {
             bumpStat("notFound");
             logEvent(code, "not_found");
             triggerResult({
-              status: "error",
+              status: "not_found",
               message: "Rastreio não encontrado na base",
               trackingNumber: code,
             });
@@ -332,7 +335,7 @@ export default function PreSorter() {
           bumpStat("otherErrors");
           logEvent(code, "other_error");
           triggerResult({
-            status: "error",
+            status: "other_error",
             message: "Erro ao registrar bipagem",
             trackingNumber: code,
           });
@@ -353,24 +356,39 @@ export default function PreSorter() {
     processCode(code);
   };
 
-  const statusConfig = {
+  // Passo 5: cada categoria tem cor/ícone/rótulo próprio — nunca dá pra
+  // confundir um "fora do padrão" (laranja) com um "não encontrado"
+  // (vermelho), embora os dois sejam erros.
+  const statusConfig: Record<ScanStatus, { bg: string; icon: ReactNode; label: string; labelColor: string }> = {
     success: {
       bg: "bg-green-50 border-green-200 text-green-900",
       icon: <CheckCircle2 className="h-7 w-7 text-green-500 flex-shrink-0" />,
       label: "CONFIRMADO",
       labelColor: "text-green-600",
     },
-    error: {
-      bg: "bg-red-50 border-red-200 text-red-900",
-      icon: <XCircle className="h-7 w-7 text-red-500 flex-shrink-0" />,
-      label: "ERRO",
-      labelColor: "text-red-600",
-    },
-    warning: {
+    duplicate: {
       bg: "bg-yellow-50 border-yellow-200 text-yellow-900",
       icon: <AlertCircle className="h-7 w-7 text-yellow-500 flex-shrink-0" />,
-      label: "ATENÇÃO",
+      label: "DUPLICADO",
       labelColor: "text-yellow-600",
+    },
+    not_found: {
+      bg: "bg-red-50 border-red-200 text-red-900",
+      icon: <XCircle className="h-7 w-7 text-red-500 flex-shrink-0" />,
+      label: "NÃO ENCONTRADO",
+      labelColor: "text-red-600",
+    },
+    invalid_format: {
+      bg: "bg-orange-50 border-orange-200 text-orange-900",
+      icon: <Ban className="h-7 w-7 text-orange-500 flex-shrink-0" />,
+      label: "FORA DO PADRÃO",
+      labelColor: "text-orange-600",
+    },
+    other_error: {
+      bg: "bg-gray-100 border-gray-300 text-gray-900",
+      icon: <WifiOff className="h-7 w-7 text-gray-500 flex-shrink-0" />,
+      label: "ERRO",
+      labelColor: "text-gray-600",
     },
   };
 
