@@ -19,6 +19,7 @@ const VALID_PAGES = [
   "consulta",
   "entrega",
   "historico",
+  "avarias",
   "devolucoes",
   "romaneio",
   "romaneio-motorista",

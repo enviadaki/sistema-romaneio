@@ -12,6 +12,7 @@ export const OPERATOR_PAGES: PageDef[] = [
   { key: "consulta",           label: "Consulta",            href: "/consulta",           group: "Operação" },
   { key: "entrega",            label: "Checagem de Entrega", href: "/entrega",            group: "Operação" },
   { key: "historico",          label: "Histórico",           href: "/historico",          group: "Operação" },
+  { key: "avarias",            label: "Avarias",             href: "/avarias",            group: "Operação" },
   { key: "devolucoes",         label: "Devoluções",          href: "/devolucoes",         group: "Operação" },
   { key: "romaneio",           label: "Romaneio",            href: "/romaneio",           group: "Relatórios" },
   { key: "romaneio-motorista", label: "Romaneio Motorista",  href: "/romaneio-motorista", group: "Relatórios" },

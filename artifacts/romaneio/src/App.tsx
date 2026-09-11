@@ -16,6 +16,7 @@ import Dashboard from "@/pages/dashboard";
 import Cadastro from "@/pages/cadastro";
 import PreSorter from "@/pages/pre-sorter";
 import Historico from "@/pages/historico";
+import Avarias from "@/pages/avarias";
 import Romaneio from "@/pages/romaneio";
 import Consulta from "@/pages/consulta";
 import Entrega from "@/pages/entrega";
@@ -289,6 +290,7 @@ function ProtectedApp() {
           <Route path="/consulta" component={Consulta} />
           <Route path="/entrega" component={Entrega} />
           <Route path="/historico" component={Historico} />
+          <Route path="/avarias" component={Avarias} />
           <Route path="/romaneio" component={Romaneio} />
           <Route path="/romaneio-motorista" component={RomaneioMotorista} />
           <Route path="/financeiro" component={Financeiro} />

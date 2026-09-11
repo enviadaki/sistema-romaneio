@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, ilike, sql, type SQL } from "drizzle-orm";
 import { db, avariasTable, avariaCategories, type AvariaCategory } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireOperationAccess } from "../middlewares/requireOperationAccess";
@@ -103,22 +103,54 @@ router.post("/avarias", requireAuth, requireOperationAccess, async (req, res): P
   });
 });
 
-// GET /avarias?operation=Y — lista enxuta (sem foto/descrição) usada pra
-// tirar da "Faltantes (Esperados)" do Pré-Sorter qualquer código que já
-// tenha avaria registrada — essa lista é calculada no cliente comparando
-// pacotes x bipagens de hoje, então precisa também saber quais têm avaria.
+// GET /avarias?operation=Y[&trackingNumber=&registeredBy=&sessionId=&status=&dateFrom=&dateTo=]
+// Lista enxuta (sem foto/descrição) — usada em dois lugares:
+// 1) Pré-Sorter, sem filtros extras, só pra tirar da "Faltantes
+//    (Esperados)" qualquer código que já tenha avaria registrada;
+// 2) Passo 7 (histórico/consulta de avarias), com os filtros combinados
+//    (período, código, usuário, sessão, situação) — mesmos nomes de
+//    parâmetro que /historico já usa pra scans, pra manter familiaridade.
 router.get("/avarias", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
   const operation = (req.query.operation as string | undefined)?.trim() || "LOGGI";
+  const trackingNumber = (req.query.trackingNumber as string | undefined)?.trim();
+  const registeredBy = (req.query.registeredBy as string | undefined)?.trim();
+  const status = (req.query.status as string | undefined)?.trim();
+  const dateFrom = (req.query.dateFrom as string | undefined)?.trim();
+  const dateTo = (req.query.dateTo as string | undefined)?.trim();
+  const sessionIdRaw = req.query.sessionId as string | undefined;
+  const sessionId = sessionIdRaw ? parseInt(sessionIdRaw, 10) : NaN;
+
+  const conditions: SQL[] = [eq(avariasTable.operation, operation)];
+  if (trackingNumber) conditions.push(ilike(avariasTable.trackingNumber, `%${trackingNumber}%`));
+  if (registeredBy) conditions.push(eq(avariasTable.registeredBy, registeredBy));
+  if (status) conditions.push(eq(avariasTable.status, status));
+  if (!Number.isNaN(sessionId)) conditions.push(eq(avariasTable.sessionId, sessionId));
+  // Período comparado pelo dia local (America/Sao_Paulo), igual ao resto
+  // do sistema (ex: scanDate em /scans), já que createdAt é timestamptz.
+  if (dateFrom) {
+    conditions.push(
+      sql`(${avariasTable.createdAt} AT TIME ZONE 'America/Sao_Paulo')::date >= ${dateFrom}::date`,
+    );
+  }
+  if (dateTo) {
+    conditions.push(
+      sql`(${avariasTable.createdAt} AT TIME ZONE 'America/Sao_Paulo')::date <= ${dateTo}::date`,
+    );
+  }
 
   const rows = await db
     .select({
       id: avariasTable.id,
       trackingNumber: avariasTable.trackingNumber,
       category: avariasTable.category,
+      sessionId: avariasTable.sessionId,
+      status: avariasTable.status,
+      registeredBy: avariasTable.registeredBy,
+      hasPhoto: sql<boolean>`(${avariasTable.photo} is not null)`,
       createdAt: avariasTable.createdAt,
     })
     .from(avariasTable)
-    .where(eq(avariasTable.operation, operation))
+    .where(and(...conditions))
     .orderBy(desc(avariasTable.createdAt));
 
   res.json(
@@ -126,9 +158,48 @@ router.get("/avarias", requireAuth, requireOperationAccess, async (req, res): Pr
       id: r.id,
       trackingNumber: r.trackingNumber,
       category: r.category,
+      sessionId: r.sessionId,
+      status: r.status,
+      registeredBy: r.registeredBy,
+      hasPhoto: r.hasPhoto,
       createdAt: r.createdAt.toISOString(),
     })),
   );
+});
+
+// GET /avarias/:id?operation=Y — detalhe completo de uma avaria (com foto e
+// descrição), usado no dialog de detalhe do histórico. Não vem na lista
+// pra não pesar o payload com fotos em base64.
+router.get("/avarias/:id", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
+  const operation = (req.query.operation as string | undefined)?.trim() || "LOGGI";
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) {
+    res.status(400).json({ error: "id inválido" });
+    return;
+  }
+
+  const [row] = await db
+    .select()
+    .from(avariasTable)
+    .where(and(eq(avariasTable.id, id), eq(avariasTable.operation, operation)));
+
+  if (!row) {
+    res.status(404).json({ error: "Avaria não encontrada" });
+    return;
+  }
+
+  res.json({
+    id: row.id,
+    trackingNumber: row.trackingNumber,
+    operation: row.operation,
+    sessionId: row.sessionId,
+    category: row.category,
+    description: row.description,
+    photo: row.photo,
+    status: row.status,
+    registeredBy: row.registeredBy,
+    createdAt: row.createdAt.toISOString(),
+  });
 });
 
 export default router;
