@@ -103,4 +103,32 @@ router.post("/avarias", requireAuth, requireOperationAccess, async (req, res): P
   });
 });
 
+// GET /avarias?operation=Y — lista enxuta (sem foto/descrição) usada pra
+// tirar da "Faltantes (Esperados)" do Pré-Sorter qualquer código que já
+// tenha avaria registrada — essa lista é calculada no cliente comparando
+// pacotes x bipagens de hoje, então precisa também saber quais têm avaria.
+router.get("/avarias", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
+  const operation = (req.query.operation as string | undefined)?.trim() || "LOGGI";
+
+  const rows = await db
+    .select({
+      id: avariasTable.id,
+      trackingNumber: avariasTable.trackingNumber,
+      category: avariasTable.category,
+      createdAt: avariasTable.createdAt,
+    })
+    .from(avariasTable)
+    .where(eq(avariasTable.operation, operation))
+    .orderBy(desc(avariasTable.createdAt));
+
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      trackingNumber: r.trackingNumber,
+      category: r.category,
+      createdAt: r.createdAt.toISOString(),
+    })),
+  );
+});
+
 export default router;

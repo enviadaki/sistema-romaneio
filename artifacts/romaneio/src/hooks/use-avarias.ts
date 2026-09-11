@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customFetch, ApiError } from "@workspace/api-client-react";
 import type { Operation } from "@/contexts/operation-context";
 
@@ -43,13 +43,42 @@ export interface AvariaExisting {
   registeredBy: string | null;
 }
 
+export function avariaTrackingNumbersQueryKey(operation: Operation) {
+  return ["avarias", operation] as const;
+}
+
+export interface AvariaListItem {
+  id: number;
+  trackingNumber: string;
+  category: string;
+  createdAt: string;
+}
+
+// Lista enxuta de avarias da operação — usada pra tirar da "Faltantes
+// (Esperados)" do Pré-Sorter qualquer código que já tenha avaria
+// registrada (essa lista é montada no cliente comparando pacotes x
+// bipagens de hoje, então precisa saber também quais têm avaria).
+export function useAvariaTrackingNumbers(operation: Operation, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: avariaTrackingNumbersQueryKey(operation),
+    queryFn: () => customFetch<AvariaListItem[]>(`/api/avarias?operation=${operation}`),
+    enabled: options?.enabled ?? true,
+  });
+}
+
 export function useCreateAvaria() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: AvariaInput) =>
       customFetch<AvariaCreated>("/api/avarias", {
         method: "POST",
         body: JSON.stringify(input),
       }),
+    onSuccess: (_created, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: avariaTrackingNumbersQueryKey(variables.operation),
+      });
+    },
   });
 }
 

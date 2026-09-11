@@ -29,6 +29,7 @@ import {
 import { validateTbrFormat, tbrValidationMessage } from "@/lib/tbr";
 import {
   useCreateAvaria,
+  useAvariaTrackingNumbers,
   getExistingAvaria,
   AVARIA_CATEGORIES,
   type AvariaCategory,
@@ -135,6 +136,10 @@ export default function PreSorter() {
   // Passo 6: registro manual de avaria — ação separada da bipagem normal,
   // disponível pra LOGGI e AMAZON, com ou sem sessão aberta.
   const createAvaria = useCreateAvaria();
+  // Usado pra tirar da "Faltantes (Esperados)" qualquer código que já
+  // tenha avaria registrada — um pacote avariado já foi tratado pelo
+  // operador, não devia continuar cobrando bipagem normal dele.
+  const { data: avariasList } = useAvariaTrackingNumbers(operation);
   const [avariaOpen, setAvariaOpen] = useState(false);
   const [avariaTracking, setAvariaTracking] = useState("");
   const [avariaCategory, setAvariaCategory] = useState<AvariaCategory | "">("");
@@ -186,6 +191,9 @@ export default function PreSorter() {
           toast({ title: "Avaria registrada" });
           setAvariaOpen(false);
           resetAvariaForm();
+          // Reflete na hora tanto na lista "Faltantes" desta tela quanto
+          // no card "Faltam Bipar" do dashboard.
+          queryClient.invalidateQueries({ queryKey: getGetStatsQueryKey() });
         },
         onError: (error) => {
           const existing = getExistingAvaria(error);
@@ -482,8 +490,13 @@ export default function PreSorter() {
   const pendingPackages = useMemo(() => {
     if (!packages) return [];
     const scannedSet = new Set((scans as any[] | undefined)?.map((s: any) => s.trackingNumber) ?? []);
-    return (packages as any[]).filter((p: any) => !scannedSet.has(p.trackingNumber));
-  }, [packages, scans]);
+    // Um código com avaria registrada já foi tratado pelo operador — sai
+    // da lista de faltantes mesmo sem ter sido bipado normalmente.
+    const avariaSet = new Set((avariasList ?? []).map((a) => a.trackingNumber));
+    return (packages as any[]).filter(
+      (p: any) => !scannedSet.has(p.trackingNumber) && !avariaSet.has(p.trackingNumber),
+    );
+  }, [packages, scans, avariasList]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
