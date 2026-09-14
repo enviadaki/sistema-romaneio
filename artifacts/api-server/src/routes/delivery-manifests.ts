@@ -2,8 +2,24 @@ import { Router, type IRouter } from "express";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { db, deliveryManifestsTable, deliveryManifestItemsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
+import { isOperationAllowed } from "../middlewares/requireOperationAccess";
 
 const router: IRouter = Router();
+
+// Passo 9 do plano da AMAZON: essa tela (Romaneio Motorista / fechamento)
+// nunca teve checagem de permissão por operação, diferente do resto do
+// sistema desde o Passo 0. O campo "empresa" do item aqui NÃO é a mesma
+// coisa que a "operação" (LOGGI/AMAZON) usada no resto do sistema — são 4
+// transportadoras possíveis (LOGGI, AMAZON, SHOPEE, IMILE), já que um
+// motorista pode carregar volume de transportadoras que este sistema nem
+// rastreia. Por isso a checagem de permissão só vale pra quando a
+// "empresa" é de fato uma operação restrita (LOGGI/AMAZON) — SHOPEE e
+// IMILE continuam livres pra qualquer operador, igual sempre foi.
+const RESTRICTED_OPERATIONS = ["LOGGI", "AMAZON"];
+
+function isRestrictedOperation(empresa: string): boolean {
+  return RESTRICTED_OPERATIONS.includes(empresa);
+}
 
 async function getNextNumero(): Promise<number> {
   const [last] = await db
@@ -70,7 +86,14 @@ router.get("/delivery-manifests/preview", requireAuth, async (req, res): Promise
     ORDER BY s.city, s.operation
   `);
 
-  res.json(result.rows);
+  // Não deixa um operador sem acesso a uma operação enxergar, nem por
+  // aqui, quantos volumes existem dela — mesma checagem que já vale pra
+  // pacotes/bipagem/entrega desde o Passo 0.
+  const rows = (result.rows as Array<{ empresa: string }>).filter(
+    (row) => !isRestrictedOperation(row.empresa) || isOperationAllowed(req, row.empresa),
+  );
+
+  res.json(rows);
 });
 
 // GET /delivery-manifests
@@ -142,6 +165,18 @@ router.post("/delivery-manifests", requireAuth, async (req, res): Promise<void> 
   if (!motorista || !conferente || !rota) {
     res.status(400).json({ error: "motorista, conferente e rota são obrigatórios" });
     return;
+  }
+
+  // Confere a permissão antes de criar qualquer coisa — não deixa um
+  // operador registrar volume de uma operação (LOGGI/AMAZON) que ele não
+  // tem acesso, mesmo que só como item de romaneio motorista.
+  if (Array.isArray(items)) {
+    for (const item of items) {
+      if (item?.empresa && isRestrictedOperation(item.empresa) && !isOperationAllowed(req, item.empresa)) {
+        res.status(403).json({ error: `Acesso negado para a operação '${item.empresa}'.` });
+        return;
+      }
+    }
   }
 
   const numero = await getNextNumero();
