@@ -4,6 +4,7 @@ import { db, operatorUsersTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { logAuditEvent } from "../modules/audit/log";
 
 const router = Router();
 
@@ -24,6 +25,7 @@ const VALID_PAGES = [
   "romaneio",
   "romaneio-motorista",
   "financeiro",
+  "auditoria",
 ];
 
 function sanitizePermissions(allowedOperations: unknown, allowedPages: unknown) {
@@ -105,6 +107,14 @@ router.post("/operator/login", async (req, res): Promise<void> => {
       secret,
       { expiresIn: "24h" }
     );
+
+    logAuditEvent({
+      eventType: "operator_login",
+      recordId: user.id,
+      performedBy: user.fullName,
+      details: user.username,
+    });
+
     res.json({
       token,
       username: user.username,

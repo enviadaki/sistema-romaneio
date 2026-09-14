@@ -17,6 +17,7 @@ export const OPERATOR_PAGES: PageDef[] = [
   { key: "romaneio",           label: "Romaneio",            href: "/romaneio",           group: "Relatórios" },
   { key: "romaneio-motorista", label: "Romaneio Motorista",  href: "/romaneio-motorista", group: "Relatórios" },
   { key: "financeiro",         label: "Financeiro",          href: "/financeiro",         group: "Relatórios" },
+  { key: "auditoria",          label: "Auditoria",           href: "/auditoria",          group: "Relatórios" },
 ];
 
 /** Returns true if the operator is allowed to see this href.

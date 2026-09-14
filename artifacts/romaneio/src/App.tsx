@@ -26,6 +26,7 @@ import MotoristaUsuarios from "@/pages/motorista-usuarios";
 import Motoristas from "@/pages/motoristas";
 import Admin from "@/pages/admin";
 import Devolucoes from "@/pages/devolucoes";
+import Auditoria from "@/pages/auditoria";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -299,6 +300,7 @@ function ProtectedApp() {
           <Route path="/motoristas" component={Motoristas} />
           <Route path="/admin" component={Admin} />
           <Route path="/devolucoes" component={Devolucoes} />
+          <Route path="/auditoria" component={Auditoria} />
           <Route component={NotFound} />
         </Switch>
       </Layout>

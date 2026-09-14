@@ -4,6 +4,7 @@ import { db, avariasTable, avariaCategories, type AvariaCategory } from "@worksp
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireOperationAccess } from "../middlewares/requireOperationAccess";
 import { normalizeTbrCode } from "../modules/amazon/tbr";
+import { logAuditEvent } from "../modules/audit/log";
 
 // Passo 6 do plano da AMAZON: registro manual de avaria — ação separada da
 // bipagem normal, não altera o status do pacote original. Decisões do
@@ -89,6 +90,16 @@ router.post("/avarias", requireAuth, requireOperationAccess, async (req, res): P
       registeredBy: userFullName,
     })
     .returning();
+
+  logAuditEvent({
+    eventType: "avaria_registrada",
+    operation: created.operation,
+    trackingNumber: created.trackingNumber,
+    sessionId: created.sessionId ?? null,
+    recordId: created.id,
+    performedBy: userFullName,
+    details: created.category,
+  });
 
   res.status(201).json({
     id: created.id,

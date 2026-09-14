@@ -10,6 +10,7 @@ import {
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireOperationAccess, isOperationAllowed } from "../middlewares/requireOperationAccess";
+import { logAuditEvent } from "../modules/audit/log";
 
 // Passo 4a do plano da AMAZON: abrir/fechar sessão de bipagem (lote). Sem
 // indicadores em tempo real ainda (isso é o Passo 4b) — aqui é só o
@@ -55,6 +56,13 @@ router.post("/scan-sessions", requireAuth, requireOperationAccess, async (req, r
     .values({ operation, status: "open", openedBy: userFullName })
     .returning();
 
+  logAuditEvent({
+    eventType: "session_opened",
+    operation: created.operation,
+    sessionId: created.id,
+    performedBy: userFullName,
+  });
+
   res.status(201).json(created);
 });
 
@@ -75,6 +83,13 @@ router.patch("/scan-sessions/:id/close", requireAuth, async (req, res): Promise<
   }
 
   if (!isOperationAllowed(req, session.operation)) {
+    logAuditEvent({
+      eventType: "access_denied",
+      operation: session.operation,
+      sessionId: session.id,
+      performedBy: (req as any).userFullName ?? null,
+      details: `PATCH /scan-sessions/${id}/close`,
+    });
     res.status(403).json({ error: `Acesso negado para a operação '${session.operation}'.` });
     return;
   }
@@ -91,6 +106,13 @@ router.patch("/scan-sessions/:id/close", requireAuth, async (req, res): Promise<
     .set({ status: "closed", closedBy: userFullName, closedAt: new Date() })
     .where(eq(scanSessionsTable.id, id))
     .returning();
+
+  logAuditEvent({
+    eventType: "session_closed",
+    operation: updated.operation,
+    sessionId: updated.id,
+    performedBy: userFullName,
+  });
 
   res.json(updated);
 });

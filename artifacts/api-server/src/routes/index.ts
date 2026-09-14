@@ -17,6 +17,7 @@ import operatorAuthRouter from "./operator-auth";
 import adminCadastrosRouter from "./admin-cadastros";
 import arcoRouter from "./arco";
 import returnProtocolsRouter from "./return-protocols";
+import auditEventsRouter from "./audit-events";
 
 const router: IRouter = Router();
 
@@ -38,5 +39,6 @@ router.use(operatorAuthRouter);
 router.use(adminCadastrosRouter);
 router.use(returnProtocolsRouter);
 router.use(arcoRouter);
+router.use(auditEventsRouter);
 
 export default router;

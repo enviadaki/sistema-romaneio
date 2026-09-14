@@ -10,6 +10,7 @@ import {
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireOperationAccess, isOperationAllowed } from "../middlewares/requireOperationAccess";
 import { validateTbrFormat, tbrValidationMessage, normalizeTbrCode } from "../modules/amazon/tbr";
+import { logAuditEvent } from "../modules/audit/log";
 
 const router: IRouter = Router();
 
@@ -210,6 +211,14 @@ router.post("/packages", requireAuth, requireOperationAccess, async (req, res): 
     })
     .returning();
 
+  logAuditEvent({
+    eventType: "package_created",
+    operation: pkg.operation,
+    trackingNumber: pkg.trackingNumber,
+    recordId: pkg.id,
+    performedBy: (req as any).userFullName ?? null,
+  });
+
   res.status(201).json({
     id: pkg.id,
     trackingNumber: pkg.trackingNumber,
@@ -235,6 +244,7 @@ router.post("/packages/bulk", requireAuth, requireOperationAccess, async (req, r
 
   let imported = 0;
   let skipped = 0;
+  let denied = 0;
   const errors: string[] = [];
 
   for (const pkg of parsed.data.packages) {
@@ -242,6 +252,7 @@ router.post("/packages/bulk", requireAuth, requireOperationAccess, async (req, r
       const pkgOperation = pkg.operation ?? bulkOperation;
       if (!isOperationAllowed(req, pkgOperation)) {
         errors.push(`${pkg.trackingNumber}: sem permissão para a operação '${pkgOperation}'`);
+        denied++;
         continue;
       }
 
@@ -281,6 +292,24 @@ router.post("/packages/bulk", requireAuth, requireOperationAccess, async (req, r
     }
   }
 
+  const bulkUserFullName = (req as any).userFullName ?? null;
+  if (imported > 0) {
+    logAuditEvent({
+      eventType: "package_created",
+      operation: bulkOperation,
+      performedBy: bulkUserFullName,
+      details: `${imported} pacote(s) importado(s) em lote (${skipped} ignorado(s))`,
+    });
+  }
+  if (denied > 0) {
+    logAuditEvent({
+      eventType: "access_denied",
+      operation: bulkOperation,
+      performedBy: bulkUserFullName,
+      details: `POST /packages/bulk — ${denied} item(ns) negado(s) por permissão de operação`,
+    });
+  }
+
   res.status(201).json({ imported, skipped, errors });
 });
 
@@ -305,11 +334,27 @@ router.delete("/packages/:id", requireAuth, async (req, res): Promise<void> => {
   }
 
   if (!isOperationAllowed(req, existing.operation)) {
+    logAuditEvent({
+      eventType: "access_denied",
+      operation: existing.operation,
+      trackingNumber: existing.trackingNumber,
+      recordId: existing.id,
+      performedBy: (req as any).userFullName ?? null,
+      details: `DELETE /packages/${params.data.id}`,
+    });
     res.status(403).json({ error: `Acesso negado para a operação '${existing.operation}'.` });
     return;
   }
 
   await db.delete(packagesTable).where(eq(packagesTable.id, params.data.id));
+
+  logAuditEvent({
+    eventType: "package_deleted",
+    operation: existing.operation,
+    trackingNumber: existing.trackingNumber,
+    recordId: existing.id,
+    performedBy: (req as any).userFullName ?? null,
+  });
 
   res.sendStatus(204);
 });

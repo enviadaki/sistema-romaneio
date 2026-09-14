@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
+import { logAuditEvent } from "../modules/audit/log";
 
 /**
  * Passo 0 do plano de estruturação da operação AMAZON: reforçar no backend a
@@ -44,6 +45,12 @@ export function requireOperationAccess(req: Request, res: Response, next: NextFu
   const requested = typeof requestedRaw === "string" && requestedRaw.trim() ? requestedRaw.trim() : "LOGGI";
 
   if (!isOperationAllowed(req, requested)) {
+    logAuditEvent({
+      eventType: "access_denied",
+      operation: requested,
+      performedBy: (req as any).userFullName ?? null,
+      details: `${req.method} ${req.path}`,
+    });
     res.status(403).json({ error: `Acesso negado para a operação '${requested}'.` });
     return;
   }

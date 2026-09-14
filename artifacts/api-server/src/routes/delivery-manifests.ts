@@ -3,6 +3,7 @@ import { eq, desc, and, sql } from "drizzle-orm";
 import { db, deliveryManifestsTable, deliveryManifestItemsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { isOperationAllowed } from "../middlewares/requireOperationAccess";
+import { logAuditEvent } from "../modules/audit/log";
 
 const router: IRouter = Router();
 
@@ -173,6 +174,12 @@ router.post("/delivery-manifests", requireAuth, async (req, res): Promise<void> 
   if (Array.isArray(items)) {
     for (const item of items) {
       if (item?.empresa && isRestrictedOperation(item.empresa) && !isOperationAllowed(req, item.empresa)) {
+        logAuditEvent({
+          eventType: "access_denied",
+          operation: item.empresa,
+          performedBy: (req as any).userFullName ?? null,
+          details: "POST /delivery-manifests",
+        });
         res.status(403).json({ error: `Acesso negado para a operação '${item.empresa}'.` });
         return;
       }
@@ -217,6 +224,13 @@ router.post("/delivery-manifests", requireAuth, async (req, res): Promise<void> 
     }
   }
 
+  logAuditEvent({
+    eventType: "manifest_created",
+    recordId: manifest.id,
+    performedBy: (req as any).userFullName ?? null,
+    details: `Romaneio motorista nº ${manifest.numero} (${manifest.motorista})`,
+  });
+
   res.status(201).json(buildManifestResponse(manifest, savedItems));
 });
 
@@ -250,6 +264,13 @@ router.patch("/delivery-manifests/:id/status", requireAuth, async (req, res): Pr
     .from(deliveryManifestItemsTable)
     .where(eq(deliveryManifestItemsTable.manifestId, id));
 
+  logAuditEvent({
+    eventType: "manifest_status_changed",
+    recordId: updated.id,
+    performedBy: (req as any).userFullName ?? null,
+    details: `Romaneio motorista nº ${updated.numero} → status ${status}`,
+  });
+
   res.json(buildManifestResponse(updated, items));
 });
 
@@ -267,6 +288,14 @@ router.delete("/delivery-manifests/:id", requireAuth, async (req, res): Promise<
     res.status(404).json({ error: "Romaneio não encontrado" });
     return;
   }
+
+  logAuditEvent({
+    eventType: "manifest_deleted",
+    recordId: deleted.id,
+    performedBy: (req as any).userFullName ?? null,
+    details: `Romaneio motorista nº ${deleted.numero} (${deleted.motorista})`,
+  });
+
   res.sendStatus(204);
 });
 

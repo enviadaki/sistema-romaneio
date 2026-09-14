@@ -10,6 +10,7 @@ import {
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireOperationAccess } from "../middlewares/requireOperationAccess";
 import { normalizeTbrCode } from "../modules/amazon/tbr";
+import { logAuditEvent } from "../modules/audit/log";
 
 // Passo 4a: se vier um sessionId, confere que a sessão existe, está aberta
 // e é da mesma operação do scan — senão a bipagem não fica "perdida" numa
@@ -149,6 +150,18 @@ router.post("/scans/bulk", requireAuth, requireOperationAccess, async (req, res)
     else skipped++;
   }
 
+  // Um evento agregado em vez de um por pacote — evita inundar o log de
+  // auditoria com centenas de linhas idênticas num import em lote.
+  if (created > 0) {
+    logAuditEvent({
+      eventType: "scan_bulk_accepted",
+      operation: bulkOperation,
+      sessionId,
+      performedBy: userFullName,
+      details: `${created} bipagem(ns) em lote (${skipped} ignorada(s))`,
+    });
+  }
+
   res.json({ created, skipped });
 });
 
@@ -223,6 +236,15 @@ router.post("/scans", requireAuth, requireOperationAccess, async (req, res): Pro
     });
     return;
   }
+
+  logAuditEvent({
+    eventType: "scan_accepted",
+    operation: scan.operation,
+    trackingNumber: scan.trackingNumber,
+    sessionId: scan.sessionId ?? null,
+    recordId: scan.id,
+    performedBy: userFullName,
+  });
 
   res.status(201).json({
     id: scan.id,
