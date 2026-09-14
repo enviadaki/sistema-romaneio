@@ -8,9 +8,12 @@ import {
   conferentesTable,
   routeCitiesTable,
   operatorUsersTable,
+  filiaisTable,
+  filialCitiesTable,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireAdmin } from "../middlewares/requireAdmin";
+import { invalidateFilialCityCache } from "../modules/amazon/filial";
 
 const router: IRouter = Router();
 
@@ -265,6 +268,141 @@ router.put("/admin/conferentes/:id", requireAuth, requireAdmin, async (req, res)
 router.delete("/admin/conferentes/:id", requireAuth, requireAdmin, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   await db.delete(conferentesTable).where(eq(conferentesTable.id, id));
+  res.json({ success: true });
+});
+
+// ── Filiais (plano de filiais dentro da AMAZON) ────────────────────────────
+//
+// Filial é uma subdivisão só da AMAZON. O código (`code`) é o valor gravado
+// nas tabelas de movimento (packages.filial, scans.filial, etc.) e no
+// `allowedFiliais` do operador — por isso fica travado depois de criado
+// (renomear quebraria o vínculo com registros já gravados); só `name` e
+// `isActive` são editáveis.
+
+router.get("/admin/filiais", requireAuth, requireAdmin, async (_req, res): Promise<void> => {
+  const rows = await db.select().from(filiaisTable).orderBy(asc(filiaisTable.code));
+  res.json(rows);
+});
+
+// GET /filiais — versão pública (qualquer usuário autenticado, não só
+// admin) só com o essencial para o seletor de filial no frontend, mesmo
+// papel que /cities já cumpre para cidade. Só filiais ativas.
+router.get("/filiais", requireAuth, async (_req, res): Promise<void> => {
+  const rows = await db
+    .select({ id: filiaisTable.id, code: filiaisTable.code, name: filiaisTable.name })
+    .from(filiaisTable)
+    .where(eq(filiaisTable.isActive, true))
+    .orderBy(asc(filiaisTable.code));
+  res.json(rows);
+});
+
+router.post("/admin/filiais", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const { code, name } = req.body as { code?: string; name?: string };
+  const normalizedCode = code?.trim().toUpperCase().replace(/\s+/g, "_");
+  if (!normalizedCode) {
+    res.status(400).json({ error: "Código da filial é obrigatório" });
+    return;
+  }
+  const existing = await db
+    .select({ id: filiaisTable.id })
+    .from(filiaisTable)
+    .where(eq(filiaisTable.code, normalizedCode));
+  if (existing.length > 0) {
+    res.status(409).json({ error: `Já existe uma filial com o código '${normalizedCode}'` });
+    return;
+  }
+  const [row] = await db
+    .insert(filiaisTable)
+    .values({ code: normalizedCode, name: name?.trim() ?? "" })
+    .returning();
+  res.status(201).json(row);
+});
+
+router.put("/admin/filiais/:id", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const { name, isActive } = req.body as { name?: string; isActive?: boolean };
+  const [row] = await db
+    .update(filiaisTable)
+    .set({
+      ...(name !== undefined ? { name: name.trim() } : {}),
+      ...(isActive !== undefined ? { isActive } : {}),
+    })
+    .where(eq(filiaisTable.id, id))
+    .returning();
+  if (!row) {
+    res.status(404).json({ error: "Filial não encontrada" });
+    return;
+  }
+  res.json(row);
+});
+
+router.delete("/admin/filiais/:id", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  // Cascade em filial_cities (ver schema) — remove os vínculos junto.
+  await db.delete(filiaisTable).where(eq(filiaisTable.id, id));
+  invalidateFilialCityCache();
+  res.json({ success: true });
+});
+
+// ── Cidades de uma filial ──────────────────────────────────────────────────
+//
+// Diferente de route_cities (N:N), aqui é 1:N de verdade: cada cidade só
+// pode estar em uma filial (unique em filial_cities.city) — a própria regra
+// de "sem sobreposição geográfica entre filiais" garantida pelo schema, não
+// só pela tela.
+
+router.get("/admin/filiais/:id/cities", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const filialId = Number(req.params.id);
+  const rows = await db
+    .select({ id: filialCitiesTable.id, city: filialCitiesTable.city })
+    .from(filialCitiesTable)
+    .where(eq(filialCitiesTable.filialId, filialId))
+    .orderBy(asc(filialCitiesTable.city));
+  res.json(rows);
+});
+
+router.post("/admin/filiais/:id/cities", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const filialId = Number(req.params.id);
+  const { city } = req.body as { city?: string };
+  const normalizedCity = city?.trim().toUpperCase().replace(/\s+/g, " ");
+  if (!normalizedCity) {
+    res.status(400).json({ error: "Nome da cidade é obrigatório" });
+    return;
+  }
+
+  const [filial] = await db.select().from(filiaisTable).where(eq(filiaisTable.id, filialId));
+  if (!filial) {
+    res.status(404).json({ error: "Filial não encontrada" });
+    return;
+  }
+
+  const [conflict] = await db
+    .select({ filialId: filialCitiesTable.filialId })
+    .from(filialCitiesTable)
+    .where(eq(filialCitiesTable.city, normalizedCity));
+  if (conflict && conflict.filialId !== filialId) {
+    res.status(409).json({
+      error: `A cidade '${normalizedCity}' já está vinculada a outra filial. Cada cidade pode pertencer a apenas uma filial.`,
+    });
+    return;
+  }
+  if (conflict) {
+    res.status(409).json({ error: `A cidade '${normalizedCity}' já está vinculada a esta filial` });
+    return;
+  }
+
+  const [row] = await db
+    .insert(filialCitiesTable)
+    .values({ city: normalizedCity, filialId })
+    .returning();
+  invalidateFilialCityCache();
+  res.status(201).json(row);
+});
+
+router.delete("/admin/filial-cities/:id", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  await db.delete(filialCitiesTable).where(eq(filialCitiesTable.id, id));
+  invalidateFilialCityCache();
   res.json({ success: true });
 });
 

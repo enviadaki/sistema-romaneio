@@ -16,3 +16,5 @@ export * from "./cities";
 export * from "./route-cities";
 export * from "./return-protocols";
 export * from "./audit-events";
+export * from "./filiais";
+export * from "./filial-cities";

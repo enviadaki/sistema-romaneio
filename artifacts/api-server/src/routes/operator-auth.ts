@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { getAuth, createClerkClient } from "@clerk/express";
-import { db, operatorUsersTable } from "@workspace/db";
+import { db, operatorUsersTable, filiaisTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -42,6 +42,22 @@ function sanitizePermissions(allowedOperations: unknown, allowedPages: unknown) 
         )
       : [],
   };
+}
+
+// Filial (plano de filiais dentro da AMAZON): ao contrário de operação, os
+// códigos válidos são dinâmicos (cadastrados no admin, não uma lista fixa
+// no código) — por isso a checagem consulta a tabela `filiais` em vez de
+// comparar contra uma constante.
+async function sanitizeFiliais(allowedFiliais: unknown): Promise<string[]> {
+  if (!Array.isArray(allowedFiliais)) return [];
+  const requested = (allowedFiliais as unknown[]).filter(
+    (f): f is string => typeof f === "string" && f.trim().length > 0,
+  );
+  if (requested.length === 0) return [];
+  const validCodes = new Set(
+    (await db.select({ code: filiaisTable.code }).from(filiaisTable)).map((r) => r.code),
+  );
+  return requested.filter((f) => validCodes.has(f));
 }
 
 async function requireAdminClerk(req: any, res: any, next: any): Promise<void> {
@@ -100,6 +116,7 @@ router.post("/operator/login", async (req, res): Promise<void> => {
         username: user.username,
         fullName: user.fullName,
         allowedOperations: user.allowedOperations,
+        allowedFiliais: user.allowedFiliais,
         allowedPages: user.allowedPages,
         canManageMotoristas: user.canManageMotoristas,
         role: "operator",
@@ -120,6 +137,7 @@ router.post("/operator/login", async (req, res): Promise<void> => {
       username: user.username,
       fullName: user.fullName,
       allowedOperations: user.allowedOperations,
+      allowedFiliais: user.allowedFiliais,
       allowedPages: user.allowedPages,
       canManageMotoristas: user.canManageMotoristas,
     });
@@ -138,6 +156,7 @@ router.get("/admin/operator-users", requireAdminClerk, async (req, res): Promise
         username: operatorUsersTable.username,
         fullName: operatorUsersTable.fullName,
         allowedOperations: operatorUsersTable.allowedOperations,
+        allowedFiliais: operatorUsersTable.allowedFiliais,
         allowedPages: operatorUsersTable.allowedPages,
         canManageMotoristas: operatorUsersTable.canManageMotoristas,
         isActive: operatorUsersTable.isActive,
@@ -154,9 +173,9 @@ router.get("/admin/operator-users", requireAdminClerk, async (req, res): Promise
 
 // POST /api/admin/operator-users — admin only
 router.post("/admin/operator-users", requireAdminClerk, async (req, res): Promise<void> => {
-  const { username, fullName, password, allowedOperations, allowedPages, canManageMotoristas } = req.body as {
-    username: unknown; fullName: unknown; password: unknown; allowedOperations: unknown; allowedPages: unknown;
-    canManageMotoristas: unknown;
+  const { username, fullName, password, allowedOperations, allowedFiliais, allowedPages, canManageMotoristas } = req.body as {
+    username: unknown; fullName: unknown; password: unknown; allowedOperations: unknown; allowedFiliais: unknown;
+    allowedPages: unknown; canManageMotoristas: unknown;
   };
   if (typeof username !== "string" || username.length < 3 || username.length > 32 || !/^[a-z0-9_]+$/.test(username)) {
     res.status(400).json({ error: "username inválido (3-32 chars, apenas letras minúsculas, números e _)" });
@@ -174,6 +193,7 @@ router.post("/admin/operator-users", requireAdminClerk, async (req, res): Promis
     allowedOperations,
     allowedPages,
   );
+  const filiais = await sanitizeFiliais(allowedFiliais);
 
   try {
     const existing = await db.select({ id: operatorUsersTable.id })
@@ -189,6 +209,7 @@ router.post("/admin/operator-users", requireAdminClerk, async (req, res): Promis
       passwordHash,
       fullName,
       allowedOperations: operations,
+      allowedFiliais: filiais,
       allowedPages: pages,
       canManageMotoristas: canManageMotoristas === true,
       isActive: true,
@@ -197,6 +218,7 @@ router.post("/admin/operator-users", requireAdminClerk, async (req, res): Promis
       username,
       fullName,
       allowedOperations: operations,
+      allowedFiliais: filiais,
       allowedPages: pages,
       canManageMotoristas: canManageMotoristas === true,
     });
@@ -214,10 +236,11 @@ router.put("/admin/operator-users/:id", requireAdminClerk, async (req, res): Pro
     return;
   }
 
-  const { fullName, password, allowedOperations, allowedPages, canManageMotoristas } = req.body as {
+  const { fullName, password, allowedOperations, allowedFiliais, allowedPages, canManageMotoristas } = req.body as {
     fullName?: unknown;
     password?: unknown;
     allowedOperations?: unknown;
+    allowedFiliais?: unknown;
     allowedPages?: unknown;
     canManageMotoristas?: unknown;
   };
@@ -249,17 +272,20 @@ router.put("/admin/operator-users/:id", requireAdminClerk, async (req, res): Pro
     res.status(400).json({ error: "Selecione ao menos uma operação" });
     return;
   }
+  const filiais = await sanitizeFiliais(allowedFiliais);
 
   try {
     const updates: {
       fullName: string;
       allowedOperations: string[];
+      allowedFiliais: string[];
       allowedPages: string[];
       canManageMotoristas: boolean;
       passwordHash?: string;
     } = {
       fullName: fullName.trim(),
       allowedOperations: permissions.allowedOperations,
+      allowedFiliais: filiais,
       allowedPages: permissions.allowedPages,
       canManageMotoristas: canManageMotoristas === true,
     };
@@ -277,6 +303,7 @@ router.put("/admin/operator-users/:id", requireAdminClerk, async (req, res): Pro
         username: operatorUsersTable.username,
         fullName: operatorUsersTable.fullName,
         allowedOperations: operatorUsersTable.allowedOperations,
+        allowedFiliais: operatorUsersTable.allowedFiliais,
         allowedPages: operatorUsersTable.allowedPages,
         canManageMotoristas: operatorUsersTable.canManageMotoristas,
         isActive: operatorUsersTable.isActive,

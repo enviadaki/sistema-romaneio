@@ -31,11 +31,15 @@ import { OPERATOR_PAGES, groupedPages, type PageDef } from "@/lib/operator-pages
 
 const OPERATION_OPTIONS = ["LOGGI", "AMAZON"];
 
+interface FilialOption { id: number; code: string; name: string }
+
 interface OperatorUser {
   id: number;
   username: string;
   fullName: string;
   allowedOperations: string[];
+  // Filial dentro da AMAZON (plano de filiais) — vazio = sem restrição.
+  allowedFiliais: string[];
   allowedPages: string[];
   canManageMotoristas: boolean;
   isActive: boolean;
@@ -47,6 +51,7 @@ interface CreateForm {
   fullName: string;
   password: string;
   allowedOperations: string[];
+  allowedFiliais: string[];
   allowedPages: string[];
   canManageMotoristas: boolean;
 }
@@ -56,6 +61,7 @@ const emptyForm: CreateForm = {
   fullName: "",
   password: "",
   allowedOperations: [],
+  allowedFiliais: [],
   allowedPages: [],
   canManageMotoristas: false,
 };
@@ -107,6 +113,12 @@ export default function OperatorUsuarios() {
     enabled: isAdmin,
   });
 
+  const { data: filiais = [] } = useQuery<FilialOption[]>({
+    queryKey: ["admin-filiais"],
+    queryFn: () => customFetch<FilialOption[]>("/api/admin/filiais"),
+    enabled: isAdmin,
+  });
+
   const saveMutation = useMutation({
     mutationFn: async ({ id, values }: { id: number | null; values: CreateForm }) => {
       if (id) {
@@ -117,6 +129,7 @@ export default function OperatorUsuarios() {
             fullName: values.fullName.trim(),
             password: values.password || undefined,
             allowedOperations: values.allowedOperations,
+            allowedFiliais: values.allowedFiliais,
             allowedPages: values.allowedPages,
             canManageMotoristas: values.canManageMotoristas,
           }),
@@ -164,6 +177,18 @@ export default function OperatorUsuarios() {
       allowedOperations: f.allowedOperations.includes(op)
         ? f.allowedOperations.filter((o) => o !== op)
         : [...f.allowedOperations, op],
+      // Filial só faz sentido dentro da AMAZON — tirar AMAZON limpa a
+      // seleção de filial junto, pra não deixar permissão órfã.
+      allowedFiliais: op === "AMAZON" && f.allowedOperations.includes(op) ? [] : f.allowedFiliais,
+    }));
+  };
+
+  const toggleFilial = (code: string) => {
+    setForm((f) => ({
+      ...f,
+      allowedFiliais: f.allowedFiliais.includes(code)
+        ? f.allowedFiliais.filter((c) => c !== code)
+        : [...f.allowedFiliais, code],
     }));
   };
 
@@ -214,6 +239,7 @@ export default function OperatorUsuarios() {
       fullName: operator.fullName,
       password: "",
       allowedOperations: operator.allowedOperations ?? [],
+      allowedFiliais: operator.allowedFiliais ?? [],
       allowedPages: operator.allowedPages ?? [],
       canManageMotoristas: operator.canManageMotoristas === true,
     });
@@ -318,6 +344,36 @@ export default function OperatorUsuarios() {
                   ))}
                 </div>
               </div>
+
+              {/* Filiais — só faz sentido quando AMAZON está marcado */}
+              {form.allowedOperations.includes("AMAZON") && (
+                <div className="space-y-2">
+                  <Label>Filiais permitidas (dentro da AMAZON)</Label>
+                  <p className="text-xs text-muted-foreground -mt-1">
+                    Deixe em branco para liberar acesso a todas as filiais.
+                  </p>
+                  {filiais.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic rounded-md border p-3">
+                      Nenhuma filial cadastrada ainda — cadastre em Administração → Filiais.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2 rounded-md border p-3">
+                      {filiais.map((f) => (
+                        <label
+                          key={f.code}
+                          className="flex items-center gap-2 cursor-pointer select-none rounded-md px-2 py-1.5 hover:bg-muted transition-colors"
+                        >
+                          <Checkbox
+                            checked={form.allowedFiliais.includes(f.code)}
+                            onCheckedChange={() => toggleFilial(f.code)}
+                          />
+                          <span className="text-sm font-medium">{f.name ? `${f.code} — ${f.name}` : f.code}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Pages */}
               <div className="space-y-2">
@@ -432,6 +488,17 @@ export default function OperatorUsuarios() {
                           ))
                         )}
                       </div>
+
+                       {/* Filial badges — só aparece pra quem tem filial restrita */}
+                       {(u.allowedFiliais ?? []).length > 0 && (
+                         <div className="flex gap-1.5 flex-wrap justify-end">
+                           {u.allowedFiliais.map((code) => (
+                             <Badge key={code} variant="outline" className="text-xs border-orange-200 text-orange-700">
+                               {code}
+                             </Badge>
+                           ))}
+                         </div>
+                       )}
 
                        {u.canManageMotoristas && (
                          <Badge variant="outline" className="text-xs border-cyan-300 text-cyan-700">

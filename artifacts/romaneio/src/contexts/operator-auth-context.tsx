@@ -6,6 +6,8 @@ interface OperatorUser {
   username: string;
   fullName: string;
   allowedOperations: string[];
+  // Filial dentro da AMAZON (plano de filiais) — vazio = sem restrição.
+  allowedFiliais: string[];
   allowedPages: string[];
   canManageMotoristas: boolean;
   role: "operator";
@@ -42,6 +44,7 @@ function parseOperatorJwt(token: string): OperatorUser | null {
       username: payload.username,
       fullName: payload.fullName,
       allowedOperations: payload.allowedOperations ?? [],
+      allowedFiliais: payload.allowedFiliais ?? [],
       allowedPages: payload.allowedPages ?? [],
       canManageMotoristas: payload.canManageMotoristas === true,
       role: "operator",

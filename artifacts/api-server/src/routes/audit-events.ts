@@ -3,6 +3,7 @@ import { eq, and, or, isNull, inArray, ilike, desc, sql, type SQL } from "drizzl
 import { db, auditEventsTable, auditEventTypes } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { getAllowedOperations } from "../middlewares/requireOperationAccess";
+import { getAllowedFiliais } from "../middlewares/requireFilialAccess";
 
 // Passo 12 do plano da AMAZON: consulta do log de auditoria consolidado.
 // Sem requireOperationAccess aqui — nem todo evento tem uma operação (login,
@@ -18,6 +19,7 @@ const MAX_RESULTS = 500;
 router.get("/audit-events", requireAuth, async (req, res): Promise<void> => {
   const eventType = (req.query.eventType as string | undefined)?.trim();
   const operation = (req.query.operation as string | undefined)?.trim();
+  const filial = (req.query.filial as string | undefined)?.trim();
   const trackingNumber = (req.query.trackingNumber as string | undefined)?.trim();
   const performedBy = (req.query.performedBy as string | undefined)?.trim();
   const dateFrom = (req.query.dateFrom as string | undefined)?.trim();
@@ -28,6 +30,7 @@ router.get("/audit-events", requireAuth, async (req, res): Promise<void> => {
   const conditions: SQL[] = [];
   if (eventType) conditions.push(eq(auditEventsTable.eventType, eventType));
   if (operation) conditions.push(eq(auditEventsTable.operation, operation));
+  if (filial) conditions.push(eq(auditEventsTable.filial, filial));
   if (trackingNumber) conditions.push(ilike(auditEventsTable.trackingNumber, `%${trackingNumber}%`));
   if (performedBy) conditions.push(eq(auditEventsTable.performedBy, performedBy));
   if (!Number.isNaN(sessionId)) conditions.push(eq(auditEventsTable.sessionId, sessionId));
@@ -49,6 +52,12 @@ router.get("/audit-events", requireAuth, async (req, res): Promise<void> => {
     conditions.push(or(isNull(auditEventsTable.operation), inArray(auditEventsTable.operation, allowed))!);
   }
 
+  // Mesma restrição, agora por filial dentro da AMAZON (plano de filiais).
+  const allowedFiliais = getAllowedFiliais(req);
+  if (allowedFiliais !== null) {
+    conditions.push(or(isNull(auditEventsTable.filial), inArray(auditEventsTable.filial, allowedFiliais))!);
+  }
+
   const rows = await db
     .select()
     .from(auditEventsTable)
@@ -61,6 +70,7 @@ router.get("/audit-events", requireAuth, async (req, res): Promise<void> => {
       id: r.id,
       eventType: r.eventType,
       operation: r.operation,
+      filial: r.filial,
       trackingNumber: r.trackingNumber,
       sessionId: r.sessionId,
       recordId: r.recordId,

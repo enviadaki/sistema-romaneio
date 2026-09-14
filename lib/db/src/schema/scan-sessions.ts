@@ -9,6 +9,12 @@ import { z } from "zod/v4";
 export const scanSessionsTable = pgTable("scan_sessions", {
   id: serial("id").primaryKey(),
   operation: text("operation").notNull().default("LOGGI"),
+  // Filial dona da sessão (ver plano-implementacao-filiais-amazon). Nula
+  // para LOGGI e para AMAZON fora do contexto de filial. Importante: a
+  // "sessão aberta" passa a ser única por (operation, filial), não só por
+  // operation — senão duas filiais diferentes acabariam compartilhando a
+  // mesma sessão/contadores.
+  filial: text("filial"),
   // "open" | "closed"
   status: text("status").notNull().default("open"),
   openedBy: text("opened_by"),

@@ -12,6 +12,9 @@ export const deliveriesTable = pgTable(
     deliveryDate: text("delivery_date").notNull(),
     deliveredBy: text("delivered_by"),
     operation: text("operation").notNull().default("LOGGI"),
+    // Filial dentro da AMAZON (ver plano-implementacao-filiais-amazon).
+    // Nula para LOGGI; derivada da cidade da entrega.
+    filial: text("filial"),
     deliveredAt: timestamp("delivered_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

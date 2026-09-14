@@ -12,6 +12,9 @@ export const scansTable = pgTable(
     scanDate: text("scan_date").notNull(),
     scannedBy: text("scanned_by"),
     operation: text("operation").notNull().default("LOGGI"),
+    // Herdada do pacote bipado (ver plano-implementacao-filiais-amazon) —
+    // nunca escolhida na hora da bipagem. Nula para LOGGI.
+    filial: text("filial"),
     // Opcional: nenhuma bipagem hoje se refere a uma sessão (Passo 3 é só
     // schema). Fica pronto para o Passo 4 vincular as bipagens da AMAZON a
     // um lote, sem exigir nada da LOGGI.

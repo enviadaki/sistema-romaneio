@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import { Layout } from "@/components/layout";
 import { OperationProvider } from "@/contexts/operation-context";
+import { FilialProvider } from "@/contexts/filial-context";
 import { MotoristaAuthProvider, useMotoristaAuth } from "@/contexts/motorista-auth-context";
 import { OperatorAuthProvider, useOperatorAuth } from "@/contexts/operator-auth-context";
 import { isPageAllowed, OPERATOR_PAGES } from "@/lib/operator-pages";
@@ -376,7 +377,9 @@ function App() {
   return (
     <WouterRouter base={basePath}>
       <OperationProvider>
-        <AppRoutes />
+        <FilialProvider>
+          <AppRoutes />
+        </FilialProvider>
       </OperationProvider>
     </WouterRouter>
   );

@@ -8,6 +8,7 @@ import { db, auditEventsTable, type AuditEventType } from "@workspace/db";
 export function logAuditEvent(event: {
   eventType: AuditEventType;
   operation?: string | null;
+  filial?: string | null;
   trackingNumber?: string | null;
   sessionId?: number | null;
   recordId?: number | null;
@@ -18,6 +19,7 @@ export function logAuditEvent(event: {
     .values({
       eventType: event.eventType,
       operation: event.operation ?? null,
+      filial: event.filial ?? null,
       trackingNumber: event.trackingNumber ?? null,
       sessionId: event.sessionId ?? null,
       recordId: event.recordId ?? null,

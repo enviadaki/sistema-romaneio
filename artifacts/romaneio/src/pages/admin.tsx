@@ -4,7 +4,7 @@ import { customFetch, useGetArcoConfig } from "@workspace/api-client-react";
 import { useUser } from "@clerk/react";
 import {
   Plus, Pencil, Trash2, Route, MapPin, Truck, Users, Shield, Check, X,
-  ChevronDown, ChevronRight, Copy, KeyRound, Wifi,
+  ChevronDown, ChevronRight, Copy, KeyRound, Wifi, Building2,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1194,6 +1194,311 @@ function ArcoIntegrationTab() {
   );
 }
 
+// ── Filiais tab (plano de filiais dentro da AMAZON) ─────────────────────────
+//
+// Filial é uma subdivisão só da AMAZON. Cada filial tem um código curto
+// (travado depois de criado — é o valor gravado em packages.filial etc.) e
+// uma lista de cidades exclusiva (uma cidade só pode estar numa filial —
+// garantido pelo backend, não só pela tela).
+
+interface FilialRow { id: number; code: string; name: string; isActive: boolean }
+interface FilialCityRow { id: number; city: string }
+
+function FilialCitiesDialog({ filial, onClose }: { filial: FilialRow; onClose: () => void }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [newCity, setNewCity] = useState("");
+
+  const { data: cities = [], isLoading } = useQuery<FilialCityRow[]>({
+    queryKey: ["filial-cities", filial.id],
+    queryFn: () => customFetch<FilialCityRow[]>(`/api/admin/filiais/${filial.id}/cities`),
+  });
+
+  const addMutation = useMutation({
+    mutationFn: (city: string) =>
+      customFetch<FilialCityRow>(`/api/admin/filiais/${filial.id}/cities`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ city }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["filial-cities", filial.id] });
+      setNewCity("");
+      toast({ title: "Cidade vinculada à filial" });
+    },
+    onError: (err: any) => toast({ title: "Não foi possível vincular", description: err?.message, variant: "destructive" }),
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (id: number) =>
+      customFetch<{ success: boolean }>(`/api/admin/filial-cities/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["filial-cities", filial.id] });
+      toast({ title: "Cidade desvinculada" });
+    },
+    onError: (err: any) => toast({ title: "Erro", description: err?.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Cidades da filial <strong>{filial.code}</strong>. Cada cidade só pode pertencer a uma filial — se ela já
+        estiver em outra, a vinculação é recusada.
+      </p>
+
+      <div className="flex items-center gap-2">
+        <Input
+          placeholder="Ex: ITABUNA"
+          className="h-8 text-sm"
+          value={newCity}
+          onChange={(e) => setNewCity(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && newCity.trim()) addMutation.mutate(newCity.trim());
+          }}
+          autoFocus
+        />
+        <Button
+          size="sm"
+          disabled={!newCity.trim() || addMutation.isPending}
+          onClick={() => addMutation.mutate(newCity.trim())}
+        >
+          {addMutation.isPending ? "Adicionando..." : "Adicionar"}
+        </Button>
+      </div>
+
+      <div className="max-h-64 overflow-y-auto divide-y rounded-md border">
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground text-center py-4">Carregando...</p>
+        ) : cities.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">Nenhuma cidade vinculada ainda</p>
+        ) : (
+          cities.map((c) => (
+            <div key={c.id} className="flex items-center gap-2 px-3 py-2">
+              <span className="flex-1 text-sm">{c.city}</span>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                onClick={() => removeMutation.mutate(c.id)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="flex justify-end pt-2 border-t">
+        <Button variant="outline" onClick={onClose}>Fechar</Button>
+      </div>
+    </div>
+  );
+}
+
+function FiliaisTab() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [newCode, setNewCode] = useState("");
+  const [newName, setNewName] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [citiesDialogFilial, setCitiesDialogFilial] = useState<FilialRow | null>(null);
+
+  const { data: filiais = [], isLoading } = useQuery<FilialRow[]>({
+    queryKey: ["admin-filiais"],
+    queryFn: () => customFetch<FilialRow[]>("/api/admin/filiais"),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (values: { code: string; name: string }) =>
+      customFetch<FilialRow>("/api/admin/filiais", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-filiais"] });
+      setNewCode("");
+      setNewName("");
+      setAdding(false);
+      toast({ title: "Filial criada" });
+    },
+    onError: (err: any) => toast({ title: "Erro", description: err?.message, variant: "destructive" }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, name }: { id: number; name: string }) =>
+      customFetch<FilialRow>(`/api/admin/filiais/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-filiais"] });
+      setEditingId(null);
+      toast({ title: "Filial atualizada" });
+    },
+    onError: (err: any) => toast({ title: "Erro", description: err?.message, variant: "destructive" }),
+  });
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) =>
+      customFetch<FilialRow>(`/api/admin/filiais/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-filiais"] }),
+    onError: (err: any) => toast({ title: "Erro", description: err?.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) =>
+      customFetch<{ success: boolean }>(`/api/admin/filiais/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-filiais"] });
+      toast({ title: "Filial removida" });
+    },
+    onError: (err: any) => toast({ title: "Erro", description: err?.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">{filiais.length} filial(is) cadastrada(s)</p>
+        {!adding && (
+          <Button size="sm" className="gap-1.5" onClick={() => setAdding(true)}>
+            <Plus className="h-4 w-4" /> Nova Filial
+          </Button>
+        )}
+      </div>
+
+      {adding && (
+        <Card>
+          <CardContent className="py-3 px-4 flex items-center gap-2 flex-wrap">
+            <Input
+              placeholder="Código (ex: ITABUNA)"
+              className="h-8 text-sm w-40"
+              value={newCode}
+              onChange={(e) => setNewCode(e.target.value)}
+              autoFocus
+            />
+            <Input
+              placeholder="Nome (opcional)"
+              className="h-8 text-sm flex-1 min-w-40"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newCode.trim()) createMutation.mutate({ code: newCode.trim(), name: newName.trim() });
+                if (e.key === "Escape") { setAdding(false); setNewCode(""); setNewName(""); }
+              }}
+            />
+            <Button
+              size="sm"
+              disabled={!newCode.trim() || createMutation.isPending}
+              onClick={() => createMutation.mutate({ code: newCode.trim(), name: newName.trim() })}
+            >
+              {createMutation.isPending ? "Salvando..." : "Salvar"}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => { setAdding(false); setNewCode(""); setNewName(""); }}>
+              Cancelar
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground py-6 text-center">Carregando...</p>
+      ) : filiais.length === 0 && !adding ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Building2 className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
+            <p className="text-muted-foreground">Nenhuma filial cadastrada</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="divide-y rounded-md border">
+          {filiais.map((f) => (
+            <div key={f.id} className="flex items-center gap-3 px-4 py-2.5">
+              <span className="text-sm font-mono font-semibold w-28 flex-shrink-0">{f.code}</span>
+              {editingId === f.id ? (
+                <InlineEditRow
+                  value={f.name}
+                  onSave={(v) => updateMutation.mutate({ id: f.id, name: v.trim() })}
+                  onCancel={() => setEditingId(null)}
+                />
+              ) : (
+                <>
+                  <span className="flex-1 text-sm text-muted-foreground">{f.name || "—"}</span>
+                  {!f.isActive && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">Inativa</span>
+                  )}
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setCitiesDialogFilial(f)}>
+                    Cidades
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-muted-foreground"
+                    onClick={() => setEditingId(f.id)}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-muted-foreground"
+                    title={f.isActive ? "Desativar filial" : "Ativar filial"}
+                    onClick={() => toggleActiveMutation.mutate({ id: f.id, isActive: !f.isActive })}
+                  >
+                    {f.isActive ? <X className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:bg-destructive/10">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Remover filial?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          A filial <strong>{f.code}</strong> e seus vínculos de cidade serão removidos. Isso não apaga
+                          pacotes/bipagens já registrados — eles mantêm a filial gravada no histórico.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive hover:bg-destructive/90"
+                          onClick={() => deleteMutation.mutate(f.id)}
+                        >
+                          Remover
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={!!citiesDialogFilial} onOpenChange={(o) => { if (!o) setCitiesDialogFilial(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cidades da {citiesDialogFilial?.code}</DialogTitle>
+          </DialogHeader>
+          {citiesDialogFilial && (
+            <FilialCitiesDialog filial={citiesDialogFilial} onClose={() => setCitiesDialogFilial(null)} />
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────
 
 export default function Admin() {
@@ -1226,6 +1531,9 @@ export default function Admin() {
           <TabsTrigger value="cidades" className="gap-1.5">
             <MapPin className="h-4 w-4" /> Cidades
           </TabsTrigger>
+          <TabsTrigger value="filiais" className="gap-1.5">
+            <Building2 className="h-4 w-4" /> Filiais
+          </TabsTrigger>
           <TabsTrigger value="motoristas" className="gap-1.5">
             <Truck className="h-4 w-4" /> Motoristas
           </TabsTrigger>
@@ -1249,6 +1557,10 @@ export default function Admin() {
 
         <TabsContent value="cidades">
           <CidadesTab />
+        </TabsContent>
+
+        <TabsContent value="filiais">
+          <FiliaisTab />
         </TabsContent>
 
         <TabsContent value="motoristas">

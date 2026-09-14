@@ -103,6 +103,12 @@ function tryCustomJwt(req: Request): boolean {
         (op): op is string => typeof op === "string"
       );
     }
+    // Mesma ideia para filial dentro da AMAZON — ver requireFilialAccess.ts.
+    if (role === "operator" && Array.isArray(payload.allowedFiliais)) {
+      (req as any).allowedFiliais = (payload.allowedFiliais as unknown[]).filter(
+        (f): f is string => typeof f === "string"
+      );
+    }
     return true;
   } catch (err: any) {
     (req as any).log?.warn?.({ auth: "jwt-error", err: err?.message }, "requireAuth: JWT verify failed");

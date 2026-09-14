@@ -20,6 +20,10 @@ export const avariasTable = pgTable("avarias", {
   id: serial("id").primaryKey(),
   trackingNumber: text("tracking_number").notNull(),
   operation: text("operation").notNull().default("LOGGI"),
+  // Filial dentro da AMAZON (ver plano-implementacao-filiais-amazon). Nula
+  // para LOGGI. Herdada do pacote quando ele existe; senão derivada da
+  // cidade informada no registro da avaria.
+  filial: text("filial"),
   // Opcional, igual scans.sessionId — só a AMAZON usa sessão hoje.
   sessionId: integer("session_id").references(() => scanSessionsTable.id, { onDelete: "set null" }),
   category: text("category").notNull(),

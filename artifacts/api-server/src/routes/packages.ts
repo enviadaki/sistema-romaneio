@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, inArray, sql, and, gte, lt, SQL } from "drizzle-orm";
+import { eq, inArray, sql, and, or, isNull, gte, lt, SQL } from "drizzle-orm";
 import { db, packagesTable, scansTable } from "@workspace/db";
 import {
   CreatePackageBody,
@@ -9,7 +9,9 @@ import {
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireOperationAccess, isOperationAllowed } from "../middlewares/requireOperationAccess";
+import { isFilialAllowed, getAllowedFiliais, canCreateWithFilial } from "../middlewares/requireFilialAccess";
 import { validateTbrFormat, tbrValidationMessage, normalizeTbrCode } from "../modules/amazon/tbr";
+import { resolveFilialForCity } from "../modules/amazon/filial";
 import { logAuditEvent } from "../modules/audit/log";
 
 const router: IRouter = Router();
@@ -42,6 +44,19 @@ router.get("/packages/lookup", requireAuth, requireOperationAccess, async (req, 
 
   if (!pkg) {
     res.status(404).json({ error: "Pacote não encontrado" });
+    return;
+  }
+
+  if (!isFilialAllowed(req, pkg.filial)) {
+    logAuditEvent({
+      eventType: "access_denied",
+      operation: pkg.operation,
+      filial: pkg.filial,
+      trackingNumber: pkg.trackingNumber,
+      performedBy: (req as any).userFullName ?? null,
+      details: `GET /packages/lookup`,
+    });
+    res.status(403).json({ error: `Acesso negado para a filial '${pkg.filial}'.` });
     return;
   }
 
@@ -128,6 +143,17 @@ router.get("/packages", requireAuth, requireOperationAccess, async (req, res): P
 
   conditions.push(eq(packagesTable.operation, operation));
 
+  // Restrição por filial dentro da AMAZON (plano de filiais): mesma
+  // semântica null-safe já usada para operação em audit-events — quem tem
+  // allowedFiliais restrito só vê pacotes da própria filial, ou sem filial
+  // definida (LOGGI, ou cidade ainda não vinculada a nenhuma filial).
+  const allowedFiliais = getAllowedFiliais(req);
+  if (allowedFiliais !== null) {
+    conditions.push(
+      or(isNull(packagesTable.filial), inArray(packagesTable.filial, allowedFiliais)) as unknown as SQL
+    );
+  }
+
   // Date range filter (Brazil timezone — UTC-3, no DST)
   const dateFrom = (req.query as any).dateFrom as string | undefined;
   const dateTo   = (req.query as any).dateTo   as string | undefined;
@@ -163,6 +189,7 @@ router.get("/packages", requireAuth, requireOperationAccess, async (req, res): P
       city: p.city,
       promisedDeliveryDate: p.promisedDeliveryDate,
       operation: p.operation,
+      filial: p.filial,
       createdAt: p.createdAt.toISOString(),
     }))
   );
@@ -201,6 +228,26 @@ router.post("/packages", requireAuth, requireOperationAccess, async (req, res): 
     return;
   }
 
+  // Plano de filiais: a filial nunca é digitada — é derivada sozinha da
+  // cidade. Só a AMAZON usa isso; LOGGI grava sempre null.
+  const filial = operation === "AMAZON" ? await resolveFilialForCity(parsed.data.city) : null;
+  if (!canCreateWithFilial(req, operation, filial)) {
+    logAuditEvent({
+      eventType: "access_denied",
+      operation,
+      filial,
+      trackingNumber,
+      performedBy: (req as any).userFullName ?? null,
+      details: "POST /packages",
+    });
+    res.status(403).json({
+      error: filial
+        ? `Acesso negado para a filial '${filial}'.`
+        : "Esta cidade ainda não está vinculada a nenhuma filial permitida para você. Peça para o administrador cadastrar a cidade na filial correta.",
+    });
+    return;
+  }
+
   const [pkg] = await db
     .insert(packagesTable)
     .values({
@@ -208,12 +255,14 @@ router.post("/packages", requireAuth, requireOperationAccess, async (req, res): 
       city: parsed.data.city,
       promisedDeliveryDate: parsed.data.promisedDeliveryDate,
       operation,
+      filial,
     })
     .returning();
 
   logAuditEvent({
     eventType: "package_created",
     operation: pkg.operation,
+    filial: pkg.filial,
     trackingNumber: pkg.trackingNumber,
     recordId: pkg.id,
     performedBy: (req as any).userFullName ?? null,
@@ -225,6 +274,7 @@ router.post("/packages", requireAuth, requireOperationAccess, async (req, res): 
     city: pkg.city,
     promisedDeliveryDate: pkg.promisedDeliveryDate,
     operation: pkg.operation,
+    filial: pkg.filial,
     createdAt: pkg.createdAt.toISOString(),
   });
 });
@@ -280,11 +330,23 @@ router.post("/packages/bulk", requireAuth, requireOperationAccess, async (req, r
         continue;
       }
 
+      const pkgFilial = pkgOperation === "AMAZON" ? await resolveFilialForCity(pkg.city) : null;
+      if (!canCreateWithFilial(req, pkgOperation, pkgFilial)) {
+        errors.push(
+          pkgFilial
+            ? `${pkg.trackingNumber}: sem permissão para a filial '${pkgFilial}'`
+            : `${pkg.trackingNumber}: cidade '${pkg.city}' ainda não vinculada a nenhuma filial permitida`,
+        );
+        denied++;
+        continue;
+      }
+
       await db.insert(packagesTable).values({
         trackingNumber,
         city: pkg.city,
         promisedDeliveryDate: pkg.promisedDeliveryDate,
         operation: pkgOperation,
+        filial: pkgFilial,
       });
       imported++;
     } catch {
@@ -346,11 +408,26 @@ router.delete("/packages/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  if (!isFilialAllowed(req, existing.filial)) {
+    logAuditEvent({
+      eventType: "access_denied",
+      operation: existing.operation,
+      filial: existing.filial,
+      trackingNumber: existing.trackingNumber,
+      recordId: existing.id,
+      performedBy: (req as any).userFullName ?? null,
+      details: `DELETE /packages/${params.data.id}`,
+    });
+    res.status(403).json({ error: `Acesso negado para a filial '${existing.filial}'.` });
+    return;
+  }
+
   await db.delete(packagesTable).where(eq(packagesTable.id, params.data.id));
 
   logAuditEvent({
     eventType: "package_deleted",
     operation: existing.operation,
+    filial: existing.filial,
     trackingNumber: existing.trackingNumber,
     recordId: existing.id,
     performedBy: (req as any).userFullName ?? null,
@@ -361,10 +438,21 @@ router.delete("/packages/:id", requireAuth, async (req, res): Promise<void> => {
 
 router.get("/cities", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
   const operation = (req.query.operation as string | undefined)?.trim() ?? "LOGGI";
+  const conditions = [eq(packagesTable.operation, operation)];
+
+  // Mesma restrição por filial da listagem de pacotes — senão o filtro de
+  // cidade da tela de Cadastro revelaria cidades de outras filiais.
+  const allowedFiliais = getAllowedFiliais(req);
+  if (allowedFiliais !== null) {
+    conditions.push(
+      or(isNull(packagesTable.filial), inArray(packagesTable.filial, allowedFiliais)) as unknown as ReturnType<typeof eq>
+    );
+  }
+
   const rows = await db
     .selectDistinct({ city: packagesTable.city })
     .from(packagesTable)
-    .where(eq(packagesTable.operation, operation))
+    .where(and(...conditions))
     .orderBy(packagesTable.city);
   res.json(rows.map((r) => r.city));
 });

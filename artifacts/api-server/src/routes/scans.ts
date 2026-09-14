@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, inArray, gte, lte, sql, SQL } from "drizzle-orm";
+import { eq, and, or, isNull, inArray, gte, lte, sql, SQL } from "drizzle-orm";
 import { db, scansTable, packagesTable, scanSessionsTable } from "@workspace/db";
 import {
   CreateScanBody,
@@ -9,6 +9,7 @@ import {
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireOperationAccess } from "../middlewares/requireOperationAccess";
+import { isFilialAllowed, getAllowedFiliais } from "../middlewares/requireFilialAccess";
 import { normalizeTbrCode } from "../modules/amazon/tbr";
 import { logAuditEvent } from "../modules/audit/log";
 
@@ -50,6 +51,13 @@ router.get("/scans", requireAuth, requireOperationAccess, async (req, res): Prom
 
   conditions.push(eq(scansTable.operation, operation));
 
+  const allowedFiliais = getAllowedFiliais(req);
+  if (allowedFiliais !== null) {
+    conditions.push(
+      or(isNull(scansTable.filial), inArray(scansTable.filial, allowedFiliais)) as unknown as SQL
+    );
+  }
+
   const citiesParam = (req.query as any).cities as string | undefined;
   if (citiesParam) {
     const cityList = citiesParam.split(",").map((c: string) => c.trim().toLowerCase()).filter(Boolean);
@@ -80,6 +88,7 @@ router.get("/scans", requireAuth, requireOperationAccess, async (req, res): Prom
       scanDate: s.scanDate,
       scannedBy: s.scannedBy ?? null,
       operation: s.operation,
+      filial: s.filial,
       scannedAt: s.scannedAt.toISOString(),
     }))
   );
@@ -128,10 +137,18 @@ router.post("/scans/bulk", requireAuth, requireOperationAccess, async (req, res)
 
   let created = 0;
   let skipped = 0;
+  let denied = 0;
 
   for (const tn of trackingNumbers) {
     const pkg = pkgMap.get(tn);
     if (!pkg) { skipped++; continue; }
+
+    // Filial herdada do pacote (nunca escolhida na bipagem) — quem não tem
+    // acesso à filial daquele pacote não consegue bipá-lo, mesmo em lote.
+    if (!isFilialAllowed(req, pkg.filial)) {
+      denied++;
+      continue;
+    }
 
     const [inserted] = await db
       .insert(scansTable)
@@ -142,6 +159,7 @@ router.post("/scans/bulk", requireAuth, requireOperationAccess, async (req, res)
         scannedBy: userFullName,
         sessionId,
         operation: pkg.operation,
+        filial: pkg.filial,
       })
       .onConflictDoNothing()
       .returning();
@@ -158,11 +176,20 @@ router.post("/scans/bulk", requireAuth, requireOperationAccess, async (req, res)
       operation: bulkOperation,
       sessionId,
       performedBy: userFullName,
-      details: `${created} bipagem(ns) em lote (${skipped} ignorada(s))`,
+      details: `${created} bipagem(ns) em lote (${skipped} ignorada(s), ${denied} negada(s) por filial)`,
+    });
+  }
+  if (denied > 0) {
+    logAuditEvent({
+      eventType: "access_denied",
+      operation: bulkOperation,
+      sessionId,
+      performedBy: userFullName,
+      details: `POST /scans/bulk — ${denied} item(ns) negado(s) por permissão de filial`,
     });
   }
 
-  res.json({ created, skipped });
+  res.json({ created, skipped, denied });
 });
 
 router.post("/scans", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
@@ -199,8 +226,24 @@ router.post("/scans", requireAuth, requireOperationAccess, async (req, res): Pro
     return;
   }
 
-  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
   const userFullName = (req as any).userFullName ?? null;
+
+  // Filial herdada do pacote — nunca escolhida na bipagem.
+  if (!isFilialAllowed(req, pkg.filial)) {
+    logAuditEvent({
+      eventType: "access_denied",
+      operation: pkg.operation,
+      filial: pkg.filial,
+      trackingNumber: pkg.trackingNumber,
+      sessionId,
+      performedBy: userFullName,
+      details: "POST /scans",
+    });
+    res.status(403).json({ error: `Acesso negado para a filial '${pkg.filial}'.` });
+    return;
+  }
+
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
 
   const [scan] = await db
     .insert(scansTable)
@@ -210,6 +253,7 @@ router.post("/scans", requireAuth, requireOperationAccess, async (req, res): Pro
       scanDate: today,
       scannedBy: userFullName,
       operation: pkg.operation,
+      filial: pkg.filial,
       sessionId,
     })
     .onConflictDoNothing()
@@ -240,6 +284,7 @@ router.post("/scans", requireAuth, requireOperationAccess, async (req, res): Pro
   logAuditEvent({
     eventType: "scan_accepted",
     operation: scan.operation,
+    filial: scan.filial,
     trackingNumber: scan.trackingNumber,
     sessionId: scan.sessionId ?? null,
     recordId: scan.id,
@@ -253,6 +298,7 @@ router.post("/scans", requireAuth, requireOperationAccess, async (req, res): Pro
     scanDate: scan.scanDate,
     scannedBy: scan.scannedBy ?? null,
     operation: scan.operation,
+    filial: scan.filial,
     scannedAt: scan.scannedAt.toISOString(),
   });
 });
@@ -285,6 +331,11 @@ router.delete("/scans/:id", requireAuth, requireOperationAccess, async (req, res
 
   if (existing.operation !== operation) {
     res.status(403).json({ error: "Operação não autorizada para esta bipagem" });
+    return;
+  }
+
+  if (!isFilialAllowed(req, existing.filial)) {
+    res.status(403).json({ error: `Acesso negado para a filial '${existing.filial}'.` });
     return;
   }
 

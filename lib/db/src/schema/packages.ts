@@ -10,6 +10,10 @@ export const packagesTable = pgTable(
     city: text("city").notNull(),
     promisedDeliveryDate: text("promised_delivery_date").notNull(),
     operation: text("operation").notNull().default("LOGGI"),
+    // Subdivisão dentro da AMAZON (ver plano-implementacao-filiais-amazon).
+    // Nula para LOGGI e para AMAZON antes das filiais existirem — derivada
+    // sozinha a partir de `city` no momento do cadastro, nunca digitada.
+    filial: text("filial"),
     tipo: text("tipo").notNull().default("AVULSO"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

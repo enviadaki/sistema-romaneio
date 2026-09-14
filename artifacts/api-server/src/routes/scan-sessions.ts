@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, isNull, sql } from "drizzle-orm";
+import { eq, and, desc, isNull, sql, type SQL } from "drizzle-orm";
 import {
   db,
   scanSessionsTable,
@@ -10,6 +10,7 @@ import {
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireOperationAccess, isOperationAllowed } from "../middlewares/requireOperationAccess";
+import { isFilialAllowed, getAllowedFiliais } from "../middlewares/requireFilialAccess";
 import { logAuditEvent } from "../modules/audit/log";
 
 // Passo 4a do plano da AMAZON: abrir/fechar sessão de bipagem (lote). Sem
@@ -17,15 +18,59 @@ import { logAuditEvent } from "../modules/audit/log";
 // controle de quem abriu, quando, e quando foi encerrada.
 const router: IRouter = Router();
 
+// Compara a filial da sessão com um valor — trata null com IS NULL (drizzle
+// `eq` não compara null corretamente em SQL). Plano de filiais: a "sessão
+// aberta" passa a ser única por (operation, filial), não só por operation —
+// senão duas filiais diferentes acabariam compartilhando a mesma sessão e
+// os mesmos contadores em tempo real.
+function filialEq(filial: string | null): SQL {
+  return filial === null ? isNull(scanSessionsTable.filial) : eq(scanSessionsTable.filial, filial);
+}
+
+// Resolve qual filial a sessão deve usar, sem exigir que o frontend informe
+// nada na maioria dos casos: se o operador só tem UMA filial permitida (o
+// caso comum — cada conta nasce travada numa filial só, ver Passo 5 do
+// plano), usa essa sozinho, exatamente como o frontend já faz para
+// operação (layout.tsx: auto-seleciona quando allowedOperations.length===1).
+// Um `filial` explícito na query/body (para um supervisor com mais de uma
+// filial permitida, quando essa tela existir) sempre tem prioridade.
+function resolveSessionFilial(
+  req: any,
+  explicit: string | null,
+  operation: string,
+): { ok: true; filial: string | null } | { ok: false; error: string } {
+  if (explicit !== null) return { ok: true, filial: explicit };
+  if (operation !== "AMAZON") return { ok: true, filial: null };
+
+  const allowed = getAllowedFiliais(req);
+  if (allowed === null) return { ok: true, filial: null };
+  if (allowed.length === 1) return { ok: true, filial: allowed[0] };
+  return { ok: false, error: "Selecione a filial para continuar — você tem acesso a mais de uma." };
+}
+
 // GET /scan-sessions/current?operation=AMAZON — sessão aberta atual daquela
-// operação, ou null. Usado pra restaurar o estado se a página recarregar.
+// operação (+ filial, resolvida automaticamente — ver resolveSessionFilial),
+// ou null. Usado pra restaurar o estado se a página recarregar.
 router.get("/scan-sessions/current", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
   const operation = (req.query.operation as string | undefined)?.trim() || "LOGGI";
+  const explicitFilial = (req.query.filial as string | undefined)?.trim() || null;
+
+  const resolution = resolveSessionFilial(req, explicitFilial, operation);
+  if (!resolution.ok) {
+    res.status(400).json({ error: resolution.error });
+    return;
+  }
+  const filial = resolution.filial;
+
+  if (!isFilialAllowed(req, filial)) {
+    res.status(403).json({ error: `Acesso negado para a filial '${filial}'.` });
+    return;
+  }
 
   const [session] = await db
     .select()
     .from(scanSessionsTable)
-    .where(and(eq(scanSessionsTable.operation, operation), eq(scanSessionsTable.status, "open")))
+    .where(and(eq(scanSessionsTable.operation, operation), filialEq(filial), eq(scanSessionsTable.status, "open")))
     .orderBy(desc(scanSessionsTable.openedAt))
     .limit(1);
 
@@ -33,16 +78,38 @@ router.get("/scan-sessions/current", requireAuth, requireOperationAccess, async 
 });
 
 // POST /scan-sessions — abre uma sessão nova. Se já existir uma aberta para
-// a mesma operação, devolve essa mesma (idempotente — evita duas sessões
-// abertas ao mesmo tempo e não quebra se o operador atualizar a página).
+// a mesma operação+filial, devolve essa mesma (idempotente — evita duas
+// sessões abertas ao mesmo tempo e não quebra se o operador atualizar a
+// página). A filial vem sozinha de resolveSessionFilial na maioria dos
+// casos — só quem tem mais de uma filial precisa informar explicitamente.
 router.post("/scan-sessions", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
   const operation = (req.body?.operation as string | undefined)?.trim() || "LOGGI";
+  const explicitFilial = (req.body?.filial as string | undefined)?.trim() || null;
   const userFullName = (req as any).userFullName ?? null;
+
+  const resolution = resolveSessionFilial(req, explicitFilial, operation);
+  if (!resolution.ok) {
+    res.status(400).json({ error: resolution.error });
+    return;
+  }
+  const filial = resolution.filial;
+
+  if (!isFilialAllowed(req, filial)) {
+    logAuditEvent({
+      eventType: "access_denied",
+      operation,
+      filial,
+      performedBy: userFullName,
+      details: "POST /scan-sessions",
+    });
+    res.status(403).json({ error: `Acesso negado para a filial '${filial}'.` });
+    return;
+  }
 
   const [existing] = await db
     .select()
     .from(scanSessionsTable)
-    .where(and(eq(scanSessionsTable.operation, operation), eq(scanSessionsTable.status, "open")))
+    .where(and(eq(scanSessionsTable.operation, operation), filialEq(filial), eq(scanSessionsTable.status, "open")))
     .orderBy(desc(scanSessionsTable.openedAt))
     .limit(1);
 
@@ -53,12 +120,13 @@ router.post("/scan-sessions", requireAuth, requireOperationAccess, async (req, r
 
   const [created] = await db
     .insert(scanSessionsTable)
-    .values({ operation, status: "open", openedBy: userFullName })
+    .values({ operation, filial, status: "open", openedBy: userFullName })
     .returning();
 
   logAuditEvent({
     eventType: "session_opened",
     operation: created.operation,
+    filial: created.filial,
     sessionId: created.id,
     performedBy: userFullName,
   });
@@ -94,6 +162,19 @@ router.patch("/scan-sessions/:id/close", requireAuth, async (req, res): Promise<
     return;
   }
 
+  if (!isFilialAllowed(req, session.filial)) {
+    logAuditEvent({
+      eventType: "access_denied",
+      operation: session.operation,
+      filial: session.filial,
+      sessionId: session.id,
+      performedBy: (req as any).userFullName ?? null,
+      details: `PATCH /scan-sessions/${id}/close`,
+    });
+    res.status(403).json({ error: `Acesso negado para a filial '${session.filial}'.` });
+    return;
+  }
+
   if (session.status === "closed") {
     res.status(409).json({ error: "Sessão já encerrada" });
     return;
@@ -110,6 +191,7 @@ router.patch("/scan-sessions/:id/close", requireAuth, async (req, res): Promise<
   logAuditEvent({
     eventType: "session_closed",
     operation: updated.operation,
+    filial: updated.filial,
     sessionId: updated.id,
     performedBy: userFullName,
   });
@@ -137,6 +219,10 @@ router.get("/scan-sessions/:id/summary", requireAuth, async (req, res): Promise<
   }
   if (!isOperationAllowed(req, session.operation)) {
     res.status(403).json({ error: `Acesso negado para a operação '${session.operation}'.` });
+    return;
+  }
+  if (!isFilialAllowed(req, session.filial)) {
+    res.status(403).json({ error: `Acesso negado para a filial '${session.filial}'.` });
     return;
   }
 
@@ -183,6 +269,9 @@ router.get("/scan-sessions/:id/summary", requireAuth, async (req, res): Promise<
     .where(
       and(
         eq(packagesTable.operation, session.operation),
+        // Sessão de uma filial só conta pendências daquela filial — senão o
+        // resumo misturaria "faltam bipar" de todas as filiais da AMAZON.
+        session.filial === null ? undefined : eq(packagesTable.filial, session.filial),
         isNull(scansTable.id),
         isNull(avariasTable.id),
       ),

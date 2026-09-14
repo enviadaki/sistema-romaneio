@@ -32,6 +32,10 @@ export const auditEventsTable = pgTable("audit_events", {
   // null quando o evento não é específico de uma operação (ex: romaneio
   // motorista, login) — nem todo evento auditável tem LOGGI/AMAZON.
   operation: text("operation"),
+  // Filial dentro da AMAZON (ver plano-implementacao-filiais-amazon). Null
+  // para LOGGI e para qualquer evento sem filial associada — mesma
+  // semântica null-safe já usada para `operation` acima.
+  filial: text("filial"),
   trackingNumber: text("tracking_number"),
   sessionId: integer("session_id"),
   // id do registro afetado (pacote, avaria, romaneio motorista...), quando

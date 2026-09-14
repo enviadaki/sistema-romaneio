@@ -7,9 +7,14 @@ import {
 } from "lucide-react";
 import { useClerk, useUser } from "@clerk/react";
 import { useOperation, OPERATIONS } from "@/contexts/operation-context";
+import { useFilial } from "@/contexts/filial-context";
 import { useMotoristaAuth } from "@/contexts/motorista-auth-context";
 import { useOperatorAuth } from "@/contexts/operator-auth-context";
 import { isPageAllowed } from "@/lib/operator-pages";
+import { useQuery } from "@tanstack/react-query";
+import { customFetch } from "@workspace/api-client-react";
+
+interface FilialOption { id: number; code: string; name: string }
 
 const ALL_MOTORISTA_PATHS = ["/entrega"];
 
@@ -20,6 +25,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const { user: motoristaUser, logout: motoristaLogout } = useMotoristaAuth();
   const { user: operatorUser, logout: operatorLogout } = useOperatorAuth();
   const { operation, setOperation } = useOperation();
+  const { filial, setFilial } = useFilial();
 
   const isMotorista = motoristaUser !== null || (clerkUser?.publicMetadata?.role as string) === "motorista";
   const isCustomOperator = operatorUser !== null;
@@ -74,6 +80,32 @@ export function Layout({ children }: { children: ReactNode }) {
       }
     }
   }, [isCustomOperator, operatorUser, setOperation]);
+
+  // Plano de filiais: mesma ideia da operação acima — se o operador só tem
+  // acesso a uma filial, trava nela sem mostrar seletor nenhum. É isso que
+  // dá a sensação de "login separado por filial" sem precisar de telas de
+  // login diferentes (ver Passo 5 do plano-implementacao-filiais-amazon).
+  const operatorAllowedFiliais = isCustomOperator ? (operatorUser!.allowedFiliais ?? []) : [];
+  useEffect(() => {
+    if (operatorAllowedFiliais.length === 1) {
+      setFilial(operatorAllowedFiliais[0]);
+    }
+  }, [operatorAllowedFiliais.join(","), setFilial]);
+
+  // Lista de filiais visível no seletor: se o operador tem filial(is)
+  // restrita(s), só essas; senão, todas as cadastradas (mesmo padrão do
+  // allowedOps acima). Só busca quando faz sentido mostrar (AMAZON ativa).
+  const { data: allFiliais = [] } = useQuery<FilialOption[]>({
+    queryKey: ["filiais"],
+    queryFn: () => customFetch<FilialOption[]>("/api/filiais"),
+    enabled: operation === "AMAZON" && !isMotorista,
+    staleTime: 5 * 60 * 1000,
+  });
+  const filialOptions: FilialOption[] =
+    operatorAllowedFiliais.length > 0
+      ? allFiliais.filter((f) => operatorAllowedFiliais.includes(f.code))
+      : allFiliais;
+  const showFilialSelector = operation === "AMAZON" && !isMotorista && filialOptions.length > 0;
 
   const operatorAllowedPages = isCustomOperator ? (operatorUser!.allowedPages ?? []) : [];
 
@@ -149,6 +181,34 @@ export function Layout({ children }: { children: ReactNode }) {
                     } disabled:cursor-default`}
                   >
                     {op}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Filial Selector — só dentro da AMAZON, e só quando há filial(is)
+            visível(is) para este usuário (ver showFilialSelector acima) */}
+        {showFilialSelector && (
+          <div className="px-3 py-3 border-b border-sidebar-border">
+            <p className="text-xs text-sidebar-foreground/50 font-medium uppercase tracking-wider mb-2 px-1">Filial</p>
+            <div className="flex flex-wrap gap-1.5">
+              {filialOptions.map((f) => {
+                const isActive = filial === f.code;
+                return (
+                  <button
+                    key={f.code}
+                    onClick={() => setFilial(f.code)}
+                    disabled={filialOptions.length === 1}
+                    title={f.name || f.code}
+                    className={`flex-1 py-2 rounded-md text-sm font-bold tracking-wide transition-all ${
+                      isActive
+                        ? "bg-orange-500/80 text-white shadow-sm"
+                        : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                    } disabled:cursor-default`}
+                  >
+                    {f.code}
                   </button>
                 );
               })}

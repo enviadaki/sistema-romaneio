@@ -8,6 +8,9 @@ export const operatorUsersTable = pgTable("operator_users", {
   passwordHash: text("password_hash").notNull().default(""),
   fullName: text("full_name").notNull().default(""),
   allowedOperations: text("allowed_operations").array().notNull().default([]),
+  // Só relevante para quem tem acesso à AMAZON — filial dentro dela. Vazio =
+  // sem restrição (mesma semântica de "vazio = todas" já usada acima).
+  allowedFiliais: text("allowed_filiais").array().notNull().default([]),
   allowedPages: text("allowed_pages").array().notNull().default([]),
   canManageMotoristas: boolean("can_manage_motoristas").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
