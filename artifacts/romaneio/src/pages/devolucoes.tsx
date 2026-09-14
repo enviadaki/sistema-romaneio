@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 
 import { useOperation } from "@/contexts/operation-context";
+import { OperationBadge } from "@/components/operation-badge";
 import { getTodayDateString } from "@/lib/date-utils";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -396,11 +397,14 @@ export default function Devolucoes() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Protocolos de Devolução</h1>
-        <p className="mt-2 text-muted-foreground">
-          Registre devoluções com dados do cadastro local ou itens sem rastreabilidade.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Protocolos de Devolução</h1>
+          <p className="mt-2 text-muted-foreground">
+            Registre devoluções com dados do cadastro local ou itens sem rastreabilidade.
+          </p>
+        </div>
+        <OperationBadge operation={operation} className="mt-1" />
       </div>
 
       {lastCreated && (

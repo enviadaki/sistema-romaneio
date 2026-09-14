@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo, type ReactNode } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   useListCities,
   getListCitiesQueryKey,
@@ -56,7 +57,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle2, XCircle, AlertCircle, MapPin, Route, Zap, Calendar, Camera, PackageOpen, Lock, Ban, WifiOff, TriangleAlert } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, MapPin, Route, Zap, Calendar, Camera, PackageOpen, Lock, Ban, WifiOff, TriangleAlert, ScanLine } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { CameraScanner } from "@/components/camera-scanner";
@@ -84,6 +85,10 @@ export default function PreSorter() {
   const [selectedRoute, setSelectedRoute] = useState<string>("");
   const [scanInput, setScanInput] = useState("");
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+  // Passo 11: chave incremental só pra disparar a animação de entrada do
+  // banner de feedback a cada nova bipagem, mesmo quando o resultado se
+  // repete (ex: bipar o mesmo duplicado duas vezes seguidas).
+  const [resultId, setResultId] = useState(0);
   const [autoOpen, setAutoOpen] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
 
@@ -328,6 +333,7 @@ export default function PreSorter() {
 
   const triggerResult = (result: ScanResult) => {
     setScanResult(result);
+    setResultId((id) => id + 1);
     if (result.status === "success") playScanSuccess();
     else if (result.status === "duplicate") playScanWarning();
     else if (result.status === "invalid_format") playScanInvalid();
@@ -453,31 +459,31 @@ export default function PreSorter() {
   const statusConfig: Record<ScanStatus, { bg: string; icon: ReactNode; label: string; labelColor: string }> = {
     success: {
       bg: "bg-green-50 border-green-200 text-green-900",
-      icon: <CheckCircle2 className="h-7 w-7 text-green-500 flex-shrink-0" />,
+      icon: <CheckCircle2 className="h-12 w-12 md:h-14 md:w-14 text-green-500 flex-shrink-0" />,
       label: "CONFIRMADO",
       labelColor: "text-green-600",
     },
     duplicate: {
       bg: "bg-yellow-50 border-yellow-200 text-yellow-900",
-      icon: <AlertCircle className="h-7 w-7 text-yellow-500 flex-shrink-0" />,
+      icon: <AlertCircle className="h-12 w-12 md:h-14 md:w-14 text-yellow-500 flex-shrink-0" />,
       label: "DUPLICADO",
       labelColor: "text-yellow-600",
     },
     not_found: {
       bg: "bg-red-50 border-red-200 text-red-900",
-      icon: <XCircle className="h-7 w-7 text-red-500 flex-shrink-0" />,
+      icon: <XCircle className="h-12 w-12 md:h-14 md:w-14 text-red-500 flex-shrink-0" />,
       label: "NÃO ENCONTRADO",
       labelColor: "text-red-600",
     },
     invalid_format: {
       bg: "bg-orange-50 border-orange-200 text-orange-900",
-      icon: <Ban className="h-7 w-7 text-orange-500 flex-shrink-0" />,
+      icon: <Ban className="h-12 w-12 md:h-14 md:w-14 text-orange-500 flex-shrink-0" />,
       label: "FORA DO PADRÃO",
       labelColor: "text-orange-600",
     },
     other_error: {
       bg: "bg-gray-100 border-gray-300 text-gray-900",
-      icon: <WifiOff className="h-7 w-7 text-gray-500 flex-shrink-0" />,
+      icon: <WifiOff className="h-12 w-12 md:h-14 md:w-14 text-gray-500 flex-shrink-0" />,
       label: "ERRO",
       labelColor: "text-gray-600",
     },
@@ -665,46 +671,46 @@ export default function PreSorter() {
               {/* Passo 4b: indicadores em tempo real da sessão aberta */}
               {currentSession && (
                 <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                  <div className="rounded-md border bg-card px-2 py-2 text-center">
-                    <div className="text-xl font-bold tabular-nums">{sessionStats.total}</div>
-                    <div className="text-[11px] text-muted-foreground leading-tight">Total</div>
+                  <div className="rounded-md border bg-card px-2 py-3 text-center">
+                    <div className="text-2xl font-bold tabular-nums">{sessionStats.total}</div>
+                    <div className="text-xs text-muted-foreground leading-tight">Total</div>
                   </div>
-                  <div className="rounded-md border border-green-200 bg-green-50 px-2 py-2 text-center">
-                    <div className="text-xl font-bold tabular-nums text-green-700">{sessionStats.accepted}</div>
-                    <div className="text-[11px] text-green-700 leading-tight">Aceito</div>
+                  <div className="rounded-md border border-green-200 bg-green-50 px-2 py-3 text-center">
+                    <div className="text-2xl font-bold tabular-nums text-green-700">{sessionStats.accepted}</div>
+                    <div className="text-xs text-green-700 leading-tight">Aceito</div>
                   </div>
                   <button
                     type="button"
                     onClick={() => setEventsDialogType("duplicate")}
-                    className="rounded-md border border-yellow-200 bg-yellow-50 px-2 py-2 text-center hover:bg-yellow-100 transition-colors"
+                    className="rounded-md border border-yellow-200 bg-yellow-50 px-2 py-3 text-center hover:bg-yellow-100 transition-colors"
                   >
-                    <div className="text-xl font-bold tabular-nums text-yellow-700">{sessionStats.duplicate}</div>
-                    <div className="text-[11px] text-yellow-700 leading-tight">Duplicado</div>
+                    <div className="text-2xl font-bold tabular-nums text-yellow-700">{sessionStats.duplicate}</div>
+                    <div className="text-xs text-yellow-700 leading-tight">Duplicado</div>
                   </button>
                   <button
                     type="button"
                     onClick={() => setEventsDialogType("not_found")}
-                    className="rounded-md border border-red-200 bg-red-50 px-2 py-2 text-center hover:bg-red-100 transition-colors"
+                    className="rounded-md border border-red-200 bg-red-50 px-2 py-3 text-center hover:bg-red-100 transition-colors"
                   >
-                    <div className="text-xl font-bold tabular-nums text-red-700">{sessionStats.notFound}</div>
-                    <div className="text-[11px] text-red-700 leading-tight">Não encontrado</div>
+                    <div className="text-2xl font-bold tabular-nums text-red-700">{sessionStats.notFound}</div>
+                    <div className="text-xs text-red-700 leading-tight">Não encontrado</div>
                   </button>
                   <button
                     type="button"
                     onClick={() => setEventsDialogType("invalid_format")}
-                    className="rounded-md border border-red-200 bg-red-50 px-2 py-2 text-center hover:bg-red-100 transition-colors"
+                    className="rounded-md border border-red-200 bg-red-50 px-2 py-3 text-center hover:bg-red-100 transition-colors"
                   >
-                    <div className="text-xl font-bold tabular-nums text-red-700">{sessionStats.invalidFormat}</div>
-                    <div className="text-[11px] text-red-700 leading-tight">Fora do padrão</div>
+                    <div className="text-2xl font-bold tabular-nums text-red-700">{sessionStats.invalidFormat}</div>
+                    <div className="text-xs text-red-700 leading-tight">Fora do padrão</div>
                   </button>
                   {sessionStats.otherErrors > 0 && (
                     <button
                       type="button"
                       onClick={() => setEventsDialogType("other_error")}
-                      className="rounded-md border border-gray-200 bg-gray-50 px-2 py-2 text-center hover:bg-gray-100 transition-colors"
+                      className="rounded-md border border-gray-200 bg-gray-50 px-2 py-3 text-center hover:bg-gray-100 transition-colors"
                     >
-                      <div className="text-xl font-bold tabular-nums text-gray-700">{sessionStats.otherErrors}</div>
-                      <div className="text-[11px] text-gray-700 leading-tight">Outros erros</div>
+                      <div className="text-2xl font-bold tabular-nums text-gray-700">{sessionStats.otherErrors}</div>
+                      <div className="text-xs text-gray-700 leading-tight">Outros erros</div>
                     </button>
                   )}
                 </div>
@@ -717,7 +723,10 @@ export default function PreSorter() {
             className={`transition-opacity duration-300 ${canScan ? "opacity-100" : "opacity-50 pointer-events-none"}`}
           >
             <div className="space-y-2">
-              <label className="text-sm font-medium">3. Bipar Rastreador</label>
+              <label className="text-base font-semibold flex items-center gap-1.5">
+                <ScanLine className="h-5 w-5 text-primary" />
+                3. Bipar Rastreador
+              </label>
               <div className="flex gap-2">
                 <Input
                   ref={inputRef}
@@ -731,19 +740,19 @@ export default function PreSorter() {
                         ? `Selecione uma ${filterMode === "rota" ? "rota" : "cidade"} primeiro`
                         : "Abra uma sessão para começar a bipar"
                   }
-                  className="text-2xl py-8 font-mono tracking-wider"
+                  className="text-3xl md:text-5xl py-10 md:py-14 font-mono tracking-wider border-2 border-primary/40 focus-visible:ring-4 focus-visible:ring-primary/30"
                   disabled={!canScan || createScan.isPending}
                 />
                 <Button
                   type="button"
                   variant="outline"
                   size="icon"
-                  className="h-auto px-4 py-8 border-2 border-primary/30 hover:border-primary hover:bg-primary/5"
+                  className="h-auto px-5 md:px-6 py-10 md:py-14 border-2 border-primary/30 hover:border-primary hover:bg-primary/5"
                   disabled={!canScan}
                   onClick={() => setCameraOpen(true)}
                   title="Escanear via câmera"
                 >
-                  <Camera className="h-7 w-7" />
+                  <Camera className="h-8 w-8 md:h-9 md:w-9" />
                 </Button>
               </div>
             </div>
@@ -981,31 +990,41 @@ export default function PreSorter() {
             </DialogContent>
           </Dialog>
 
-          {/* Feedback visual + sonoro */}
-          {scanResult &&
-            (() => {
-              const cfg = statusConfig[scanResult.status];
-              return (
-                <div className={`p-4 rounded-lg border-2 flex items-center gap-4 ${cfg.bg}`}>
-                  {cfg.icon}
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-bold tracking-widest ${cfg.labelColor}`}>
-                      {cfg.label}
-                    </p>
-                    <p className="font-mono font-bold text-lg leading-tight truncate">
-                      {scanResult.trackingNumber}
-                    </p>
-                    <p className="text-sm mt-0.5 opacity-80">{scanResult.message}</p>
-                    {scanResult.city && scanResult.status === "success" && (
-                      <p className="text-xs mt-1 flex items-center gap-1 opacity-70">
-                        <MapPin className="h-3 w-3" />
-                        {scanResult.city}
+          {/* Feedback visual + sonoro — Passo 11: aumentado e com animação de
+              entrada, pra chamar a atenção do operador mesmo de relance ou
+              de uma certa distância da tela */}
+          <AnimatePresence mode="wait">
+            {scanResult &&
+              (() => {
+                const cfg = statusConfig[scanResult.status];
+                return (
+                  <motion.div
+                    key={resultId}
+                    initial={{ opacity: 0, scale: 0.92 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 28 }}
+                    className={`p-5 md:p-6 rounded-xl border-4 flex items-center gap-4 md:gap-5 ${cfg.bg}`}
+                  >
+                    {cfg.icon}
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm md:text-base font-extrabold tracking-widest ${cfg.labelColor}`}>
+                        {cfg.label}
                       </p>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
+                      <p className="font-mono font-black text-3xl md:text-5xl leading-tight truncate">
+                        {scanResult.trackingNumber}
+                      </p>
+                      <p className="text-base md:text-lg mt-1 opacity-80">{scanResult.message}</p>
+                      {scanResult.city && scanResult.status === "success" && (
+                        <p className="text-sm mt-1 flex items-center gap-1 opacity-70">
+                          <MapPin className="h-4 w-4" />
+                          {scanResult.city}
+                        </p>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })()}
+          </AnimatePresence>
         </CardContent>
       </Card>
 

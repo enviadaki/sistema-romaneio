@@ -7,6 +7,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDateTime, getTodayDateString } from "@/lib/date-utils";
 import { useOperation } from "@/contexts/operation-context";
+import { OperationBadge } from "@/components/operation-badge";
 import { ROUTES } from "@/lib/routes-data";
 
 import { Card } from "@/components/ui/card";
@@ -129,11 +130,14 @@ export default function Historico() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Histórico de Scans</h1>
-        <p className="text-muted-foreground mt-2">
-          Visualize e gerencie todos os registros de bipagem.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Histórico de Scans</h1>
+          <p className="text-muted-foreground mt-2">
+            Visualize e gerencie todos os registros de bipagem.
+          </p>
+        </div>
+        <OperationBadge operation={operation} className="mt-1" />
       </div>
 
       <div className="flex flex-wrap gap-4 items-end">

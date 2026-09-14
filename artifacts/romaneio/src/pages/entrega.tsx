@@ -4,6 +4,7 @@ import { ROUTES } from "@/lib/routes-data";
 import { CameraScanner } from "@/components/camera-scanner";
 import { getTodayDateString } from "@/lib/date-utils";
 import { useOperation } from "@/contexts/operation-context";
+import { OperationBadge } from "@/components/operation-badge";
 import { useMotoristaAuth } from "@/contexts/motorista-auth-context";
 import { useUser } from "@clerk/react";
 import { playScanSuccess, playScanError, playScanWarning } from "@/lib/scan-sounds";
@@ -238,14 +239,17 @@ export default function Entrega() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-          <Truck className="h-8 w-8 text-primary" />
-          Checagem de Entrega
-        </h1>
-        <p className="text-muted-foreground mt-2">
-          Confirme a entrega dos pacotes ao final da rota.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+            <Truck className="h-8 w-8 text-primary" />
+            Checagem de Entrega
+          </h1>
+          <p className="text-muted-foreground mt-2">
+            Confirme a entrega dos pacotes ao final da rota.
+          </p>
+        </div>
+        <OperationBadge operation={operation} className="mt-1" />
       </div>
 
       <Card className="border-2 border-primary/20">

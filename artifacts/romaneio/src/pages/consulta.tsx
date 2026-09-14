@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { customFetch } from "@workspace/api-client-react";
 import { useOperation } from "@/contexts/operation-context";
+import { OperationBadge } from "@/components/operation-badge";
 import { ROUTES } from "@/lib/routes-data";
 import { CameraScanner } from "@/components/camera-scanner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -90,11 +91,14 @@ export default function Consulta() {
 
   return (
     <div className="max-w-xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Consulta de Pacotes</h1>
-        <p className="text-muted-foreground mt-2">
-          Busque informações de um pacote pelo número de rastreio.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Consulta de Pacotes</h1>
+          <p className="text-muted-foreground mt-2">
+            Busque informações de um pacote pelo número de rastreio.
+          </p>
+        </div>
+        <OperationBadge operation={operation} className="mt-1" />
       </div>
 
       {/* Search bar */}

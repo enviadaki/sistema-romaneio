@@ -16,6 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { ROUTES } from "@/lib/routes-data";
 import { useMemo } from "react";
 import { useOperation } from "@/contexts/operation-context";
+import { OperationBadge } from "@/components/operation-badge";
 
 const MEDAL_COLORS = ["text-yellow-500", "text-slate-400", "text-amber-700"];
 const MEDAL_LABELS = ["🥇", "🥈", "🥉"];
@@ -92,11 +93,14 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground mt-2">
-          Visão geral da operação de romaneios de hoje.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground mt-2">
+            Visão geral da operação de romaneios de hoje.
+          </p>
+        </div>
+        <OperationBadge operation={operation} className="mt-1" />
       </div>
 
       {/* KPI Cards */}
