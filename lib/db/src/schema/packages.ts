@@ -14,6 +14,17 @@ export const packagesTable = pgTable(
     // Nula para LOGGI e para AMAZON antes das filiais existirem — derivada
     // sozinha a partir de `city` no momento do cadastro, nunca digitada.
     filial: text("filial"),
+    // CEP opcional, vindo da planilha de importação (já existe na maioria
+    // das planilhas da Amazon, hoje só usado transitoriamente pra corrigir
+    // nome de cidade — ver cleanImportedCity no frontend). Guardado cru,
+    // sem validação de formato, só como origem do dado — quem manda é
+    // `rota`, derivada dele.
+    cep: text("cep"),
+    // Rota dentro da filial (ver filial-routes.ts/route-ceps.ts) — derivada
+    // do CEP no momento do cadastro, nunca digitada, mesmo espírito de
+    // `filial`. Nula quando não há CEP, o CEP não está mapeado a nenhuma
+    // rota, ou a filial do pacote não usa rotas (hoje só VCA usa).
+    rota: text("rota"),
     tipo: text("tipo").notNull().default("AVULSO"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

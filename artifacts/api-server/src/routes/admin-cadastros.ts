@@ -10,10 +10,13 @@ import {
   operatorUsersTable,
   filiaisTable,
   filialCitiesTable,
+  filialRoutesTable,
+  routeCepsTable,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { invalidateFilialCityCache } from "../modules/amazon/filial";
+import { invalidateRouteCepCache } from "../modules/amazon/rota";
 
 const router: IRouter = Router();
 
@@ -403,6 +406,141 @@ router.delete("/admin/filial-cities/:id", requireAuth, requireAdmin, async (req,
   const id = Number(req.params.id);
   await db.delete(filialCitiesTable).where(eq(filialCitiesTable.id, id));
   invalidateFilialCityCache();
+  res.json({ success: true });
+});
+
+// ── Rotas de uma filial (ver plano-implementacao-filiais-amazon.md, seção
+// Vitória da Conquista) ─────────────────────────────────────────────────────
+//
+// Rota é uma granularidade mais fina que cidade: dentro de uma filial (hoje
+// só VCA), cada CEP pertence a no máximo uma rota — mesma regra de
+// exclusividade de filial_cities, só que em route_ceps.cep.
+//
+// Diferente de filial (código travado depois de criado, porque já é usado
+// como identidade em allowedFiliais), rota é só um dado de destino do
+// pacote — pouco risco em deixar código e nome editáveis os dois.
+
+router.get("/admin/filiais/:id/routes", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const filialId = Number(req.params.id);
+  const rows = await db
+    .select()
+    .from(filialRoutesTable)
+    .where(eq(filialRoutesTable.filialId, filialId))
+    .orderBy(asc(filialRoutesTable.name));
+  res.json(rows);
+});
+
+router.post("/admin/filiais/:id/routes", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const filialId = Number(req.params.id);
+  const { code, name } = req.body as { code?: string; name?: string };
+  const normalizedCode = code?.trim().toUpperCase().replace(/\s+/g, "_");
+  if (!normalizedCode || !name?.trim()) {
+    res.status(400).json({ error: "Código e nome da rota são obrigatórios" });
+    return;
+  }
+
+  const [filial] = await db.select().from(filiaisTable).where(eq(filiaisTable.id, filialId));
+  if (!filial) {
+    res.status(404).json({ error: "Filial não encontrada" });
+    return;
+  }
+
+  const existing = await db
+    .select({ id: filialRoutesTable.id })
+    .from(filialRoutesTable)
+    .where(eq(filialRoutesTable.code, normalizedCode));
+  if (existing.length > 0) {
+    res.status(409).json({ error: `Já existe uma rota com o código '${normalizedCode}'` });
+    return;
+  }
+
+  const [row] = await db
+    .insert(filialRoutesTable)
+    .values({ code: normalizedCode, name: name.trim(), filialId })
+    .returning();
+  res.status(201).json(row);
+});
+
+router.put("/admin/filial-routes/:id", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const { name, isActive } = req.body as { name?: string; isActive?: boolean };
+  const [row] = await db
+    .update(filialRoutesTable)
+    .set({
+      ...(name !== undefined ? { name: name.trim() } : {}),
+      ...(isActive !== undefined ? { isActive } : {}),
+    })
+    .where(eq(filialRoutesTable.id, id))
+    .returning();
+  if (!row) {
+    res.status(404).json({ error: "Rota não encontrada" });
+    return;
+  }
+  res.json(row);
+});
+
+router.delete("/admin/filial-routes/:id", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  // Cascade em route_ceps (ver schema) — remove os CEPs vinculados junto.
+  await db.delete(filialRoutesTable).where(eq(filialRoutesTable.id, id));
+  invalidateRouteCepCache();
+  res.json({ success: true });
+});
+
+// ── CEPs de uma rota ─────────────────────────────────────────────────────
+
+router.get("/admin/filial-routes/:id/ceps", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const routeId = Number(req.params.id);
+  const rows = await db
+    .select()
+    .from(routeCepsTable)
+    .where(eq(routeCepsTable.routeId, routeId))
+    .orderBy(asc(routeCepsTable.cep));
+  res.json(rows);
+});
+
+router.post("/admin/filial-routes/:id/ceps", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const routeId = Number(req.params.id);
+  const { cep, bairro } = req.body as { cep?: string; bairro?: string };
+  const normalizedCep = cep?.replace(/\D/g, "").padStart(8, "0").slice(-8);
+  if (!normalizedCep || normalizedCep === "00000000") {
+    res.status(400).json({ error: "CEP inválido" });
+    return;
+  }
+
+  const [route] = await db.select().from(filialRoutesTable).where(eq(filialRoutesTable.id, routeId));
+  if (!route) {
+    res.status(404).json({ error: "Rota não encontrada" });
+    return;
+  }
+
+  const [conflict] = await db
+    .select({ routeId: routeCepsTable.routeId })
+    .from(routeCepsTable)
+    .where(eq(routeCepsTable.cep, normalizedCep));
+  if (conflict && conflict.routeId !== routeId) {
+    res.status(409).json({
+      error: `O CEP '${normalizedCep}' já está vinculado a outra rota. Cada CEP pode pertencer a apenas uma rota.`,
+    });
+    return;
+  }
+  if (conflict) {
+    res.status(409).json({ error: `O CEP '${normalizedCep}' já está vinculado a esta rota` });
+    return;
+  }
+
+  const [row] = await db
+    .insert(routeCepsTable)
+    .values({ cep: normalizedCep, bairro: bairro?.trim() || null, routeId })
+    .returning();
+  invalidateRouteCepCache();
+  res.status(201).json(row);
+});
+
+router.delete("/admin/route-ceps/:id", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  await db.delete(routeCepsTable).where(eq(routeCepsTable.id, id));
+  invalidateRouteCepCache();
   res.json({ success: true });
 });
 

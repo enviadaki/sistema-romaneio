@@ -107,6 +107,18 @@ export const ListPackagesResponseItem = zod.object({
   id: zod.number(),
   trackingNumber: zod.string(),
   city: zod.string(),
+  cep: zod
+    .string()
+    .optional()
+    .describe(
+      "CEP informado na importação (opcional). Usado só para derivar a rota dentro da filial na AMAZON; guardado como veio, sem validação de formato.",
+    ),
+  rota: zod
+    .string()
+    .optional()
+    .describe(
+      "Rota dentro da filial (AMAZON), derivada automaticamente do CEP no momento do cadastro. Nula quando não há CEP, o CEP não está mapeado, ou a filial não usa rotas.",
+    ),
   promisedDeliveryDate: zod.string(),
   operation: zod.string().optional(),
   createdAt: zod.string(),
@@ -120,6 +132,12 @@ export const ListPackagesResponse = zod.array(ListPackagesResponseItem);
 export const CreatePackageBody = zod.object({
   trackingNumber: zod.string().min(1),
   city: zod.string().min(1),
+  cep: zod
+    .string()
+    .optional()
+    .describe(
+      "CEP opcional vindo da planilha de importação, usado para derivar a rota dentro da filial (hoje só Vitória da Conquista). Não precisa de formato específico.",
+    ),
   promisedDeliveryDate: zod.string().min(1),
   operation: zod
     .string()
@@ -136,6 +154,12 @@ export const BulkCreatePackagesBody = zod.object({
     zod.object({
       trackingNumber: zod.string().min(1),
       city: zod.string().min(1),
+      cep: zod
+        .string()
+        .optional()
+        .describe(
+          "CEP opcional vindo da planilha de importação, usado para derivar a rota dentro da filial (hoje só Vitória da Conquista). Não precisa de formato específico.",
+        ),
       promisedDeliveryDate: zod.string().min(1),
       operation: zod
         .string()
@@ -357,7 +381,7 @@ export const CreateScanBody = zod.object({
   sessionId: zod
     .number()
     .nullish()
-    .describe("Scan session/lot id (AMAZON operation, Passo 4). Optional."),
+    .describe("Scan session\/lot id (AMAZON operation, Passo 4). Optional."),
 });
 
 /**
@@ -372,7 +396,7 @@ export const BulkCreateScansBody = zod.object({
   sessionId: zod
     .number()
     .nullish()
-    .describe("Scan session/lot id (AMAZON operation, Passo 4). Optional."),
+    .describe("Scan session\/lot id (AMAZON operation, Passo 4). Optional."),
 });
 
 export const BulkCreateScansResponse = zod.object({

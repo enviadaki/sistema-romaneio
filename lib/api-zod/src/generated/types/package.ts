@@ -10,6 +10,10 @@ export interface Package {
   id: number;
   trackingNumber: string;
   city: string;
+  /** CEP informado na importação (opcional). Usado só para derivar a rota dentro da filial na AMAZON; guardado como veio, sem validação de formato. */
+  cep?: string;
+  /** Rota dentro da filial (AMAZON), derivada automaticamente do CEP no momento do cadastro. Nula quando não há CEP, o CEP não está mapeado, ou a filial não usa rotas. */
+  rota?: string;
   promisedDeliveryDate: string;
   operation?: string;
   createdAt: string;

@@ -160,6 +160,7 @@ router.post("/scans/bulk", requireAuth, requireOperationAccess, async (req, res)
         sessionId,
         operation: pkg.operation,
         filial: pkg.filial,
+        rota: pkg.rota,
       })
       .onConflictDoNothing()
       .returning();
@@ -254,6 +255,7 @@ router.post("/scans", requireAuth, requireOperationAccess, async (req, res): Pro
       scannedBy: userFullName,
       operation: pkg.operation,
       filial: pkg.filial,
+      rota: pkg.rota,
       sessionId,
     })
     .onConflictDoNothing()

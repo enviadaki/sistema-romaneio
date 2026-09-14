@@ -35,6 +35,10 @@ export interface Package {
   id: number;
   trackingNumber: string;
   city: string;
+  /** CEP informado na importação (opcional). Usado só para derivar a rota dentro da filial na AMAZON; guardado como veio, sem validação de formato. */
+  cep?: string;
+  /** Rota dentro da filial (AMAZON), derivada automaticamente do CEP no momento do cadastro. Nula quando não há CEP, o CEP não está mapeado, ou a filial não usa rotas. */
+  rota?: string;
   promisedDeliveryDate: string;
   operation?: string;
   createdAt: string;
@@ -45,6 +49,8 @@ export interface PackageInput {
   trackingNumber: string;
   /** @minLength 1 */
   city: string;
+  /** CEP opcional vindo da planilha de importação, usado para derivar a rota dentro da filial (hoje só Vitória da Conquista). Não precisa de formato específico. */
+  cep?: string;
   /** @minLength 1 */
   promisedDeliveryDate: string;
   /** Operation identifier (e.g. LOGGI, AMAZON). Defaults to LOGGI. */
@@ -77,7 +83,8 @@ export interface ScanInput {
   trackingNumber: string;
   /** Operation identifier (e.g. LOGGI, AMAZON). Defaults to LOGGI. */
   operation?: string;
-  /** Scan session/lot id (AMAZON operation, Passo 4). Optional.
+  /**
+   * Scan session/lot id (AMAZON operation, Passo 4). Optional.
    * @nullable
    */
   sessionId?: number | null;
@@ -128,7 +135,8 @@ export interface BulkScansInput {
   trackingNumbers: string[];
   /** Operation identifier (e.g. LOGGI, AMAZON). Defaults to LOGGI. */
   operation?: string;
-  /** Scan session/lot id (AMAZON operation, Passo 4). Optional.
+  /**
+   * Scan session/lot id (AMAZON operation, Passo 4). Optional.
    * @nullable
    */
   sessionId?: number | null;

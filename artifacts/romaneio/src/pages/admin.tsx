@@ -1295,6 +1295,192 @@ function FilialCitiesDialog({ filial, onClose }: { filial: FilialRow; onClose: (
   );
 }
 
+// ── Rotas por CEP de uma filial (ver plano-implementacao-filiais-amazon.md,
+// seção Vitória da Conquista) ───────────────────────────────────────────────
+//
+// Conceito NOVO e diferente da aba "Rotas" já existente (aquela é rota por
+// cidade inteira, só pra LOGGI/Arco). Esta aqui é rota por CEP, só dentro de
+// uma filial da AMAZON — por isso o botão nesta tela chama "CEPs", não
+// "Rotas", pra não confundir as duas coisas na mesma página.
+
+interface FilialRouteRow { id: number; code: string; name: string; isActive: boolean }
+interface RouteCepRow { id: number; cep: string; bairro: string | null }
+
+function RouteCepsList({ route }: { route: FilialRouteRow }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [newCep, setNewCep] = useState("");
+  const [newBairro, setNewBairro] = useState("");
+
+  const { data: ceps = [], isLoading } = useQuery<RouteCepRow[]>({
+    queryKey: ["route-ceps", route.id],
+    queryFn: () => customFetch<RouteCepRow[]>(`/api/admin/filial-routes/${route.id}/ceps`),
+  });
+
+  const addMutation = useMutation({
+    mutationFn: () =>
+      customFetch<RouteCepRow>(`/api/admin/filial-routes/${route.id}/ceps`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cep: newCep, bairro: newBairro }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["route-ceps", route.id] });
+      setNewCep("");
+      setNewBairro("");
+    },
+    onError: (err: any) => toast({ title: "Não foi possível adicionar o CEP", description: err?.message, variant: "destructive" }),
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (id: number) =>
+      customFetch<{ success: boolean }>(`/api/admin/route-ceps/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["route-ceps", route.id] }),
+  });
+
+  return (
+    <div className="pl-4 pr-2 py-2 space-y-2 bg-muted/30 rounded-md">
+      <div className="flex items-center gap-2">
+        <Input
+          placeholder="CEP (ex: 45000010)"
+          className="h-7 text-xs w-40"
+          value={newCep}
+          onChange={(e) => setNewCep(e.target.value)}
+        />
+        <Input
+          placeholder="Bairro (opcional, só referência)"
+          className="h-7 text-xs flex-1"
+          value={newBairro}
+          onChange={(e) => setNewBairro(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && newCep.trim()) addMutation.mutate(); }}
+        />
+        <Button size="sm" className="h-7 text-xs" disabled={!newCep.trim() || addMutation.isPending} onClick={() => addMutation.mutate()}>
+          Adicionar
+        </Button>
+      </div>
+      {isLoading ? (
+        <p className="text-xs text-muted-foreground py-2">Carregando...</p>
+      ) : ceps.length === 0 ? (
+        <p className="text-xs text-muted-foreground py-2">Nenhum CEP vinculado ainda</p>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          {ceps.length} CEP(s) vinculado(s)
+          {ceps.length <= 12 && (
+            <span className="ml-1">
+              ({ceps.map((c) => c.cep).join(", ")})
+            </span>
+          )}
+        </p>
+      )}
+      {ceps.length > 0 && ceps.length <= 12 && (
+        <div className="flex flex-wrap gap-1.5">
+          {ceps.map((c) => (
+            <span key={c.id} className="inline-flex items-center gap-1 text-xs bg-background border rounded px-1.5 py-0.5">
+              {c.cep}{c.bairro ? ` · ${c.bairro}` : ""}
+              <button className="text-destructive" onClick={() => removeMutation.mutate(c.id)}>
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FilialRoutesDialog({ filial }: { filial: FilialRow }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [newCode, setNewCode] = useState("");
+  const [newName, setNewName] = useState("");
+  const [expanded, setExpanded] = useState<number | null>(null);
+
+  const { data: routes = [], isLoading } = useQuery<FilialRouteRow[]>({
+    queryKey: ["filial-routes", filial.id],
+    queryFn: () => customFetch<FilialRouteRow[]>(`/api/admin/filiais/${filial.id}/routes`),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      customFetch<FilialRouteRow>(`/api/admin/filiais/${filial.id}/routes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: newCode, name: newName }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["filial-routes", filial.id] });
+      setNewCode("");
+      setNewName("");
+      toast({ title: "Rota criada" });
+    },
+    onError: (err: any) => toast({ title: "Erro", description: err?.message, variant: "destructive" }),
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (id: number) =>
+      customFetch<{ success: boolean }>(`/api/admin/filial-routes/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["filial-routes", filial.id] });
+      toast({ title: "Rota removida" });
+    },
+  });
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Rotas por CEP/bairro dentro da filial <strong>{filial.code}</strong>. Um pacote da AMAZON grava a rota
+        sozinho a partir do CEP da planilha de importação — só existe pra quem tem CEP cadastrado aqui.
+      </p>
+
+      <div className="flex items-center gap-2">
+        <Input placeholder="Código (ex: CENTRO)" className="h-8 text-sm w-36" value={newCode} onChange={(e) => setNewCode(e.target.value)} />
+        <Input
+          placeholder="Nome (ex: Centro)"
+          className="h-8 text-sm flex-1"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && newCode.trim() && newName.trim()) createMutation.mutate(); }}
+        />
+        <Button size="sm" disabled={!newCode.trim() || !newName.trim() || createMutation.isPending} onClick={() => createMutation.mutate()}>
+          Nova rota
+        </Button>
+      </div>
+
+      <div className="max-h-80 overflow-y-auto divide-y rounded-md border">
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground text-center py-4">Carregando...</p>
+        ) : routes.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">Nenhuma rota cadastrada ainda</p>
+        ) : (
+          routes.map((r) => (
+            <div key={r.id}>
+              <div className="flex items-center gap-2 px-3 py-2">
+                <button
+                  className="flex items-center gap-1.5 flex-1 text-left"
+                  onClick={() => setExpanded(expanded === r.id ? null : r.id)}
+                >
+                  {expanded === r.id ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                  <span className="text-sm font-mono font-semibold">{r.code}</span>
+                  <span className="text-sm text-muted-foreground">{r.name}</span>
+                </button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                  onClick={() => removeMutation.mutate(r.id)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              {expanded === r.id && <RouteCepsList route={r} />}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 function FiliaisTab() {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -1303,6 +1489,7 @@ function FiliaisTab() {
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [citiesDialogFilial, setCitiesDialogFilial] = useState<FilialRow | null>(null);
+  const [routesDialogFilial, setRoutesDialogFilial] = useState<FilialRow | null>(null);
 
   const { data: filiais = [], isLoading } = useQuery<FilialRow[]>({
     queryKey: ["admin-filiais"],
@@ -1436,6 +1623,9 @@ function FiliaisTab() {
                   <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setCitiesDialogFilial(f)}>
                     Cidades
                   </Button>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setRoutesDialogFilial(f)}>
+                    CEPs
+                  </Button>
                   <Button
                     size="icon"
                     variant="ghost"
@@ -1493,6 +1683,15 @@ function FiliaisTab() {
           {citiesDialogFilial && (
             <FilialCitiesDialog filial={citiesDialogFilial} onClose={() => setCitiesDialogFilial(null)} />
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!routesDialogFilial} onOpenChange={(o) => { if (!o) setRoutesDialogFilial(null); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Rotas por CEP — {routesDialogFilial?.code}</DialogTitle>
+          </DialogHeader>
+          {routesDialogFilial && <FilialRoutesDialog filial={routesDialogFilial} />}
         </DialogContent>
       </Dialog>
     </div>

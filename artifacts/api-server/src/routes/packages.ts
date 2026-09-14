@@ -12,6 +12,7 @@ import { requireOperationAccess, isOperationAllowed } from "../middlewares/requi
 import { isFilialAllowed, getAllowedFiliais, canCreateWithFilial } from "../middlewares/requireFilialAccess";
 import { validateTbrFormat, tbrValidationMessage, normalizeTbrCode } from "../modules/amazon/tbr";
 import { resolveFilialForCity } from "../modules/amazon/filial";
+import { resolveRotaForCep } from "../modules/amazon/rota";
 import { logAuditEvent } from "../modules/audit/log";
 
 const router: IRouter = Router();
@@ -190,6 +191,8 @@ router.get("/packages", requireAuth, requireOperationAccess, async (req, res): P
       promisedDeliveryDate: p.promisedDeliveryDate,
       operation: p.operation,
       filial: p.filial,
+      cep: p.cep ?? undefined,
+      rota: p.rota ?? undefined,
       createdAt: p.createdAt.toISOString(),
     }))
   );
@@ -248,14 +251,22 @@ router.post("/packages", requireAuth, requireOperationAccess, async (req, res): 
     return;
   }
 
+  // Rota dentro da filial (ver plano-implementacao-filiais-amazon.md, seção
+  // Vitória da Conquista) — mesmo espírito de filial: nunca digitada,
+  // derivada sozinha do CEP quando ele vier na importação. Ausência de CEP
+  // ou CEP não mapeado não bloqueia o cadastro, só deixa rota nula.
+  const rota = filial ? await resolveRotaForCep(parsed.data.cep) : null;
+
   const [pkg] = await db
     .insert(packagesTable)
     .values({
       trackingNumber,
       city: parsed.data.city,
+      cep: parsed.data.cep ?? null,
       promisedDeliveryDate: parsed.data.promisedDeliveryDate,
       operation,
       filial,
+      rota,
     })
     .returning();
 
@@ -272,6 +283,8 @@ router.post("/packages", requireAuth, requireOperationAccess, async (req, res): 
     id: pkg.id,
     trackingNumber: pkg.trackingNumber,
     city: pkg.city,
+    cep: pkg.cep ?? undefined,
+    rota: pkg.rota ?? undefined,
     promisedDeliveryDate: pkg.promisedDeliveryDate,
     operation: pkg.operation,
     filial: pkg.filial,
@@ -341,12 +354,16 @@ router.post("/packages/bulk", requireAuth, requireOperationAccess, async (req, r
         continue;
       }
 
+      const pkgRota = pkgFilial ? await resolveRotaForCep(pkg.cep) : null;
+
       await db.insert(packagesTable).values({
         trackingNumber,
         city: pkg.city,
+        cep: pkg.cep ?? null,
         promisedDeliveryDate: pkg.promisedDeliveryDate,
         operation: pkgOperation,
         filial: pkgFilial,
+        rota: pkgRota,
       });
       imported++;
     } catch {

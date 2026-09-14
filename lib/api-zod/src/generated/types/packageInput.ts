@@ -11,6 +11,8 @@ export interface PackageInput {
   trackingNumber: string;
   /** @minLength 1 */
   city: string;
+  /** CEP opcional vindo da planilha de importação, usado para derivar a rota dentro da filial (hoje só Vitória da Conquista). Não precisa de formato específico. */
+  cep?: string;
   /** @minLength 1 */
   promisedDeliveryDate: string;
   /** Operation identifier (e.g. LOGGI, AMAZON). Defaults to LOGGI. */

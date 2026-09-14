@@ -41,7 +41,10 @@ import {
 } from "@/components/ui/dialog";
 import { Trash2, Upload, FileText, CheckCircle, AlertCircle, X, Eraser, Download } from "lucide-react";
 
-type PackageRow = { trackingNumber: string; city: string; promisedDeliveryDate: string };
+// cep é opcional — vem da planilha quando existe (ver findColumnIndex do
+// CEP em parseRows). Usado no backend só pra derivar a rota dentro da
+// filial (hoje só Vitória da Conquista); nada muda pra quem não tem CEP.
+type PackageRow = { trackingNumber: string; city: string; promisedDeliveryDate: string; cep?: string };
 
 type FilePreview = {
   rows: PackageRow[];
@@ -441,6 +444,7 @@ export default function Cadastro() {
         trackingNumber: trackingVal,
         city: cleanImportedCity(cityVal, cepVal),
         promisedDeliveryDate: normalizedDate,
+        cep: cepVal || undefined,
       });
     });
 
