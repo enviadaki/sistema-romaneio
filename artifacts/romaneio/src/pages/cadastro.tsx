@@ -382,7 +382,13 @@ export default function Cadastro() {
       const cityIndex = findColumnIndex(keys, /cidade|city|destino/);
       const dateIndex = findColumnIndex(keys, /prazo|promessa|entrega|delivery|date|data/);
       const arrivalIndex = findColumnIndex(keys, /chegou|chegada|entrada|received/);
-      const cepIndex = findColumnIndex(keys, /(^|\s)cep(\s|$)/);
+      // "postal" cobre o cabeçalho real usado pelo manifesto da Amazon em
+      // inglês ("Postal") — descoberto ao testar o seletor de bairro de
+      // Vitória da Conquista em produção: a planilha real não tem nenhuma
+      // coluna chamada "CEP" (nem variação), só "Postal". "zip"/"zipcode"
+      // adicionados pelo mesmo motivo, cobrindo outras variações comuns de
+      // manifesto em inglês.
+      const cepIndex = findColumnIndex(keys, /(^|\s)(cep|postal|zip ?code|zip)(\s|$)/);
 
       let trackingVal: string;
       let cityVal: string;
