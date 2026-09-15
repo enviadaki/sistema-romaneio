@@ -92,6 +92,7 @@ function addRomaneioToPDF(
     isFirst: boolean;
     isRouteMode: boolean;
     logoImg?: HTMLImageElement;
+    operation: string;
   },
 ) {
   if (!opts.isFirst) doc.addPage();
@@ -128,6 +129,26 @@ function addRomaneioToPDF(
     if (opts.cnpj) doc.text(`CNPJ: ${opts.cnpj}`, margin, 21);
     if (opts.endereco) doc.text(opts.endereco, margin, opts.endereco && opts.cnpj ? 27 : 21);
   }
+
+  // Selo da operação (AMAZON/LOGGI) — pedido depois de perceber que o
+  // romaneio impresso/exportado não trazia nenhuma identificação de qual
+  // operação era; sem isso, dois romaneios lado a lado não dão pra
+  // diferenciar. Mesmo esquema de cor do selo já usado nas telas do
+  // sistema (Pré-Sorter, Gerar Romaneio): azul pra LOGGI, laranja pra
+  // AMAZON.
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  const opText = opts.operation;
+  const opTextW = doc.getTextWidth(opText);
+  const opBadgeW = opTextW + 8;
+  const opBadgeH = 5.5;
+  const opBadgeX = pageWidth - margin - opBadgeW;
+  const opBadgeY = 2.5;
+  const [opR, opG, opB] = opts.operation === "LOGGI" ? [37, 99, 235] : [234, 88, 12];
+  doc.setFillColor(opR, opG, opB);
+  doc.roundedRect(opBadgeX, opBadgeY, opBadgeW, opBadgeH, 1.2, 1.2, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.text(opText, opBadgeX + opBadgeW / 2, opBadgeY + opBadgeH / 2 + 1.1, { align: "center" });
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
@@ -353,7 +374,7 @@ export default function Romaneio() {
     if (!romaneio) return;
     const logoImg = await getLogoImg();
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    addRomaneioToPDF(doc, romaneio, { empresa, cnpj, endereco, isFirst: true, isRouteMode, logoImg });
+    addRomaneioToPDF(doc, romaneio, { empresa, cnpj, endereco, isFirst: true, isRouteMode, logoImg, operation });
     const safeName = romaneio.city.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_-]/g, "");
     doc.save(`romaneio_${safeName}_${romaneio.date}.pdf`);
   };
@@ -409,7 +430,7 @@ export default function Romaneio() {
     const logoImg = await getLogoImg();
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     results.forEach(({ data }, idx) => {
-      addRomaneioToPDF(doc, data, { empresa, cnpj, endereco, isFirst: idx === 0, isRouteMode: true, logoImg });
+      addRomaneioToPDF(doc, data, { empresa, cnpj, endereco, isFirst: idx === 0, isRouteMode: true, logoImg, operation });
     });
 
     doc.save(`romaneios_massa_${date}.pdf`);
@@ -673,6 +694,21 @@ export default function Romaneio() {
                   </div>
                 </div>
                 <div className="text-right">
+                  {/* Selo da operação — antes o romaneio impresso/exportado não
+                      trazia nenhuma identificação de AMAZON x LOGGI. O
+                      print-color-adjust força o navegador a manter a cor de
+                      fundo mesmo se "imagens de fundo" estiver desmarcado na
+                      caixa de impressão do usuário. */}
+                  <span
+                    className={`inline-block text-xs font-bold px-2 py-0.5 rounded border mb-1 ${
+                      operation === "LOGGI"
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-orange-600 text-white border-orange-600"
+                    }`}
+                    style={{ WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}
+                  >
+                    {operation}
+                  </span>
                   <p className="text-sm font-semibold">
                     {isRouteMode ? "Rota:" : "Cidade:"} {romaneio.city}
                   </p>
