@@ -304,6 +304,9 @@ export default function PreSorter() {
   );
 
   // Fetch scans for all cities in route (or single city [+ bairro]) + today
+  // Só serve pra: (1) checar duplicidade de bipagem no dia (regra já
+  // existente: mesmo dia, mesma operação) e (2) a lista/contador "bipados
+  // hoje" na tela — nunca usar pra decidir "Faltantes" (ver allTimeScans).
   const { data: scans } = useListScans(
     filterMode === "cidade" ? { city: selectedCity, date: today, operation } : ({} as any),
     {
@@ -317,6 +320,33 @@ export default function PreSorter() {
             filterMode === "rota"
               ? `/api/scans?cities=${encodeURIComponent(citiesParam)}&date=${today}&operation=${operation}`
               : `/api/scans?city=${encodeURIComponent(selectedCity)}&date=${today}&operation=${operation}${bairroQs}`;
+          return customFetch<any[]>(url);
+        },
+      },
+    },
+  );
+
+  // Bipagens de QUALQUER dia (sem filtro de data) pra essa cidade/rota+bairro
+  // — só usada pra saber se um pacote já foi bipado alguma vez, e por isso
+  // sair de "Faltantes (Esperados)" pra sempre. Nem todo pacote que chega
+  // sai no mesmo dia (fica em fila até o transporte de fato levar), então
+  // usar só a bipagem de hoje fazia um pacote já bipado ontem (ou antes)
+  // voltar a aparecer como pendente no dia seguinte, sem nunca esvaziar a
+  // lista — mesmo espírito do "Faltam Bipar" do Dashboard, que já ignora
+  // data (join sem filtro de scanDate) por este mesmo motivo.
+  const { data: allTimeScans } = useListScans(
+    filterMode === "cidade" ? { city: selectedCity, operation } : ({} as any),
+    {
+      query: {
+        queryKey: [...getListScansQueryKey(), "all-time", citiesParam, operation, selectedBairro],
+        enabled: isReady,
+        queryFn: async () => {
+          if (!citiesParam) return [];
+          const bairroQs = needsBairro && selectedBairro ? `&rota=${encodeURIComponent(selectedBairro)}` : "";
+          const url =
+            filterMode === "rota"
+              ? `/api/scans?cities=${encodeURIComponent(citiesParam)}&operation=${operation}`
+              : `/api/scans?city=${encodeURIComponent(selectedCity)}&operation=${operation}${bairroQs}`;
           return customFetch<any[]>(url);
         },
       },
@@ -552,14 +582,18 @@ export default function PreSorter() {
 
   const pendingPackages = useMemo(() => {
     if (!packages) return [];
-    const scannedSet = new Set((scans as any[] | undefined)?.map((s: any) => s.trackingNumber) ?? []);
+    // Bipagem de qualquer dia tira o pacote de "Faltantes" pra sempre (ver
+    // allTimeScans) — não só a de hoje, senão um pacote que já saiu num
+    // dia anterior volta a aparecer como pendente quando chegam pacotes
+    // novos nos dias seguintes.
+    const scannedSet = new Set((allTimeScans as any[] | undefined)?.map((s: any) => s.trackingNumber) ?? []);
     // Um código com avaria registrada já foi tratado pelo operador — sai
     // da lista de faltantes mesmo sem ter sido bipado normalmente.
     const avariaSet = new Set((avariasList ?? []).map((a) => a.trackingNumber));
     return (packages as any[]).filter(
       (p: any) => !scannedSet.has(p.trackingNumber) && !avariaSet.has(p.trackingNumber),
     );
-  }, [packages, scans, avariasList]);
+  }, [packages, allTimeScans, avariasList]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
