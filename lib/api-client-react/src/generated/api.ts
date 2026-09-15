@@ -27,9 +27,11 @@ import type {
   ClearPackagesParams,
   ClearPackagesResult,
   ErrorResponse,
+  FilialRoute,
   GetRomaneioParams,
   GetStatsParams,
   HealthStatus,
+  ListFilialRoutesParams,
   ListPackagesParams,
   ListReturnProtocolsParams,
   ListScansParams,
@@ -1238,6 +1240,103 @@ export function useListCities<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getListCitiesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List active routes (bairros) configured for a filial, resolved by filial code or city (AMAZON only, e.g. Vitória da Conquista/VCA).
+ */
+export const getListFilialRoutesUrl = (params?: ListFilialRoutesParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/filial-routes?${stringifiedParams}`
+    : `/api/filial-routes`;
+};
+
+export const listFilialRoutes = async (
+  params?: ListFilialRoutesParams,
+  options?: RequestInit,
+): Promise<FilialRoute[]> => {
+  return customFetch<FilialRoute[]>(getListFilialRoutesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListFilialRoutesQueryKey = (
+  params?: ListFilialRoutesParams,
+) => {
+  return [`/api/filial-routes`, ...(params ? [params] : [])] as const;
+};
+
+export const getListFilialRoutesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listFilialRoutes>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListFilialRoutesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listFilialRoutes>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListFilialRoutesQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listFilialRoutes>>
+  > = ({ signal }) => listFilialRoutes(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listFilialRoutes>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListFilialRoutesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listFilialRoutes>>
+>;
+export type ListFilialRoutesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List active routes (bairros) configured for a filial, resolved by filial code or city (AMAZON only, e.g. Vitória da Conquista/VCA).
+ */
+
+export function useListFilialRoutes<
+  TData = Awaited<ReturnType<typeof listFilialRoutes>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListFilialRoutesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listFilialRoutes>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListFilialRoutesQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

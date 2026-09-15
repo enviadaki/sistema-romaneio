@@ -67,6 +67,13 @@ export interface BulkImportResult {
   errors: string[];
 }
 
+export interface FilialRoute {
+  /** Stable code stored on packages/scans (e.g. ALTO_MARON). */
+  code: string;
+  /** Human-readable name (bairro), e.g. "Alto Maron". */
+  name: string;
+}
+
 export interface Scan {
   id: number;
   trackingNumber: string;
@@ -75,6 +82,16 @@ export interface Scan {
   /** @nullable */
   scannedBy?: string | null;
   operation?: string;
+  /**
+   * Filial dentro da AMAZON (herdada do pacote no momento da bipagem). Nula para LOGGI.
+   * @nullable
+   */
+  filial?: string | null;
+  /**
+   * Rota (bairro) dentro da filial (AMAZON, e.g. Vitória da Conquista). Nula quando a filial não exige rota.
+   * @nullable
+   */
+  rota?: string | null;
   scannedAt: string;
 }
 
@@ -344,6 +361,10 @@ export type ClearPackagesParams = {
 
 export type ListPackagesParams = {
   city?: string;
+  /**
+   * Filter by rota within a filial (AMAZON, e.g. Vitória da Conquista bairro).
+   */
+  rota?: string;
   operation?: string;
   /**
    * ISO date (YYYY-MM-DD). Start of creation date range (inclusive).
@@ -376,8 +397,23 @@ export const ListReturnProtocolsStatus = {
   CANCELADO: "CANCELADO",
 } as const;
 
+export type ListFilialRoutesParams = {
+  /**
+   * Filial code (e.g. VCA). Takes priority over `city` when both are given.
+   */
+  filial?: string;
+  /**
+   * City name — resolved to a filial on the server, same logic used at package registration.
+   */
+  city?: string;
+};
+
 export type ListScansParams = {
   city?: string;
+  /**
+   * Filter by rota within a filial (AMAZON, e.g. Vitória da Conquista bairro).
+   */
+  rota?: string;
   date?: string;
   /**
    * ISO date (YYYY-MM-DD). Start of scan date range (inclusive).

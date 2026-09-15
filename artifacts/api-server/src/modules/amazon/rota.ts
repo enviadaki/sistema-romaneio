@@ -1,8 +1,8 @@
 // Rota dentro de uma filial, derivada por CEP (ver filial-routes.ts e
 // route-ceps.ts). Espelha filial.ts (resolveFilialForCity) num nível mais
 // fino: CEP -> rota, em vez de cidade -> filial.
-import { db, routeCepsTable, filialRoutesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, routeCepsTable, filialRoutesTable, filiaisTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
 
 // CEP pode chegar formatado (12345-678), com espaço, ou como número (perde
 // zero à esquerda em planilha aberta no Excel) — normaliza pra 8 dígitos,
@@ -52,4 +52,31 @@ export async function resolveRotaForCep(cep: string | null | undefined): Promise
   if (normalized.length !== 8 || normalized === "00000000") return null;
   const map = await loadRouteCepMap();
   return map.get(normalized) ?? null;
+}
+
+export interface FilialRouteOption {
+  code: string;
+  name: string;
+}
+
+// Rotas ativas cadastradas para uma filial (pelo código, ex.: "VCA") — usado
+// pelo endpoint público de seleção de bairro no Pré-Sorter e para decidir se
+// uma filial exige seleção manual de rota antes de abrir sessão de bipagem
+// (ver scan-sessions.ts: uma filial "exige rota" quando tem pelo menos uma
+// rota ativa cadastrada — hoje só Vitória da Conquista/VCA).
+export async function getActiveRoutesForFilial(filialCode: string): Promise<FilialRouteOption[]> {
+  const rows = await db
+    .select({ code: filialRoutesTable.code, name: filialRoutesTable.name })
+    .from(filialRoutesTable)
+    .innerJoin(filiaisTable, eq(filiaisTable.id, filialRoutesTable.filialId))
+    .where(and(eq(filiaisTable.code, filialCode), eq(filialRoutesTable.isActive, true)))
+    .orderBy(filialRoutesTable.name);
+  return rows;
+}
+
+// Confere se um código de rota é válido (ativo) para aquela filial — usado
+// para validar o `rota` explícito que o frontend manda ao abrir sessão.
+export async function isValidRouteForFilial(filialCode: string, rotaCode: string): Promise<boolean> {
+  const routes = await getActiveRoutesForFilial(filialCode);
+  return routes.some((r) => r.code === rotaCode);
 }

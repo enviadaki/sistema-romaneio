@@ -11,6 +11,7 @@ import {
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireOperationAccess, isOperationAllowed } from "../middlewares/requireOperationAccess";
 import { isFilialAllowed, getAllowedFiliais } from "../middlewares/requireFilialAccess";
+import { getActiveRoutesForFilial } from "../modules/amazon/rota";
 import { logAuditEvent } from "../modules/audit/log";
 
 // Passo 4a do plano da AMAZON: abrir/fechar sessão de bipagem (lote). Sem
@@ -25,6 +26,43 @@ const router: IRouter = Router();
 // os mesmos contadores em tempo real.
 function filialEq(filial: string | null): SQL {
   return filial === null ? isNull(scanSessionsTable.filial) : eq(scanSessionsTable.filial, filial);
+}
+
+// Mesma ideia de filialEq, para a rota (bairro) dentro da filial. Ver
+// resolveSessionRota: quando a filial não exige rota, isto sempre compara
+// contra IS NULL — igual ao comportamento de antes desta feature existir.
+function rotaEq(rota: string | null): SQL {
+  return rota === null ? isNull(scanSessionsTable.rota) : eq(scanSessionsTable.rota, rota);
+}
+
+// Resolve/valida a rota da sessão. Diferente de resolveSessionFilial (que
+// tem um "modo automático" quando o operador só tem uma filial permitida),
+// aqui não há auto-seleção: bairro é informação que só o operador sabe (não
+// dá pra inferir de permissão de conta), então quando a filial exige rota
+// (tem pelo menos uma rota ativa cadastrada — hoje só VCA), o frontend É
+// OBRIGADO a mandar um `rota` explícito e válido — pedido do usuário:
+// "na hora de bipar escolher vitoria da conquista e abrir outra opção para
+// escolher por bairro" (seleção manual e obrigatória, não silenciosa).
+async function resolveSessionRota(
+  explicit: string | null,
+  filial: string | null,
+): Promise<{ ok: true; rota: string | null } | { ok: false; error: string }> {
+  if (filial === null) return { ok: true, rota: null };
+
+  const routes = await getActiveRoutesForFilial(filial);
+  if (routes.length === 0) {
+    // Filial sem rotas cadastradas nunca exige nada — mesmo comportamento
+    // de antes desta feature existir para todas as outras filiais.
+    return { ok: true, rota: null };
+  }
+
+  if (!explicit) {
+    return { ok: false, error: "Selecione o bairro para continuar — esta filial exige escolher a rota." };
+  }
+  if (!routes.some((r) => r.code === explicit)) {
+    return { ok: false, error: `Bairro/rota '${explicit}' inválido para esta filial.` };
+  }
+  return { ok: true, rota: explicit };
 }
 
 // Resolve qual filial a sessão deve usar, sem exigir que o frontend informe
@@ -67,10 +105,25 @@ router.get("/scan-sessions/current", requireAuth, requireOperationAccess, async 
     return;
   }
 
+  // Diferente de POST (que cria uma sessão nova e por isso exige rota já
+  // resolvida), aqui é só consulta de estado — se a rota vier ausente ou
+  // inválida, simplesmente não acha sessão nenhuma (devolve null), sem
+  // travar a tela com erro 400 no meio de um reload de página.
+  const explicitRota = (req.query.rota as string | undefined)?.trim() || null;
+  const rotaResolution = await resolveSessionRota(explicitRota, filial);
+  const rota = rotaResolution.ok ? rotaResolution.rota : explicitRota;
+
   const [session] = await db
     .select()
     .from(scanSessionsTable)
-    .where(and(eq(scanSessionsTable.operation, operation), filialEq(filial), eq(scanSessionsTable.status, "open")))
+    .where(
+      and(
+        eq(scanSessionsTable.operation, operation),
+        filialEq(filial),
+        rotaEq(rota),
+        eq(scanSessionsTable.status, "open"),
+      ),
+    )
     .orderBy(desc(scanSessionsTable.openedAt))
     .limit(1);
 
@@ -106,10 +159,29 @@ router.post("/scan-sessions", requireAuth, requireOperationAccess, async (req, r
     return;
   }
 
+  // Abrir sessão é o único momento que EXIGE rota resolvida (não só
+  // consultada) — sessão sem rota numa filial que precisa dela deixaria a
+  // bipagem acontecer sem saber o bairro, o que é exatamente o problema que
+  // este recurso existe pra evitar.
+  const explicitRota = (req.body?.rota as string | undefined)?.trim() || null;
+  const rotaResolution = await resolveSessionRota(explicitRota, filial);
+  if (!rotaResolution.ok) {
+    res.status(400).json({ error: rotaResolution.error });
+    return;
+  }
+  const rota = rotaResolution.rota;
+
   const [existing] = await db
     .select()
     .from(scanSessionsTable)
-    .where(and(eq(scanSessionsTable.operation, operation), filialEq(filial), eq(scanSessionsTable.status, "open")))
+    .where(
+      and(
+        eq(scanSessionsTable.operation, operation),
+        filialEq(filial),
+        rotaEq(rota),
+        eq(scanSessionsTable.status, "open"),
+      ),
+    )
     .orderBy(desc(scanSessionsTable.openedAt))
     .limit(1);
 
@@ -120,7 +192,7 @@ router.post("/scan-sessions", requireAuth, requireOperationAccess, async (req, r
 
   const [created] = await db
     .insert(scanSessionsTable)
-    .values({ operation, filial, status: "open", openedBy: userFullName })
+    .values({ operation, filial, rota, status: "open", openedBy: userFullName })
     .returning();
 
   logAuditEvent({
@@ -129,6 +201,7 @@ router.post("/scan-sessions", requireAuth, requireOperationAccess, async (req, r
     filial: created.filial,
     sessionId: created.id,
     performedBy: userFullName,
+    details: created.rota ? `rota=${created.rota}` : undefined,
   });
 
   res.status(201).json(created);
@@ -272,6 +345,10 @@ router.get("/scan-sessions/:id/summary", requireAuth, async (req, res): Promise<
         // Sessão de uma filial só conta pendências daquela filial — senão o
         // resumo misturaria "faltam bipar" de todas as filiais da AMAZON.
         session.filial === null ? undefined : eq(packagesTable.filial, session.filial),
+        // Sessão com rota (bairro obrigatório, ex.: VCA) só conta pendências
+        // daquele bairro — senão o resumo misturaria "faltam bipar" de
+        // todos os bairros da filial.
+        session.rota === null ? undefined : eq(packagesTable.rota, session.rota),
         isNull(scansTable.id),
         isNull(avariasTable.id),
       ),
@@ -284,6 +361,8 @@ router.get("/scan-sessions/:id/summary", requireAuth, async (req, res): Promise<
     session: {
       id: session.id,
       operation: session.operation,
+      filial: session.filial,
+      rota: session.rota,
       status: session.status,
       openedBy: session.openedBy,
       openedAt: session.openedAt.toISOString(),

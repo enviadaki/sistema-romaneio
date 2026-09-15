@@ -12,7 +12,7 @@ import { requireOperationAccess, isOperationAllowed } from "../middlewares/requi
 import { isFilialAllowed, getAllowedFiliais, canCreateWithFilial } from "../middlewares/requireFilialAccess";
 import { validateTbrFormat, tbrValidationMessage, normalizeTbrCode } from "../modules/amazon/tbr";
 import { resolveFilialForCity } from "../modules/amazon/filial";
-import { resolveRotaForCep } from "../modules/amazon/rota";
+import { resolveRotaForCep, getActiveRoutesForFilial } from "../modules/amazon/rota";
 import { logAuditEvent } from "../modules/audit/log";
 
 const router: IRouter = Router();
@@ -179,6 +179,12 @@ router.get("/packages", requireAuth, requireOperationAccess, async (req, res): P
     conditions.push(
       sql`lower(${packagesTable.city}) = lower(${parsed.data.city})` as unknown as SQL
     );
+  }
+
+  // Filtro por rota (bairro) dentro da filial — usado pelo Pré-Sorter quando
+  // a filial exige seleção manual de bairro (hoje: Vitória da Conquista).
+  if (parsed.data.rota) {
+    conditions.push(eq(packagesTable.rota, parsed.data.rota));
   }
 
   query = query.where(and(...conditions));
@@ -472,6 +478,37 @@ router.get("/cities", requireAuth, requireOperationAccess, async (req, res): Pro
     .where(and(...conditions))
     .orderBy(packagesTable.city);
   res.json(rows.map((r) => r.city));
+});
+
+// GET /filial-routes?filial=VCA (ou ?city=Vitória da Conquista) — rotas
+// (bairros) ativas cadastradas para uma filial, para o seletor manual do
+// Pré-Sorter (ver plano: cidade de Vitória da Conquista exige escolher o
+// bairro antes de bipar). O Pré-Sorter só conhece a cidade selecionada, não
+// o código da filial (isso é sempre resolvido no servidor, nunca hardcoded
+// no frontend) — por isso aceita `city` e resolve pra filial internamente,
+// igual ao cadastro de pacote. Filial sem rotas cadastradas (ou cidade sem
+// filial) devolve lista vazia — a tela trata isso como "não exige seleção
+// de bairro", sem tratamento especial pra nenhuma cidade.
+router.get("/filial-routes", requireAuth, requireOperationAccess, async (req, res): Promise<void> => {
+  let filial = (req.query.filial as string | undefined)?.trim() || null;
+  const city = (req.query.city as string | undefined)?.trim();
+
+  if (!filial && city) {
+    filial = await resolveFilialForCity(city);
+  }
+
+  if (!filial) {
+    res.json([]);
+    return;
+  }
+
+  if (!isFilialAllowed(req, filial)) {
+    res.status(403).json({ error: `Acesso negado para a filial '${filial}'.` });
+    return;
+  }
+
+  const routes = await getActiveRoutesForFilial(filial);
+  res.json(routes);
 });
 
 export default router;

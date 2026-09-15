@@ -8,6 +8,10 @@
 
 export type ListPackagesParams = {
   city?: string;
+  /**
+   * Filter by rota within a filial (AMAZON, e.g. Vitória da Conquista bairro).
+   */
+  rota?: string;
   operation?: string;
   /**
    * ISO date (YYYY-MM-DD). Start of creation date range (inclusive).

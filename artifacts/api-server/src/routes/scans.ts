@@ -78,6 +78,11 @@ router.get("/scans", requireAuth, requireOperationAccess, async (req, res): Prom
     if (parsed.data.dateTo) conditions.push(lte(scansTable.scanDate, parsed.data.dateTo) as any);
   }
 
+  // Filtro por rota (bairro) dentro da filial — mesmo uso de packages.ts.
+  if (parsed.data.rota) {
+    conditions.push(eq(scansTable.rota, parsed.data.rota));
+  }
+
   query = query.where(and(...conditions));
   const scans = await query.orderBy(scansTable.scannedAt);
   res.json(
@@ -89,6 +94,7 @@ router.get("/scans", requireAuth, requireOperationAccess, async (req, res): Prom
       scannedBy: s.scannedBy ?? null,
       operation: s.operation,
       filial: s.filial,
+      rota: s.rota ?? undefined,
       scannedAt: s.scannedAt.toISOString(),
     }))
   );

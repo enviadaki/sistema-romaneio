@@ -15,6 +15,11 @@ export const scanSessionsTable = pgTable("scan_sessions", {
   // operation — senão duas filiais diferentes acabariam compartilhando a
   // mesma sessão/contadores.
   filial: text("filial"),
+  // Rota (bairro) dentro da filial, quando a filial exige seleção manual de
+  // rota antes de bipar (hoje: Vitória da Conquista / VCA). Nula para
+  // filiais sem rotas cadastradas e para LOGGI. Quando presente, a sessão
+  // aberta passa a ser única por (operation, filial, rota).
+  rota: text("rota"),
   // "open" | "closed"
   status: text("status").notNull().default("open"),
   openedBy: text("opened_by"),

@@ -90,6 +90,12 @@ export const ClearPackagesResponse = zod.object({
  */
 export const ListPackagesQueryParams = zod.object({
   city: zod.coerce.string().optional(),
+  rota: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Filter by rota within a filial (AMAZON, e.g. Vitória da Conquista bairro).",
+    ),
   operation: zod.coerce.string().optional(),
   dateFrom: zod.coerce
     .string()
@@ -338,10 +344,44 @@ export const ListCitiesResponseItem = zod.string();
 export const ListCitiesResponse = zod.array(ListCitiesResponseItem);
 
 /**
+ * @summary List active routes (bairros) configured for a filial, resolved by filial code or city (AMAZON only, e.g. Vitória da Conquista/VCA).
+ */
+export const ListFilialRoutesQueryParams = zod.object({
+  filial: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Filial code (e.g. VCA). Takes priority over `city` when both are given.",
+    ),
+  city: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "City name — resolved to a filial on the server, same logic used at package registration.",
+    ),
+});
+
+export const ListFilialRoutesResponseItem = zod.object({
+  code: zod
+    .string()
+    .describe("Stable code stored on packages\/scans (e.g. ALTO_MARON)."),
+  name: zod
+    .string()
+    .describe('Human-readable name (bairro), e.g. \"Alto Maron\".'),
+});
+export const ListFilialRoutesResponse = zod.array(ListFilialRoutesResponseItem);
+
+/**
  * @summary List scan history
  */
 export const ListScansQueryParams = zod.object({
   city: zod.coerce.string().optional(),
+  rota: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Filter by rota within a filial (AMAZON, e.g. Vitória da Conquista bairro).",
+    ),
   date: zod.coerce.string().optional(),
   dateFrom: zod.coerce
     .string()
@@ -364,6 +404,18 @@ export const ListScansResponseItem = zod.object({
   scanDate: zod.string(),
   scannedBy: zod.string().nullish(),
   operation: zod.string().optional(),
+  filial: zod
+    .string()
+    .nullish()
+    .describe(
+      "Filial dentro da AMAZON (herdada do pacote no momento da bipagem). Nula para LOGGI.",
+    ),
+  rota: zod
+    .string()
+    .nullish()
+    .describe(
+      "Rota (bairro) dentro da filial (AMAZON, e.g. Vitória da Conquista). Nula quando a filial não exige rota.",
+    ),
   scannedAt: zod.string(),
 });
 export const ListScansResponse = zod.array(ListScansResponseItem);

@@ -13,7 +13,7 @@ import {
   customFetch,
   ApiError,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { getTodayDateString, formatTime, formatDateTime } from "@/lib/date-utils";
 import { useOperation } from "@/contexts/operation-context";
@@ -83,6 +83,11 @@ export default function PreSorter() {
   const [filterMode, setFilterMode] = useState<FilterMode>("rota");
   const [selectedCity, setSelectedCity] = useState<string>("");
   const [selectedRoute, setSelectedRoute] = useState<string>("");
+  // Bairro dentro da cidade (ex.: Vitória da Conquista/VCA) — ver plano:
+  // "na hora de bipar escolher vitoria da conquista e abrir outra opção
+  // para escolher por bairro". Só existe no modo "cidade"; diferente de
+  // selectedRoute, que é o conceito antigo/estático de rota da LOGGI.
+  const [selectedBairro, setSelectedBairro] = useState<string>("");
   const [scanInput, setScanInput] = useState("");
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   // Passo 11: chave incremental só pra disparar a animação de entrada do
@@ -97,8 +102,29 @@ export default function PreSorter() {
   // Passo 4a: só a AMAZON usa sessão/lote de bipagem — a LOGGI continua
   // bipando exatamente como antes, sem sessão nenhuma.
   const usesSession = operation === "AMAZON";
+
+  // Bairros disponíveis para a cidade selecionada (rota dentro da filial —
+  // ver rota.ts/filial-routes). O servidor resolve a filial a partir da
+  // cidade sozinho (mesma lógica do cadastro), então o frontend nunca
+  // precisa saber o código da filial — só manda a cidade. Cidade sem
+  // filial com rotas cadastradas devolve lista vazia, e a tela não exige
+  // nada (comportamento igual ao de antes desta feature, pra todas as
+  // outras cidades).
+  const routesQueryEnabled = usesSession && filterMode === "cidade" && !!selectedCity;
+  const { data: availableBairros, isLoading: bairrosLoading } = useQuery({
+    queryKey: ["filial-routes", selectedCity],
+    queryFn: () => customFetch<{ code: string; name: string }[]>(`/api/filial-routes?city=${encodeURIComponent(selectedCity)}`),
+    enabled: routesQueryEnabled,
+  });
+  // Enquanto a checagem de bairros ainda não terminou, ninguém sabe se a
+  // cidade exige seleção — trata como "ainda não pronto" (bairroPending),
+  // pra não deixar a bipagem liberar por uma fração de segundo sem filtro.
+  const bairroPending = routesQueryEnabled && bairrosLoading;
+  const needsBairro = routesQueryEnabled && !bairrosLoading && (availableBairros?.length ?? 0) > 0;
+
   const { data: currentSession, isLoading: sessionLoading } = useCurrentScanSession(operation, {
-    enabled: usesSession,
+    enabled: usesSession && (!needsBairro || !!selectedBairro),
+    rota: needsBairro ? selectedBairro : null,
   });
   const openSession = useOpenScanSession();
   const closeSession = useCloseScanSession();
@@ -226,6 +252,14 @@ export default function PreSorter() {
     },
   });
 
+  // Nome legível do bairro selecionado (selectedBairro guarda o código,
+  // ex. "ALTO_MARON" — usado nas requisições; o nome, ex. "Alto Maron", é
+  // só pra exibição).
+  const selectedBairroName = useMemo(
+    () => availableBairros?.find((r) => r.code === selectedBairro)?.name ?? selectedBairro,
+    [availableBairros, selectedBairro],
+  );
+
   // Derived: cities for the selected route
   const routeCities = useMemo(() => {
     if (filterMode !== "rota" || !selectedRoute) return [];
@@ -238,43 +272,51 @@ export default function PreSorter() {
     return selectedCity;
   }, [filterMode, routeCities, selectedCity]);
 
-  const isReady = filterMode === "cidade" ? !!selectedCity : !!selectedRoute;
+  // No modo cidade, quando a cidade exige bairro (ver needsBairro), só fica
+  // "pronto" depois que o bairro também foi escolhido — seleção obrigatória,
+  // pedido do usuário (não dá pra liberar a bipagem sem saber o bairro).
+  const isReady =
+    filterMode === "cidade"
+      ? !!selectedCity && !bairroPending && (!needsBairro || !!selectedBairro)
+      : !!selectedRoute;
   // Além de escolher rota/cidade, a AMAZON também precisa ter uma sessão
   // aberta antes de liberar a bipagem (Passo 4a). A LOGGI não usa isso.
   const canScan = isReady && (!usesSession || !!sessionId);
 
-  // Fetch packages for all cities in route (or single city)
+  // Fetch packages for all cities in route (or single city [+ bairro])
   const { data: packages } = useListPackages(
     filterMode === "rota" ? ({} as any) : { city: selectedCity, operation },
     {
       query: {
-        queryKey: [...getListPackagesQueryKey(), citiesParam, operation],
+        queryKey: [...getListPackagesQueryKey(), citiesParam, operation, selectedBairro],
         enabled: isReady,
         queryFn: async () => {
           if (!citiesParam) return [];
+          const bairroQs = needsBairro && selectedBairro ? `&rota=${encodeURIComponent(selectedBairro)}` : "";
           const url =
             filterMode === "rota"
               ? `/api/packages?cities=${encodeURIComponent(citiesParam)}&operation=${operation}`
-              : `/api/packages?city=${encodeURIComponent(selectedCity)}&operation=${operation}`;
+              : `/api/packages?city=${encodeURIComponent(selectedCity)}&operation=${operation}${bairroQs}`;
           return customFetch<any[]>(url);
         },
       },
     },
   );
 
-  // Fetch scans for all cities in route (or single city) + today
+  // Fetch scans for all cities in route (or single city [+ bairro]) + today
   const { data: scans } = useListScans(
     filterMode === "cidade" ? { city: selectedCity, date: today, operation } : ({} as any),
     {
       query: {
-        queryKey: [...getListScansQueryKey(), citiesParam, today, operation],
+        queryKey: [...getListScansQueryKey(), citiesParam, today, operation, selectedBairro],
         enabled: isReady,
         queryFn: async () => {
           if (!citiesParam) return [];
+          const bairroQs = needsBairro && selectedBairro ? `&rota=${encodeURIComponent(selectedBairro)}` : "";
           const url =
             filterMode === "rota"
               ? `/api/scans?cities=${encodeURIComponent(citiesParam)}&date=${today}&operation=${operation}`
-              : `/api/scans?city=${encodeURIComponent(selectedCity)}&date=${today}&operation=${operation}`;
+              : `/api/scans?city=${encodeURIComponent(selectedCity)}&date=${today}&operation=${operation}${bairroQs}`;
           return customFetch<any[]>(url);
         },
       },
@@ -319,8 +361,16 @@ export default function PreSorter() {
   useEffect(() => {
     setSelectedCity("");
     setSelectedRoute("");
+    setSelectedBairro("");
     setScanResult(null);
   }, [filterMode]);
+
+  // Bairro é específico da cidade — trocar de cidade invalida a escolha
+  // anterior (senão um bairro de Vitória da Conquista continuaria marcado
+  // ao trocar pra outra cidade, e o filtro ficaria errado silenciosamente).
+  useEffect(() => {
+    setSelectedBairro("");
+  }, [selectedCity]);
 
   // "às 14:32 por João Silva" — sufixo usado nas duas mensagens de
   // duplicidade (a checagem local e a resposta 409 do servidor), pra dizer
@@ -365,7 +415,7 @@ export default function PreSorter() {
       const label =
         filterMode === "rota"
           ? `rota ${selectedRoute}`
-          : `cidade ${selectedCity}`;
+          : `cidade ${selectedCity}${selectedBairro ? ` (bairro ${selectedBairroName})` : ""}`;
       bumpStat("notFound");
       logEvent(code, "not_found");
       triggerResult({
@@ -587,18 +637,50 @@ export default function PreSorter() {
                 )}
               </>
             ) : (
-              <Select value={selectedCity} onValueChange={setSelectedCity}>
-                <SelectTrigger className="text-lg py-6">
-                  <SelectValue placeholder="Selecione a cidade..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {cities?.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <>
+                <Select value={selectedCity} onValueChange={setSelectedCity}>
+                  <SelectTrigger className="text-lg py-6">
+                    <SelectValue placeholder="Selecione a cidade..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cities?.map((c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Seletor de bairro — só aparece pra cidades cuja filial
+                    tem rotas cadastradas (hoje: Vitória da Conquista).
+                    Obrigatório: sem bairro escolhido, a bipagem não libera
+                    (ver isReady) — pedido do usuário. */}
+                {selectedCity && (bairroPending || needsBairro) && (
+                  <div className="space-y-1 pt-1">
+                    <label className="text-sm font-medium flex items-center gap-1">
+                      2b. Selecione o Bairro <span className="text-red-600">*</span>
+                    </label>
+                    <Select
+                      value={selectedBairro}
+                      onValueChange={setSelectedBairro}
+                      disabled={bairroPending}
+                    >
+                      <SelectTrigger className="text-lg py-6">
+                        <SelectValue
+                          placeholder={bairroPending ? "Carregando bairros..." : "Selecione o bairro..."}
+                        />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[300px]">
+                        {availableBairros?.map((r) => (
+                          <SelectItem key={r.code} value={r.code}>
+                            {r.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -655,11 +737,14 @@ export default function PreSorter() {
                       size="sm"
                       disabled={openSession.isPending || sessionLoading}
                       onClick={() =>
-                        openSession.mutate(operation, {
-                          onError: () => {
-                            toast({ title: "Erro ao abrir sessão", variant: "destructive" });
+                        openSession.mutate(
+                          { operation, rota: needsBairro ? selectedBairro : null },
+                          {
+                            onError: () => {
+                              toast({ title: "Erro ao abrir sessão", variant: "destructive" });
+                            },
                           },
-                        })
+                        )
                       }
                     >
                       Abrir sessão
@@ -737,7 +822,9 @@ export default function PreSorter() {
                     canScan
                       ? "Escaneie o código ou digite e pressione Enter..."
                       : !isReady
-                        ? `Selecione uma ${filterMode === "rota" ? "rota" : "cidade"} primeiro`
+                        ? filterMode === "cidade" && selectedCity && needsBairro && !selectedBairro
+                          ? "Selecione o bairro primeiro"
+                          : `Selecione uma ${filterMode === "rota" ? "rota" : "cidade"} primeiro`
                         : "Abra uma sessão para começar a bipar"
                   }
                   className="text-3xl md:text-5xl py-10 md:py-14 font-mono tracking-wider border-2 border-primary/40 focus-visible:ring-4 focus-visible:ring-primary/30"
@@ -1122,7 +1209,7 @@ export default function PreSorter() {
                       Esta ação vai registrar <strong>{pendingPackages.length} pacote{pendingPackages.length !== 1 ? "s" : ""}</strong>{" "}
                       {filterMode === "rota"
                         ? `da rota "${selectedRoute}"`
-                        : `da cidade "${selectedCity}"`}{" "}
+                        : `da cidade "${selectedCity}"${selectedBairro ? ` (bairro "${selectedBairroName}")` : ""}`}{" "}
                       como bipados, sem necessidade de leitura física do código de barras.
                     </p>
 

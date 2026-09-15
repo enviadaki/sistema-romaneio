@@ -10,6 +10,8 @@ import type { Operation } from "@/contexts/operation-context";
 export interface ScanSession {
   id: number;
   operation: string;
+  filial: string | null;
+  rota: string | null;
   status: "open" | "closed";
   openedBy: string | null;
   openedAt: string;
@@ -17,15 +19,26 @@ export interface ScanSession {
   closedAt: string | null;
 }
 
-function currentSessionQueryKey(operation: Operation) {
-  return ["scan-session-current", operation] as const;
+// Rota entra na chave da query: uma sessão "atual" de um bairro é uma coisa
+// diferente da sessão "atual" de outro bairro dentro da mesma filial (ver
+// plano: Vitória da Conquista exige escolher o bairro antes de bipar).
+function currentSessionQueryKey(operation: Operation, filial?: string | null, rota?: string | null) {
+  return ["scan-session-current", operation, filial ?? null, rota ?? null] as const;
 }
 
-export function useCurrentScanSession(operation: Operation, options?: { enabled?: boolean }) {
+export function useCurrentScanSession(
+  operation: Operation,
+  options?: { enabled?: boolean; filial?: string | null; rota?: string | null },
+) {
+  const filial = options?.filial ?? null;
+  const rota = options?.rota ?? null;
+  const params = new URLSearchParams({ operation });
+  if (filial) params.set("filial", filial);
+  if (rota) params.set("rota", rota);
+
   return useQuery({
-    queryKey: currentSessionQueryKey(operation),
-    queryFn: () =>
-      customFetch<ScanSession | null>(`/api/scan-sessions/current?operation=${operation}`),
+    queryKey: currentSessionQueryKey(operation, filial, rota),
+    queryFn: () => customFetch<ScanSession | null>(`/api/scan-sessions/current?${params.toString()}`),
     enabled: options?.enabled ?? true,
   });
 }
@@ -33,13 +46,16 @@ export function useCurrentScanSession(operation: Operation, options?: { enabled?
 export function useOpenScanSession() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (operation: Operation) =>
+    mutationFn: (input: { operation: Operation; filial?: string | null; rota?: string | null }) =>
       customFetch<ScanSession>("/api/scan-sessions", {
         method: "POST",
-        body: JSON.stringify({ operation }),
+        body: JSON.stringify(input),
       }),
     onSuccess: (session) => {
-      queryClient.setQueryData(currentSessionQueryKey(session.operation as Operation), session);
+      queryClient.setQueryData(
+        currentSessionQueryKey(session.operation as Operation, session.filial, session.rota),
+        session,
+      );
     },
   });
 }
@@ -52,7 +68,10 @@ export function useCloseScanSession() {
         method: "PATCH",
       }),
     onSuccess: (session) => {
-      queryClient.setQueryData(currentSessionQueryKey(session.operation as Operation), session);
+      queryClient.setQueryData(
+        currentSessionQueryKey(session.operation as Operation, session.filial, session.rota),
+        session,
+      );
     },
   });
 }

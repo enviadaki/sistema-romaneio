@@ -8,6 +8,10 @@
 
 export type ListScansParams = {
   city?: string;
+  /**
+   * Filter by rota within a filial (AMAZON, e.g. Vitória da Conquista bairro).
+   */
+  rota?: string;
   date?: string;
   /**
    * ISO date (YYYY-MM-DD). Start of scan date range (inclusive).

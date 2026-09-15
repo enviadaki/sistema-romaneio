@@ -14,5 +14,15 @@ export interface Scan {
   /** @nullable */
   scannedBy?: string | null;
   operation?: string;
+  /**
+   * Filial dentro da AMAZON (herdada do pacote no momento da bipagem). Nula para LOGGI.
+   * @nullable
+   */
+  filial?: string | null;
+  /**
+   * Rota (bairro) dentro da filial (AMAZON, e.g. Vitória da Conquista). Nula quando a filial não exige rota.
+   * @nullable
+   */
+  rota?: string | null;
   scannedAt: string;
 }
