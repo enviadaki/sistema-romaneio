@@ -8,6 +8,7 @@ import { useOperation } from "@/contexts/operation-context";
 import { formatDate, getTodayDateString } from "@/lib/date-utils";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import JSZip from "jszip";
 import { ROUTES } from "@/lib/routes-data";
 import { useQuery } from "@tanstack/react-query";
 import { useUser } from "@clerk/react";
@@ -80,6 +81,20 @@ async function getLogoImg() {
     img.onload = () => resolve(img);
     img.onerror = () => resolve(img);
   });
+}
+
+// Dispara o download de um blob (usado pro .zip da massa por cidade) sem
+// depender de nenhum link real — cria um <a> temporário, clica sozinho e
+// remove em seguida.
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 function addRomaneioToPDF(
@@ -315,6 +330,13 @@ export default function Romaneio() {
   const [massLoading, setMassLoading] = useState(false);
   const [massProgress, setMassProgress] = useState<{ current: number; total: number } | null>(null);
   const [massError, setMassError] = useState<string | null>(null);
+  // Massa por cidade: mesma tela de "Em Massa", mas agrupando por cidade em
+  // vez de rota (a AMAZON não usa o agrupamento de rota estático da LOGGI —
+  // ver routes-data.ts) e baixando um .zip com um PDF por cidade, em vez de
+  // um único PDF combinado (pedido pra facilitar mandar/organizar romaneio
+  // por cidade individualmente).
+  const [massGroupBy, setMassGroupBy] = useState<"rota" | "cidade">("rota");
+  const [selectedCities, setSelectedCities] = useState<Set<string>>(new Set());
 
   const allowedRouteCodes: string[] | undefined =
     motoristaUser?.allowedRoutes?.length
@@ -434,6 +456,71 @@ export default function Romaneio() {
     });
 
     doc.save(`romaneios_massa_${date}.pdf`);
+    setMassLoading(false);
+    setMassProgress(null);
+  };
+
+  // ── Mass ZIP por cidade ──
+  // cities já vem filtrada pelas filiais permitidas do operador (mesmo
+  // endpoint /api/cities usado no modo "Cidade" individual), então não
+  // precisa de nenhuma restrição extra aqui.
+  const toggleCity = (cityName: string) => {
+    setSelectedCities((prev) => {
+      const next = new Set(prev);
+      if (next.has(cityName)) next.delete(cityName);
+      else next.add(cityName);
+      return next;
+    });
+  };
+
+  const selectAllCities = () => setSelectedCities(new Set(cities ?? []));
+  const clearAllCities = () => setSelectedCities(new Set());
+
+  const handleMassCidadePDF = async () => {
+    if (selectedCities.size === 0 || !date) return;
+    setMassLoading(true);
+    setMassError(null);
+
+    const cityList = Array.from(selectedCities);
+    setMassProgress({ current: 0, total: cityList.length });
+
+    const results: { city: string; data: RomaneioData }[] = [];
+
+    for (let i = 0; i < cityList.length; i++) {
+      const cityName = cityList[i];
+      try {
+        const data = await fetchRomaneio({ city: cityName, date, operation });
+        if (data.packages.length > 0) {
+          results.push({ city: cityName, data });
+        }
+      } catch {
+        // pula cidades que falharem na busca, mesmo comportamento do modo por rota
+      }
+      setMassProgress({ current: i + 1, total: cityList.length });
+    }
+
+    if (results.length === 0) {
+      setMassError("Nenhuma cidade selecionada possui pacotes bipados para a data escolhida.");
+      setMassLoading(false);
+      setMassProgress(null);
+      return;
+    }
+
+    // Diferente do modo por rota (um PDF só, com uma página por rota), aqui
+    // cada cidade vira um arquivo PDF separado dentro do .zip — foi o que
+    // foi pedido, pra facilitar organizar/enviar romaneio cidade por cidade.
+    const logoImg = await getLogoImg();
+    const zip = new JSZip();
+    for (const { city: cityName, data } of results) {
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      addRomaneioToPDF(doc, data, { empresa, cnpj, endereco, isFirst: true, isRouteMode: false, logoImg, operation });
+      const safeName = cityName.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_-]/g, "");
+      zip.file(`romaneio_${safeName}_${date}.pdf`, doc.output("blob"));
+    }
+
+    const zipBlob = await zip.generateAsync({ type: "blob" });
+    downloadBlob(zipBlob, `romaneios_cidades_${date}.zip`);
+
     setMassLoading(false);
     setMassProgress(null);
   };
@@ -588,18 +675,54 @@ export default function Romaneio() {
       {/* ── MASSA MODE UI ── */}
       {filterMode === "massa" && (
         <div className="no-print space-y-4">
+          {/* Agrupar por: rota (um PDF só, multipágina) ou cidade (um .zip
+              com um PDF por cidade — a AMAZON não usa rota estática, então
+              pra ela faz mais sentido escolher direto por cidade). */}
+          <div className="w-full sm:w-[240px]">
+            <Label className="text-xs font-semibold mb-1 block">Agrupar por</Label>
+            <Tabs
+              value={massGroupBy}
+              onValueChange={(v) => {
+                setMassGroupBy(v as "rota" | "cidade");
+                setMassError(null);
+              }}
+            >
+              <TabsList className="w-full">
+                <TabsTrigger value="rota" className="flex-1 gap-1.5">
+                  <Route className="h-3.5 w-3.5" />
+                  Rota (1 PDF)
+                </TabsTrigger>
+                <TabsTrigger value="cidade" className="flex-1 gap-1.5">
+                  <MapPin className="h-3.5 w-3.5" />
+                  Cidade (.zip)
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-semibold">Selecione as rotas para impressão em massa</p>
+              <p className="text-sm font-semibold">
+                {massGroupBy === "rota"
+                  ? "Selecione as rotas para impressão em massa"
+                  : "Selecione as cidades para gerar o .zip com os romaneios"}
+              </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {selectedRoutes.size} de {filteredRoutes.length} rotas selecionadas
+                {massGroupBy === "rota"
+                  ? `${selectedRoutes.size} de ${filteredRoutes.length} rotas selecionadas`
+                  : `${selectedCities.size} de ${cities?.length ?? 0} cidades selecionadas`}
               </p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={selectAll}>
+              <Button variant="outline" size="sm" onClick={massGroupBy === "rota" ? selectAll : selectAllCities}>
                 Selecionar todas
               </Button>
-              <Button variant="ghost" size="sm" onClick={clearAll} disabled={selectedRoutes.size === 0}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={massGroupBy === "rota" ? clearAll : clearAllCities}
+                disabled={(massGroupBy === "rota" ? selectedRoutes.size : selectedCities.size) === 0}
+              >
                 Limpar
               </Button>
             </div>
@@ -607,26 +730,47 @@ export default function Romaneio() {
 
           <ScrollArea className="h-[340px] rounded-md border">
             <div className="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
-              {filteredRoutes.map((route) => {
-                const checked = selectedRoutes.has(route.name);
-                return (
-                  <label
-                    key={route.name}
-                    className={`flex items-center gap-2.5 px-3 py-2 rounded-md cursor-pointer transition-colors text-sm ${
-                      checked
-                        ? "bg-primary/10 border border-primary/30"
-                        : "hover:bg-muted border border-transparent"
-                    }`}
-                  >
-                    <Checkbox
-                      checked={checked}
-                      onCheckedChange={() => toggleRoute(route.name)}
-                      className="shrink-0"
-                    />
-                    <span className="leading-tight font-medium truncate">{route.name}</span>
-                  </label>
-                );
-              })}
+              {massGroupBy === "rota"
+                ? filteredRoutes.map((route) => {
+                    const checked = selectedRoutes.has(route.name);
+                    return (
+                      <label
+                        key={route.name}
+                        className={`flex items-center gap-2.5 px-3 py-2 rounded-md cursor-pointer transition-colors text-sm ${
+                          checked
+                            ? "bg-primary/10 border border-primary/30"
+                            : "hover:bg-muted border border-transparent"
+                        }`}
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => toggleRoute(route.name)}
+                          className="shrink-0"
+                        />
+                        <span className="leading-tight font-medium truncate">{route.name}</span>
+                      </label>
+                    );
+                  })
+                : (cities ?? []).map((cityName) => {
+                    const checked = selectedCities.has(cityName);
+                    return (
+                      <label
+                        key={cityName}
+                        className={`flex items-center gap-2.5 px-3 py-2 rounded-md cursor-pointer transition-colors text-sm ${
+                          checked
+                            ? "bg-primary/10 border border-primary/30"
+                            : "hover:bg-muted border border-transparent"
+                        }`}
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => toggleCity(cityName)}
+                          className="shrink-0"
+                        />
+                        <span className="leading-tight font-medium truncate">{cityName}</span>
+                      </label>
+                    );
+                  })}
             </div>
           </ScrollArea>
 
@@ -639,7 +783,7 @@ export default function Romaneio() {
           {massLoading && massProgress && (
             <div className="space-y-2">
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Buscando dados das rotas...</span>
+                <span>{massGroupBy === "rota" ? "Buscando dados das rotas..." : "Buscando dados das cidades..."}</span>
                 <span>{massProgress.current} / {massProgress.total}</span>
               </div>
               <Progress value={(massProgress.current / massProgress.total) * 100} className="h-2" />
@@ -647,24 +791,45 @@ export default function Romaneio() {
           )}
 
           <div className="flex justify-end">
-            <Button
-              size="lg"
-              onClick={handleMassPDF}
-              disabled={selectedRoutes.size === 0 || !date || massLoading}
-              className="gap-2"
-            >
-              {massLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Gerando PDF...
-                </>
-              ) : (
-                <>
-                  <FileDown className="h-4 w-4" />
-                  Gerar PDF em Massa ({selectedRoutes.size} {selectedRoutes.size === 1 ? "rota" : "rotas"})
-                </>
-              )}
-            </Button>
+            {massGroupBy === "rota" ? (
+              <Button
+                size="lg"
+                onClick={handleMassPDF}
+                disabled={selectedRoutes.size === 0 || !date || massLoading}
+                className="gap-2"
+              >
+                {massLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Gerando PDF...
+                  </>
+                ) : (
+                  <>
+                    <FileDown className="h-4 w-4" />
+                    Gerar PDF em Massa ({selectedRoutes.size} {selectedRoutes.size === 1 ? "rota" : "rotas"})
+                  </>
+                )}
+              </Button>
+            ) : (
+              <Button
+                size="lg"
+                onClick={handleMassCidadePDF}
+                disabled={selectedCities.size === 0 || !date || massLoading}
+                className="gap-2"
+              >
+                {massLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Gerando .zip...
+                  </>
+                ) : (
+                  <>
+                    <FileDown className="h-4 w-4" />
+                    Gerar .zip ({selectedCities.size} {selectedCities.size === 1 ? "cidade" : "cidades"})
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         </div>
       )}
