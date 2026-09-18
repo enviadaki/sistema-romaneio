@@ -37,11 +37,19 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, FileDown, Save, Plus, Trash2, ChevronsUpDown, Check } from "lucide-react";
+import { Loader2, FileDown, Save, Plus, Trash2, ChevronsUpDown, Check, FileClock, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import {
+  ManifestViewer,
+  useManifests,
+  STATUS_CONFIG,
+  formatDateBR as formatManifestDateBR,
+  formatCurrencyBR,
+} from "@/components/delivery-manifest-viewer";
 
 async function getLogoImg() {
   return new Promise<HTMLImageElement>((resolve) => {
@@ -136,6 +144,148 @@ function CidadeCombobox({
         </Command>
       </PopoverContent>
     </Popover>
+  );
+}
+
+// ── Histórico: consulta e reimpressão de romaneios já salvos ──────────────────
+function HistoricoRomaneios() {
+  const [motoristaFilter, setMotoristaFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [viewing, setViewing] = useState<DeliveryManifest | null>(null);
+
+  const params: Record<string, string> = {};
+  if (motoristaFilter) params.motorista = motoristaFilter;
+  if (statusFilter !== "ALL") params.status = statusFilter;
+  if (dateFrom) params.dateFrom = dateFrom;
+  if (dateTo) params.dateTo = dateTo;
+
+  const { data: manifests = [], isLoading } = useManifests(params);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-3 items-end">
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">Motorista</label>
+          <Input
+            className="w-[200px]"
+            placeholder="Filtrar por motorista"
+            value={motoristaFilter}
+            onChange={(e) => setMotoristaFilter(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">Status</label>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">Todos</SelectItem>
+              <SelectItem value="ABERTO">Aberto</SelectItem>
+              <SelectItem value="ENTREGUE">Entregue</SelectItem>
+              <SelectItem value="PAGO">Pago</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">De</label>
+          <Input type="date" className="w-[145px]" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">Até</label>
+          <Input type="date" className="w-[145px]" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+        </div>
+        {(motoristaFilter || statusFilter !== "ALL" || dateFrom || dateTo) && (
+          <Button
+            variant="outline"
+            onClick={() => {
+              setMotoristaFilter("");
+              setStatusFilter("ALL");
+              setDateFrom("");
+              setDateTo("");
+            }}
+          >
+            Limpar
+          </Button>
+        )}
+      </div>
+
+      <Card>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[60px]">Nº</TableHead>
+              <TableHead>Data</TableHead>
+              <TableHead>Motorista</TableHead>
+              <TableHead>Rota</TableHead>
+              <TableHead className="text-center">Volumes</TableHead>
+              <TableHead className="text-right">Valor</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="w-[60px]"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-10">
+                  <Loader2 className="h-5 w-5 animate-spin mx-auto" />
+                </TableCell>
+              </TableRow>
+            ) : manifests.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                  Nenhum romaneio encontrado.
+                </TableCell>
+              </TableRow>
+            ) : (
+              manifests.map((m) => {
+                const volumes = m.items.reduce((s, it) => s + it.sacas + it.avulsos, 0);
+                const cfg = STATUS_CONFIG[m.status] ?? STATUS_CONFIG.ABERTO;
+                return (
+                  <TableRow
+                    key={m.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => setViewing(m)}
+                  >
+                    <TableCell className="font-bold text-primary">#{m.numero}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatManifestDateBR(m.createdAt)}</TableCell>
+                    <TableCell className="font-medium">{m.motorista}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground max-w-[180px] truncate">
+                      {m.rota}
+                    </TableCell>
+                    <TableCell className="text-center font-medium">{volumes}</TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatCurrencyBR(m.valorPagamento)}
+                    </TableCell>
+                    <TableCell>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${cfg.color}`}>
+                        {cfg.label}
+                      </span>
+                    </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Consultar / reimprimir romaneio"
+                        onClick={() => setViewing(m)}
+                      >
+                        <Eye className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </Card>
+
+      {viewing && (
+        <ManifestViewer manifest={viewing} onClose={() => setViewing(null)} />
+      )}
+    </div>
   );
 }
 
@@ -477,6 +627,17 @@ export default function RomaneioMotorista() {
         <p className="text-muted-foreground mt-2">Preencha os dados e gere o romaneio de entrega.</p>
       </div>
 
+      <Tabs defaultValue="novo">
+        <TabsList>
+          <TabsTrigger value="novo" className="gap-1.5">
+            <Plus className="h-4 w-4" /> Novo Romaneio
+          </TabsTrigger>
+          <TabsTrigger value="historico" className="gap-1.5">
+            <FileClock className="h-4 w-4" /> Histórico
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="novo" className="pt-4">
       <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-6">
         {/* ── Painel de dados ── */}
         <Card className="h-fit">
@@ -727,6 +888,12 @@ export default function RomaneioMotorista() {
           </Card>
         </div>
       </div>
+        </TabsContent>
+
+        <TabsContent value="historico" className="pt-4">
+          <HistoricoRomaneios />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
