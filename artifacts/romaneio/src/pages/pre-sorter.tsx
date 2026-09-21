@@ -57,7 +57,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle2, XCircle, AlertCircle, MapPin, Route, Zap, Calendar, Camera, PackageOpen, Lock, Ban, WifiOff, TriangleAlert, ScanLine } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, MapPin, Route, Zap, Calendar, Camera, PackageOpen, Ban, WifiOff, TriangleAlert, ScanLine } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { CameraScanner } from "@/components/camera-scanner";
@@ -66,7 +66,10 @@ type FilterMode = "cidade" | "rota";
 // Passo 5: cada tipo de resultado tem cor/ícone/som próprio, pra nunca
 // confundir um erro com outro (ex: "fora do padrão" não é a mesma coisa que
 // "não encontrado", mesmo os dois sendo erros).
-type ScanStatus = "success" | "duplicate" | "not_found" | "invalid_format" | "other_error";
+// "wrong_location": pacote existe na base, só que fora do filtro atual
+// (outra rota/cidade/bairro) — pedido do usuário: avisar pra onde ele
+// realmente pertence, em vez de só dizer "não encontrado".
+type ScanStatus = "success" | "duplicate" | "not_found" | "wrong_location" | "invalid_format" | "other_error";
 
 interface ScanResult {
   status: ScanStatus;
@@ -283,6 +286,24 @@ export default function PreSorter() {
   // aberta antes de liberar a bipagem (Passo 4a). A LOGGI não usa isso.
   const canScan = isReady && (!usesSession || !!sessionId);
 
+  // A sessão passa a abrir sozinha assim que a tela fica pronta pra bipar —
+  // pedido do usuário, que não via mais utilidade em ter que clicar em
+  // "Abrir sessão" antes de começar. POST /scan-sessions já é idempotente
+  // (devolve a sessão aberta existente em vez de criar outra), então não tem
+  // risco de duplicar mesmo que este efeito dispare mais de uma vez; o
+  // "Encerrar sessão" com resumo continua manual, do jeito que já era.
+  useEffect(() => {
+    if (!usesSession || !isReady || sessionLoading || currentSession || openSession.isPending) return;
+    openSession.mutate(
+      { operation, rota: needsBairro ? selectedBairro : null },
+      {
+        onError: () => {
+          toast({ title: "Erro ao abrir sessão de bipagem", variant: "destructive" });
+        },
+      },
+    );
+  }, [usesSession, isReady, sessionLoading, currentSession, operation, needsBairro, selectedBairro]);
+
   // Fetch packages for all cities in route (or single city [+ bairro])
   const { data: packages } = useListPackages(
     filterMode === "rota" ? ({} as any) : { city: selectedCity, operation },
@@ -415,9 +436,66 @@ export default function PreSorter() {
     setScanResult(result);
     setResultId((id) => id + 1);
     if (result.status === "success") playScanSuccess();
-    else if (result.status === "duplicate") playScanWarning();
+    else if (result.status === "duplicate" || result.status === "wrong_location") playScanWarning();
     else if (result.status === "invalid_format") playScanInvalid();
     else playScanError();
+  };
+
+  // Antes de declarar "não encontrado", checa se o pacote existe em outro
+  // lugar dentro da mesma operação — pedido do usuário: avisar pra qual
+  // rota/cidade/bairro ele realmente pertence, útil pra redirecionar o
+  // pacote fisicamente na esteira em vez de só dizer "não encontrado".
+  // GET /packages/lookup não tem filtro de rota/cidade (busca só por
+  // trackingNumber+operation), então qualquer resultado aqui já significa
+  // "existe, mas fora do filtro atual" — o filtro atual é exatamente o que
+  // `packages` já usa, e a busca ali (linha acima) já falhou.
+  const reportNotFound = (code: string) => {
+    const label =
+      filterMode === "rota"
+        ? `rota ${selectedRoute}`
+        : `cidade ${selectedCity}${selectedBairro ? ` (bairro ${selectedBairroName})` : ""}`;
+    bumpStat("notFound");
+    logEvent(code, "not_found");
+    triggerResult({
+      status: "not_found",
+      message: `Pacote não encontrado para ${label}`,
+      trackingNumber: code,
+    });
+  };
+
+  const handleNotFound = async (code: string) => {
+    try {
+      const found = await customFetch<{ city: string; rota?: string }>(
+        `/api/packages/lookup?trackingNumber=${encodeURIComponent(code)}&operation=${operation}`,
+      );
+
+      const realRoute = ROUTES.find((r) => r.cities.includes(found.city))?.name;
+      const realBairroName = found.rota
+        ? availableBairros?.find((r) => r.code === found.rota)?.name ?? found.rota
+        : null;
+
+      let destino: string;
+      if (filterMode === "rota") {
+        destino = realRoute ? `rota "${realRoute}" (${found.city})` : `cidade "${found.city}" (sem rota mapeada)`;
+      } else if (found.city.trim().toLowerCase() !== selectedCity.trim().toLowerCase()) {
+        destino = `cidade "${found.city}"${realRoute ? ` (rota "${realRoute}")` : ""}`;
+      } else {
+        destino = `bairro "${realBairroName ?? found.rota}"`;
+      }
+
+      bumpStat("notFound");
+      logEvent(code, "not_found");
+      triggerResult({
+        status: "wrong_location",
+        message: `Esse pacote pertence à ${destino}, não à seleção atual.`,
+        trackingNumber: code,
+        city: found.city,
+      });
+    } catch {
+      // 404 (não existe em lugar nenhum) ou 403 (sem permissão pra ver onde
+      // está) — nos dois casos cai no aviso padrão de "não encontrado".
+      reportNotFound(code);
+    }
   };
 
   const processCode = (code: string) => {
@@ -442,17 +520,7 @@ export default function PreSorter() {
 
     const expectedPkg = packages?.find((p: any) => p.trackingNumber === code);
     if (!expectedPkg) {
-      const label =
-        filterMode === "rota"
-          ? `rota ${selectedRoute}`
-          : `cidade ${selectedCity}${selectedBairro ? ` (bairro ${selectedBairroName})` : ""}`;
-      bumpStat("notFound");
-      logEvent(code, "not_found");
-      triggerResult({
-        status: "not_found",
-        message: `Pacote não encontrado para ${label}`,
-        trackingNumber: code,
-      });
+      handleNotFound(code);
       return;
     }
 
@@ -554,6 +622,12 @@ export default function PreSorter() {
       icon: <XCircle className="h-12 w-12 md:h-14 md:w-14 text-red-500 flex-shrink-0" />,
       label: "NÃO ENCONTRADO",
       labelColor: "text-red-600",
+    },
+    wrong_location: {
+      bg: "bg-amber-50 border-amber-300 text-amber-900",
+      icon: <TriangleAlert className="h-12 w-12 md:h-14 md:w-14 text-amber-500 flex-shrink-0" />,
+      label: "PERTENCE A OUTRO LUGAR",
+      labelColor: "text-amber-700",
     },
     invalid_format: {
       bg: "bg-orange-50 border-orange-200 text-orange-900",
@@ -718,73 +792,41 @@ export default function PreSorter() {
             )}
           </div>
 
-          {/* Sessão de bipagem (só AMAZON — Passo 4a) */}
-          {usesSession && isReady && (
+          {/* Sessão de bipagem (só AMAZON — Passo 4a). Abre sozinha (ver
+              efeito acima) assim que fica pronta pra bipar — não precisa
+              mais clicar em nada; só aparece quando já está de fato aberta.
+              "Encerrar sessão" continua manual, pra quem quiser fechar e
+              ver o resumo (Passo 8). */}
+          {usesSession && isReady && currentSession && (
             <div className="space-y-2">
-              <div
-                className={`flex items-center justify-between gap-3 rounded-lg border-2 px-4 py-3 ${
-                  currentSession
-                    ? "border-orange-200 bg-orange-50"
-                    : "border-dashed border-muted-foreground/30 bg-muted/30"
-                }`}
-              >
-                {currentSession ? (
-                  <>
-                    <div className="flex items-center gap-2 text-orange-800">
-                      <PackageOpen className="h-5 w-5 flex-shrink-0" />
-                      <span className="text-sm font-medium">
-                        Sessão aberta{currentSession.openedBy ? ` por ${currentSession.openedBy}` : ""}
-                        {" "}às {formatTime(currentSession.openedAt)}
-                      </span>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="border-orange-300 text-orange-800 hover:bg-orange-100"
-                      disabled={closeSession.isPending}
-                      onClick={() =>
-                        closeSession.mutate(currentSession, {
-                          onSuccess: (closed) => {
-                            toast({ title: "Sessão encerrada" });
-                            setSummarySessionId(closed.id);
-                          },
-                          onError: () => {
-                            toast({ title: "Erro ao encerrar sessão", variant: "destructive" });
-                          },
-                        })
-                      }
-                    >
-                      Encerrar sessão
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Lock className="h-5 w-5 flex-shrink-0" />
-                      <span className="text-sm font-medium">
-                        Abra uma sessão para começar a bipar
-                      </span>
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={openSession.isPending || sessionLoading}
-                      onClick={() =>
-                        openSession.mutate(
-                          { operation, rota: needsBairro ? selectedBairro : null },
-                          {
-                            onError: () => {
-                              toast({ title: "Erro ao abrir sessão", variant: "destructive" });
-                            },
-                          },
-                        )
-                      }
-                    >
-                      Abrir sessão
-                    </Button>
-                  </>
-                )}
+              <div className="flex items-center justify-between gap-3 rounded-lg border-2 border-orange-200 bg-orange-50 px-4 py-3">
+                <div className="flex items-center gap-2 text-orange-800">
+                  <PackageOpen className="h-5 w-5 flex-shrink-0" />
+                  <span className="text-sm font-medium">
+                    Sessão aberta{currentSession.openedBy ? ` por ${currentSession.openedBy}` : ""}
+                    {" "}às {formatTime(currentSession.openedAt)}
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-orange-300 text-orange-800 hover:bg-orange-100"
+                  disabled={closeSession.isPending}
+                  onClick={() =>
+                    closeSession.mutate(currentSession, {
+                      onSuccess: (closed) => {
+                        toast({ title: "Sessão encerrada" });
+                        setSummarySessionId(closed.id);
+                      },
+                      onError: () => {
+                        toast({ title: "Erro ao encerrar sessão", variant: "destructive" });
+                      },
+                    })
+                  }
+                >
+                  Encerrar sessão
+                </Button>
               </div>
 
               {/* Passo 4b: indicadores em tempo real da sessão aberta */}
@@ -859,7 +901,7 @@ export default function PreSorter() {
                         ? filterMode === "cidade" && selectedCity && needsBairro && !selectedBairro
                           ? "Selecione o bairro primeiro"
                           : `Selecione uma ${filterMode === "rota" ? "rota" : "cidade"} primeiro`
-                        : "Abra uma sessão para começar a bipar"
+                        : "Só um instante, preparando a sessão..."
                   }
                   className="text-3xl md:text-5xl py-10 md:py-14 font-mono tracking-wider border-2 border-primary/40 focus-visible:ring-4 focus-visible:ring-primary/30"
                   disabled={!canScan || createScan.isPending}

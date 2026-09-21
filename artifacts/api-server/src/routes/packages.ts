@@ -78,6 +78,10 @@ router.get("/packages/lookup", requireAuth, requireOperationAccess, async (req, 
     id: pkg.id,
     trackingNumber: pkg.trackingNumber,
     city: pkg.city,
+    // rota (bairro dentro da filial, ex.: VCA) — incluída pro Pré-Sorter
+    // conseguir dizer o bairro certo quando o pacote bipado é da mesma
+    // cidade só que de outro bairro (ver aviso de "pertence a outro lugar").
+    rota: pkg.rota ?? undefined,
     promisedDeliveryDate: pkg.promisedDeliveryDate ?? null,
     operation: pkg.operation,
     createdAt: pkg.createdAt.toISOString(),
