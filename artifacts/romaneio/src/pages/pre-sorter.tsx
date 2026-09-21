@@ -292,17 +292,47 @@ export default function PreSorter() {
   // (devolve a sessão aberta existente em vez de criar outra), então não tem
   // risco de duplicar mesmo que este efeito dispare mais de uma vez; o
   // "Encerrar sessão" com resumo continua manual, do jeito que já era.
-  useEffect(() => {
-    if (!usesSession || !isReady || sessionLoading || currentSession || openSession.isPending) return;
+  //
+  // sessionOpenFailed existe pra cobrir o caso de erro: sem um botão manual
+  // de "abrir" pra clicar de novo, uma falha (permissão, rede, instabilidade
+  // momentânea do servidor) deixava a tela travada pra sempre, sem nenhuma
+  // forma de tentar de novo a não ser recarregar a página. Agora, se falhar,
+  // aparece um botão "Tentar novamente" (ver JSX) e o efeito não insiste
+  // sozinho enquanto sessionOpenFailed for true — evita bater no servidor em
+  // loop se o motivo for permanente (ex.: permissão).
+  const [sessionOpenFailed, setSessionOpenFailed] = useState(false);
+  const [sessionOpenErrorDetail, setSessionOpenErrorDetail] = useState<string | null>(null);
+
+  const attemptOpenSession = () => {
     openSession.mutate(
       { operation, rota: needsBairro ? selectedBairro : null },
       {
-        onError: () => {
-          toast({ title: "Erro ao abrir sessão de bipagem", variant: "destructive" });
+        onError: (error) => {
+          const detail = error instanceof ApiError ? (error.data as any)?.error : undefined;
+          setSessionOpenFailed(true);
+          setSessionOpenErrorDetail(typeof detail === "string" ? detail : null);
+          toast({
+            title: "Erro ao abrir sessão de bipagem",
+            description: typeof detail === "string" ? detail : undefined,
+            variant: "destructive",
+          });
         },
       },
     );
-  }, [usesSession, isReady, sessionLoading, currentSession, operation, needsBairro, selectedBairro]);
+  };
+
+  // Troca de rota/cidade/bairro é uma tentativa nova — limpa o erro anterior
+  // pra dar outra chance automática, em vez de arrastar a falha de uma
+  // seleção pra outra.
+  useEffect(() => {
+    setSessionOpenFailed(false);
+    setSessionOpenErrorDetail(null);
+  }, [selectedRoute, selectedCity, selectedBairro, operation]);
+
+  useEffect(() => {
+    if (!usesSession || !isReady || sessionLoading || currentSession || openSession.isPending || sessionOpenFailed) return;
+    attemptOpenSession();
+  }, [usesSession, isReady, sessionLoading, currentSession, sessionOpenFailed, operation, needsBairro, selectedBairro]);
 
   // Fetch packages for all cities in route (or single city [+ bairro])
   const { data: packages } = useListPackages(
@@ -797,6 +827,35 @@ export default function PreSorter() {
               mais clicar em nada; só aparece quando já está de fato aberta.
               "Encerrar sessão" continua manual, pra quem quiser fechar e
               ver o resumo (Passo 8). */}
+          {/* Se a abertura automática falhar (permissão, rede, instabilidade
+              momentânea), mostra o motivo e um botão pra tentar de novo sem
+              precisar recarregar a página. */}
+          {usesSession && isReady && !currentSession && sessionOpenFailed && (
+            <div className="flex items-center justify-between gap-3 rounded-lg border-2 border-red-200 bg-red-50 px-4 py-3">
+              <div className="flex items-center gap-2 text-red-800">
+                <TriangleAlert className="h-5 w-5 flex-shrink-0" />
+                <span className="text-sm font-medium">
+                  Não foi possível abrir a sessão de bipagem
+                  {sessionOpenErrorDetail ? `: ${sessionOpenErrorDetail}` : "."}
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="border-red-300 text-red-800 hover:bg-red-100"
+                disabled={openSession.isPending}
+                onClick={() => {
+                  setSessionOpenFailed(false);
+                  setSessionOpenErrorDetail(null);
+                  attemptOpenSession();
+                }}
+              >
+                Tentar novamente
+              </Button>
+            </div>
+          )}
+
           {usesSession && isReady && currentSession && (
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-3 rounded-lg border-2 border-orange-200 bg-orange-50 px-4 py-3">
@@ -901,7 +960,9 @@ export default function PreSorter() {
                         ? filterMode === "cidade" && selectedCity && needsBairro && !selectedBairro
                           ? "Selecione o bairro primeiro"
                           : `Selecione uma ${filterMode === "rota" ? "rota" : "cidade"} primeiro`
-                        : "Só um instante, preparando a sessão..."
+                        : sessionOpenFailed
+                          ? "Não foi possível preparar a sessão — tente novamente acima"
+                          : "Só um instante, preparando a sessão..."
                   }
                   className="text-3xl md:text-5xl py-10 md:py-14 font-mono tracking-wider border-2 border-primary/40 focus-visible:ring-4 focus-visible:ring-primary/30"
                   disabled={!canScan || createScan.isPending}
