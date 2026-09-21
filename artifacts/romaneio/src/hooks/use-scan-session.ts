@@ -28,13 +28,15 @@ function currentSessionQueryKey(operation: Operation, filial?: string | null, ro
 
 export function useCurrentScanSession(
   operation: Operation,
-  options?: { enabled?: boolean; filial?: string | null; rota?: string | null },
+  options?: { enabled?: boolean; filial?: string | null; rota?: string | null; city?: string | null },
 ) {
   const filial = options?.filial ?? null;
   const rota = options?.rota ?? null;
+  const city = options?.city ?? null;
   const params = new URLSearchParams({ operation });
   if (filial) params.set("filial", filial);
   if (rota) params.set("rota", rota);
+  if (city) params.set("city", city);
 
   return useQuery({
     queryKey: currentSessionQueryKey(operation, filial, rota),
@@ -46,7 +48,7 @@ export function useCurrentScanSession(
 export function useOpenScanSession() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { operation: Operation; filial?: string | null; rota?: string | null }) =>
+    mutationFn: (input: { operation: Operation; filial?: string | null; rota?: string | null; city?: string | null }) =>
       customFetch<ScanSession>("/api/scan-sessions", {
         method: "POST",
         body: JSON.stringify(input),

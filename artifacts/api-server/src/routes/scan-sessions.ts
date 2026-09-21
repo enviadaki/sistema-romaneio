@@ -11,7 +11,7 @@ import {
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireOperationAccess, isOperationAllowed } from "../middlewares/requireOperationAccess";
 import { isFilialAllowed, getAllowedFiliais } from "../middlewares/requireFilialAccess";
-import { getActiveRoutesForFilial } from "../modules/amazon/rota";
+import { getActiveRoutesForFilial, cityHasRoutes } from "../modules/amazon/rota";
 import { logAuditEvent } from "../modules/audit/log";
 
 // Passo 4a do plano da AMAZON: abrir/fechar sessão de bipagem (lote). Sem
@@ -46,6 +46,7 @@ function rotaEq(rota: string | null): SQL {
 async function resolveSessionRota(
   explicit: string | null,
   filial: string | null,
+  city: string | null,
 ): Promise<{ ok: true; rota: string | null } | { ok: false; error: string }> {
   if (filial === null) return { ok: true, rota: null };
 
@@ -53,6 +54,16 @@ async function resolveSessionRota(
   if (routes.length === 0) {
     // Filial sem rotas cadastradas nunca exige nada — mesmo comportamento
     // de antes desta feature existir para todas as outras filiais.
+    return { ok: true, rota: null };
+  }
+
+  // A filial pode ter rota/bairro cadastrado só pra UMA das cidades que ela
+  // cobre (hoje: só Vitória da Conquista, dentro da filial VCA, que também
+  // engloba ~186 outras cidades sem essa divisão — ver cityHasRoutes). Sem
+  // uma cidade informada (modo "Rota" do Pré-Sorter, que não tem esse
+  // conceito) ou quando a cidade em questão não usa bairro, não exige nada
+  // — mesmo a filial tendo rota cadastrada pra outra cidade dela.
+  if (city === null || !(await cityHasRoutes(filial, city))) {
     return { ok: true, rota: null };
   }
 
@@ -110,7 +121,8 @@ router.get("/scan-sessions/current", requireAuth, requireOperationAccess, async 
   // inválida, simplesmente não acha sessão nenhuma (devolve null), sem
   // travar a tela com erro 400 no meio de um reload de página.
   const explicitRota = (req.query.rota as string | undefined)?.trim() || null;
-  const rotaResolution = await resolveSessionRota(explicitRota, filial);
+  const city = (req.query.city as string | undefined)?.trim() || null;
+  const rotaResolution = await resolveSessionRota(explicitRota, filial, city);
   const rota = rotaResolution.ok ? rotaResolution.rota : explicitRota;
 
   const [session] = await db
@@ -164,7 +176,8 @@ router.post("/scan-sessions", requireAuth, requireOperationAccess, async (req, r
   // bipagem acontecer sem saber o bairro, o que é exatamente o problema que
   // este recurso existe pra evitar.
   const explicitRota = (req.body?.rota as string | undefined)?.trim() || null;
-  const rotaResolution = await resolveSessionRota(explicitRota, filial);
+  const city = (req.body?.city as string | undefined)?.trim() || null;
+  const rotaResolution = await resolveSessionRota(explicitRota, filial, city);
   if (!rotaResolution.ok) {
     res.status(400).json({ error: rotaResolution.error });
     return;

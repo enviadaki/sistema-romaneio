@@ -128,6 +128,7 @@ export default function PreSorter() {
   const { data: currentSession, isLoading: sessionLoading } = useCurrentScanSession(operation, {
     enabled: usesSession && (!needsBairro || !!selectedBairro),
     rota: needsBairro ? selectedBairro : null,
+    city: filterMode === "cidade" ? selectedCity : null,
   });
   const openSession = useOpenScanSession();
   const closeSession = useCloseScanSession();
@@ -305,7 +306,11 @@ export default function PreSorter() {
 
   const attemptOpenSession = () => {
     openSession.mutate(
-      { operation, rota: needsBairro ? selectedBairro : null },
+      {
+        operation,
+        rota: needsBairro ? selectedBairro : null,
+        city: filterMode === "cidade" ? selectedCity : null,
+      },
       {
         onError: (error) => {
           const detail = error instanceof ApiError ? (error.data as any)?.error : undefined;

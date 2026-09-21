@@ -1,8 +1,8 @@
 // Rota dentro de uma filial, derivada por CEP (ver filial-routes.ts e
 // route-ceps.ts). Espelha filial.ts (resolveFilialForCity) num nível mais
 // fino: CEP -> rota, em vez de cidade -> filial.
-import { db, routeCepsTable, filialRoutesTable, filiaisTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { db, routeCepsTable, filialRoutesTable, filiaisTable, packagesTable } from "@workspace/db";
+import { eq, and, isNotNull, sql } from "drizzle-orm";
 
 // CEP pode chegar formatado (12345-678), com espaço, ou como número (perde
 // zero à esquerda em planilha aberta no Excel) — normaliza pra 8 dígitos,
@@ -79,4 +79,33 @@ export async function getActiveRoutesForFilial(filialCode: string): Promise<Fili
 export async function isValidRouteForFilial(filialCode: string, rotaCode: string): Promise<boolean> {
   const routes = await getActiveRoutesForFilial(filialCode);
   return routes.some((r) => r.code === rotaCode);
+}
+
+// Confere se ESSA cidade específica, dentro da filial, de fato tem rota
+// (bairro) mapeada — diferente de getActiveRoutesForFilial, que só olha se
+// a FILIAL tem alguma rota cadastrada, não se é dessa cidade. Necessário
+// porque uma filial pode cobrir várias cidades sem que todas usem esse
+// conceito: a filial VCA hoje engloba tanto Vitória da Conquista (que tem
+// bairro mapeado por CEP) quanto ~186 outras cidades que vieram da operação
+// AMAZON antiga e nunca tiveram essa divisão — sem checar por cidade, a
+// exigência de escolher bairro (pensada só pra Vitória da Conquista)
+// vazava pra qualquer cidade da mesma filial, travando a bipagem/abertura
+// de sessão pra elas sem nenhuma forma de escolher um bairro (a tela nem
+// mostra o seletor fora de Vitória da Conquista). A checagem usa o dado
+// real (packages.rota, já resolvido por CEP no cadastro) em vez de uma
+// lista de cidades fixa no código — se uma cidade nova ganhar bairro
+// mapeado no futuro, passa a exigir sozinha, sem precisar mexer aqui.
+export async function cityHasRoutes(filialCode: string, city: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: packagesTable.id })
+    .from(packagesTable)
+    .where(
+      and(
+        eq(packagesTable.filial, filialCode),
+        sql`lower(${packagesTable.city}) = lower(${city})`,
+        isNotNull(packagesTable.rota),
+      ),
+    )
+    .limit(1);
+  return !!row;
 }

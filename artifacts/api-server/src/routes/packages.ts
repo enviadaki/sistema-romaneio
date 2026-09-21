@@ -12,7 +12,7 @@ import { requireOperationAccess, isOperationAllowed } from "../middlewares/requi
 import { isFilialAllowed, getAllowedFiliais, canCreateWithFilial } from "../middlewares/requireFilialAccess";
 import { validateTbrFormat, tbrValidationMessage, normalizeTbrCode } from "../modules/amazon/tbr";
 import { resolveFilialForCity } from "../modules/amazon/filial";
-import { resolveRotaForCep, getActiveRoutesForFilial } from "../modules/amazon/rota";
+import { resolveRotaForCep, getActiveRoutesForFilial, cityHasRoutes } from "../modules/amazon/rota";
 import { logAuditEvent } from "../modules/audit/log";
 
 const router: IRouter = Router();
@@ -509,6 +509,18 @@ router.get("/filial-routes", requireAuth, requireOperationAccess, async (req, re
   if (!isFilialAllowed(req, filial)) {
     res.status(403).json({ error: `Acesso negado para a filial '${filial}'.` });
     return;
+  }
+
+  // Uma filial pode cobrir várias cidades, mas nem toda cidade dela tem
+  // bairro/CEP mapeado (ver cityHasRoutes) — sem essa checagem, qualquer
+  // cidade da filial VCA (ex.: Aracatu) passaria a exigir bairro, quando só
+  // Vitória da Conquista de fato tem essa divisão.
+  if (city) {
+    const hasRoutes = await cityHasRoutes(filial, city);
+    if (!hasRoutes) {
+      res.json([]);
+      return;
+    }
   }
 
   const routes = await getActiveRoutesForFilial(filial);
