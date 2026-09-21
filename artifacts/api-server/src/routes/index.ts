@@ -18,6 +18,7 @@ import adminCadastrosRouter from "./admin-cadastros";
 import arcoRouter from "./arco";
 import returnProtocolsRouter from "./return-protocols";
 import auditEventsRouter from "./audit-events";
+import cityCorrectionsRouter from "./city-corrections";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(adminCadastrosRouter);
 router.use(returnProtocolsRouter);
 router.use(arcoRouter);
 router.use(auditEventsRouter);
+router.use(cityCorrectionsRouter);
 
 export default router;

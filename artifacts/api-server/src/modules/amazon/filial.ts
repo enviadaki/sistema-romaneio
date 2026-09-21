@@ -12,8 +12,11 @@ const DIACRITICS = /[̀-ͯ]/g;
 
 // Mesma normalização já usada no frontend para cidade importada (ver
 // cadastro.tsx: removeAccents/cityKey) — maiúscula, sem acento, espaços
-// colapsados — pra não depender de digitação idêntica byte a byte.
-function normalizeCityKey(value: string): string {
+// colapsados — pra não depender de digitação idêntica byte a byte. Exportada
+// porque routes/city-corrections.ts usa a mesma chave pra gravar/consultar
+// correções aprendidas (uma correção vale pra qualquer variação de
+// caixa/acentuação do mesmo texto bruto, igual já vale aqui pra filial).
+export function normalizeCityKey(value: string): string {
   return value
     .normalize("NFD")
     .replace(DIACRITICS, "")

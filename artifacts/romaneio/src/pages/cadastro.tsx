@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import {
   useListPackages,
   getListPackagesQueryKey,
@@ -11,7 +11,7 @@ import {
   getGetStatsQueryKey,
   customFetch,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { formatDate, getTodayDateString, getYesterdayDateString, getWeekStartDateString } from "@/lib/date-utils";
 import { useOperation } from "@/contexts/operation-context";
@@ -44,7 +44,17 @@ import { Trash2, Upload, FileText, CheckCircle, AlertCircle, X, Eraser, Download
 // cep é opcional — vem da planilha quando existe (ver findColumnIndex do
 // CEP em parseRows). Usado no backend só pra derivar a rota dentro da
 // filial (hoje só Vitória da Conquista); nada muda pra quem não tem CEP.
-type PackageRow = { trackingNumber: string; city: string; promisedDeliveryDate: string; cep?: string };
+// needsReview: cidade que não bateu com nenhuma cidade já conhecida do
+// sistema nem com nenhuma correção (estática ou aprendida) — fica de fora
+// da importação até ser resolvida sozinha pelo CEP ou corrigida manualmente
+// (ver useEffect de resolução de cidade, mais abaixo).
+type PackageRow = {
+  trackingNumber: string;
+  city: string;
+  promisedDeliveryDate: string;
+  cep?: string;
+  needsReview?: boolean;
+};
 
 type FilePreview = {
   rows: PackageRow[];
@@ -54,6 +64,10 @@ type FilePreview = {
   hasArrivalDate: boolean;
   filteredCount: number;
   filterDate: string;
+  // true depois que a tentativa automática de resolver cidade por CEP já
+  // rodou pra este preview (mesmo que não tenha resolvido todo mundo) —
+  // evita repetir a consulta de CEP a cada render.
+  cityResolutionDone: boolean;
 };
 
 const CITY_CORRECTIONS: Record<string, string> = {
@@ -143,7 +157,21 @@ function cityKey(value: string): string {
     .trim();
 }
 
-function cleanImportedCity(rawCity: string, rawCep: string): string {
+// Chave normalizada igual à usada no backend (normalizeCityKey, em
+// modules/amazon/filial.ts) — maiúscula, sem acento, espaços colapsados,
+// SEM a regra extra de parênteses que cityKey() tem (essa é só pra bater
+// com a lista de cidades já conhecidas e com as correções aprendidas em
+// /api/city-corrections, que são gravadas com essa mesma chave).
+function dynamicCityKey(value: string): string {
+  return removeAccents(value).toUpperCase().replace(/\s+/g, " ").trim();
+}
+
+// dynamicCorrections: correções aprendidas em produção (ver
+// /api/city-corrections) — gravadas quando uma cidade não reconhecida é
+// corrigida, seja automaticamente pelo CEP ou manualmente na tela. Além do
+// dicionário estático CITY_CORRECTIONS (que só muda com deploy), essas
+// valem imediatamente pra qualquer usuário, sem precisar esperar deploy.
+function cleanImportedCity(rawCity: string, rawCep: string, dynamicCorrections?: Map<string, string>): string {
   if (rawCity.trim() === "Tauapé") return "Tauapé";
   if (rawCep.replace(/\D/g, "") === "46197000") return "Paramirim";
 
@@ -153,7 +181,11 @@ function cleanImportedCity(rawCity: string, rawCep: string): string {
     const parent = CITY_CORRECTIONS[cityKey(parenthetical[2])] ?? parenthetical[2];
     return `Pindorama (${parent})`;
   }
-  return CITY_CORRECTIONS[cityKey(trimmed)] ?? trimmed;
+  const staticMatch = CITY_CORRECTIONS[cityKey(trimmed)];
+  if (staticMatch) return staticMatch;
+  const dynamicMatch = dynamicCorrections?.get(dynamicCityKey(trimmed));
+  if (dynamicMatch) return dynamicMatch;
+  return trimmed;
 }
 
 function normalizeImportedDate(value: unknown): string {
@@ -227,6 +259,10 @@ export default function Cadastro() {
   const [filePreview, setFilePreview] = useState<FilePreview | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Texto digitado pra corrigir cada cidade não reconhecida — chave é a
+  // cidade bruta (como veio do arquivo), valor é o texto ainda sendo
+  // digitado antes de aplicar (ver handleApplyCityCorrection).
+  const [cityCorrectionInputs, setCityCorrectionInputs] = useState<Record<string, string>>({});
 
   // Per-tab queries — one per period for independent counts
   const baseFilter = cityFilter !== "ALL" ? { city: cityFilter } : {};
@@ -256,6 +292,35 @@ export default function Cadastro() {
       queryFn: () => customFetch<string[]>(`/api/cities?operation=${operation}`),
     },
   });
+
+  // Correções de cidade aprendidas (ver city-corrections.ts) — junto com
+  // CITY_CORRECTIONS (estático) e as cidades já cadastradas (`cities`
+  // acima), formam a base pra decidir se uma cidade importada é conhecida
+  // ou precisa de revisão (ver useEffect de resolução de cidade, abaixo).
+  const { data: dynamicCorrections } = useQuery({
+    queryKey: ["city-corrections"],
+    queryFn: () => customFetch<{ rawKey: string; correctedCity: string }[]>("/api/city-corrections"),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const dynamicCorrectionsMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of dynamicCorrections ?? []) map.set(c.rawKey, c.correctedCity);
+    return map;
+  }, [dynamicCorrections]);
+
+  // Qualquer cidade cuja chave normalizada caia aqui é considerada
+  // conhecida/correta — não precisa de revisão. Reúne: cidades já
+  // cadastradas no sistema (pedido explícito do usuário), o dicionário
+  // estático de correções e as correções aprendidas — nos três casos, o
+  // valor já é a grafia correta.
+  const knownCityKeys = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of cities ?? []) set.add(dynamicCityKey(c));
+    for (const v of Object.values(CITY_CORRECTIONS)) set.add(dynamicCityKey(v));
+    for (const v of dynamicCorrectionsMap.values()) set.add(dynamicCityKey(v));
+    return set;
+  }, [cities, dynamicCorrectionsMap]);
 
   const createPkg = useCreatePackage();
   const bulkCreate = useBulkCreatePackages();
@@ -446,18 +511,30 @@ export default function Cadastro() {
       }
 
       const cepVal = cepIndex >= 0 ? vals[cepIndex] : "";
+      const cleanedCity = cleanImportedCity(cityVal, cepVal, dynamicCorrectionsMap);
       rows.push({
         trackingNumber: trackingVal,
-        city: cleanImportedCity(cityVal, cepVal),
+        city: cleanedCity,
         promisedDeliveryDate: normalizedDate,
         cep: cepVal || undefined,
+        needsReview: !knownCityKeys.has(dynamicCityKey(cleanedCity)),
       });
     });
 
-    return { rows, fileName, errors, sourceRows: rawRows, hasArrivalDate, filteredCount, filterDate: targetDate };
+    return {
+      rows,
+      fileName,
+      errors,
+      sourceRows: rawRows,
+      hasArrivalDate,
+      filteredCount,
+      filterDate: targetDate,
+      cityResolutionDone: false,
+    };
   };
 
   const processFile = useCallback((file: File) => {
+    setCityCorrectionInputs({});
     const ext = file.name.split(".").pop()?.toLowerCase();
 
     if (ext === "csv") {
@@ -492,6 +569,129 @@ export default function Cadastro() {
     }
   }, [fileDateFilter, parseRows]);
 
+  // Resolução automática de cidade por CEP: assim que um preview novo chega
+  // com linhas marcadas needsReview, tenta resolver cada cidade não
+  // reconhecida sozinha, consultando o CEP de um pacote que tenha aquela
+  // cidade (ViaCEP, via /api/cep-lookup) — antes de pedir pro usuário
+  // corrigir na mão. Cada acerto também é salvo em /api/city-corrections,
+  // pra da próxima vez que aparecer o mesmo texto errado já vir corrigido
+  // sem precisar consultar o CEP de novo.
+  useEffect(() => {
+    if (!filePreview || filePreview.cityResolutionDone) return;
+
+    const pendingRows = filePreview.rows.filter((r) => r.needsReview);
+    if (pendingRows.length === 0) {
+      setFilePreview((fp) => (fp && !fp.cityResolutionDone ? { ...fp, cityResolutionDone: true } : fp));
+      return;
+    }
+
+    // Uma consulta de CEP por texto de cidade distinto (não por linha) —
+    // arquivos grandes costumam ter poucas cidades distintas com problema,
+    // mesmo com muitas linhas.
+    const cepByCity = new Map<string, string>();
+    for (const row of pendingRows) {
+      if (row.cep && !cepByCity.has(row.city)) cepByCity.set(row.city, row.cep);
+    }
+
+    let cancelled = false;
+    (async () => {
+      const resolved = new Map<string, string>();
+
+      await Promise.all(
+        Array.from(cepByCity.entries()).map(async ([rawCity, cep]) => {
+          try {
+            const result = await customFetch<{ city: string; uf: string | null }>(
+              `/api/cep-lookup/${encodeURIComponent(cep)}`,
+            );
+            if (result?.city) {
+              resolved.set(rawCity, result.city);
+              // Fire-and-forget — a importação não deve esperar nem falhar
+              // por causa disso, é só aprendizado pra próxima vez.
+              customFetch("/api/city-corrections", {
+                method: "POST",
+                body: JSON.stringify({ rawCity, correctedCity: result.city, source: "cep_lookup" }),
+              }).catch(() => {});
+            }
+          } catch {
+            // CEP inválido, não encontrado, ou serviço fora do ar — essa
+            // cidade cai pra revisão manual mesmo, sem travar as outras.
+          }
+        }),
+      );
+
+      if (cancelled) return;
+
+      setFilePreview((fp) => {
+        if (!fp) return fp;
+        return {
+          ...fp,
+          cityResolutionDone: true,
+          rows: fp.rows.map((row) =>
+            row.needsReview && resolved.has(row.city)
+              ? { ...row, city: resolved.get(row.city)!, needsReview: false }
+              : row,
+          ),
+        };
+      });
+      if (resolved.size > 0) {
+        queryClient.invalidateQueries({ queryKey: ["city-corrections"] });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filePreview?.fileName, filePreview?.cityResolutionDone]);
+
+  // Cidades ainda não resolvidas, agrupadas (uma correção resolve todas as
+  // linhas com o mesmo texto de uma vez) — só depois que a tentativa
+  // automática por CEP já rodou, pra não pedir correção manual de algo que
+  // ainda pode se resolver sozinho.
+  const pendingCityGroups = useMemo(() => {
+    if (!filePreview || !filePreview.cityResolutionDone) return [];
+    const map = new Map<string, { city: string; cep?: string; count: number }>();
+    for (const row of filePreview.rows) {
+      if (!row.needsReview) continue;
+      const existing = map.get(row.city);
+      if (existing) {
+        existing.count++;
+        if (!existing.cep && row.cep) existing.cep = row.cep;
+      } else {
+        map.set(row.city, { city: row.city, cep: row.cep, count: 1 });
+      }
+    }
+    return Array.from(map.values());
+  }, [filePreview]);
+
+  const handleApplyCityCorrection = (rawCity: string) => {
+    const corrected = cityCorrectionInputs[rawCity]?.trim();
+    if (!corrected) return;
+
+    setFilePreview((fp) => {
+      if (!fp) return fp;
+      return {
+        ...fp,
+        rows: fp.rows.map((row) =>
+          row.needsReview && row.city === rawCity ? { ...row, city: corrected, needsReview: false } : row,
+        ),
+      };
+    });
+
+    customFetch("/api/city-corrections", {
+      method: "POST",
+      body: JSON.stringify({ rawCity, correctedCity: corrected, source: "manual" }),
+    })
+      .then(() => queryClient.invalidateQueries({ queryKey: ["city-corrections"] }))
+      .catch(() => {});
+
+    setCityCorrectionInputs((prev) => {
+      const next = { ...prev };
+      delete next[rawCity];
+      return next;
+    });
+  };
+
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) processFile(file);
@@ -515,22 +715,28 @@ export default function Cadastro() {
   const handleFileDateChange = (value: string) => {
     setFileDateFilter(value);
     if (filePreview) {
+      setCityCorrectionInputs({});
       setFilePreview(parseRows(filePreview.sourceRows, filePreview.fileName, value));
     }
   };
 
+  // Linhas com cidade ainda não resolvida (needsReview) nunca entram no
+  // download nem na importação — só depois de corrigidas (sozinho pelo CEP
+  // ou na mão) é que passam a contar.
+  const readyFileRows = filePreview ? filePreview.rows.filter((r) => !r.needsReview) : [];
+
   const handleFileDownload = () => {
-    if (!filePreview || filePreview.rows.length === 0) return;
+    if (readyFileRows.length === 0) return;
 
     const worksheet = XLSX.utils.aoa_to_sheet([
       ["Código de barras", "Cidade", "Prazo"],
-      ...filePreview.rows.map((row) => [
+      ...readyFileRows.map((row) => [
         row.trackingNumber,
         row.city,
         new Date(`${row.promisedDeliveryDate}T12:00:00`),
       ]),
     ]);
-    for (let rowIndex = 1; rowIndex <= filePreview.rows.length; rowIndex++) {
+    for (let rowIndex = 1; rowIndex <= readyFileRows.length; rowIndex++) {
       const dateCell = worksheet[`C${rowIndex + 1}`];
       if (dateCell) {
         dateCell.t = "d";
@@ -541,15 +747,25 @@ export default function Cadastro() {
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Pacotes");
-    const suffix = filePreview.filterDate || "processados";
+    const suffix = filePreview?.filterDate || "processados";
     XLSX.writeFile(workbook, `pacotes_prontos_${suffix}.xlsx`, { cellDates: true });
-    toast({ title: "Planilha pronta para baixar", description: `${filePreview.rows.length} pacotes exportados.` });
+    toast({ title: "Planilha pronta para baixar", description: `${readyFileRows.length} pacotes exportados.` });
   };
 
   const handleFileImport = () => {
-    if (!filePreview || filePreview.rows.length === 0) return;
+    if (readyFileRows.length === 0) return;
     bulkCreate.mutate(
-      { data: { packages: filePreview.rows.map(r => ({ ...r, operation })) } },
+      {
+        data: {
+          packages: readyFileRows.map((r) => ({
+            trackingNumber: r.trackingNumber,
+            city: r.city,
+            promisedDeliveryDate: r.promisedDeliveryDate,
+            cep: r.cep,
+            operation,
+          })),
+        },
+      },
       {
         onSuccess: (res) => {
           toast({
@@ -557,6 +773,7 @@ export default function Cadastro() {
             description: `${res.imported} importados, ${res.skipped} já existentes.`
           });
           setFilePreview(null);
+          setCityCorrectionInputs({});
           invalidateLists();
         },
         onError: () => {
@@ -738,10 +955,57 @@ export default function Cadastro() {
                       </div>
                     )}
 
-                    {filePreview.rows.length > 0 && (
+                    {readyFileRows.length > 0 && (
                       <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-3 flex items-center gap-2 text-sm">
                         <CheckCircle className="h-4 w-4 text-green-600" />
-                         <span><strong>{filePreview.rows.length}</strong> pacotes prontos para baixar ou cadastrar</span>
+                         <span><strong>{readyFileRows.length}</strong> pacotes prontos para baixar ou cadastrar</span>
+                      </div>
+                    )}
+
+                    {!filePreview.cityResolutionDone && filePreview.rows.some((r) => r.needsReview) && (
+                      <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm text-muted-foreground">
+                        Verificando cidade não reconhecida pelo CEP...
+                      </div>
+                    )}
+
+                    {filePreview.cityResolutionDone && pendingCityGroups.length > 0 && (
+                      <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 space-y-3">
+                        <div className="flex items-center gap-2 text-sm font-medium text-amber-700">
+                          <AlertCircle className="h-4 w-4" />
+                          {pendingCityGroups.length} cidade(s) não reconhecida(s) — corrija para liberar{" "}
+                          {pendingCityGroups.reduce((sum, g) => sum + g.count, 0)} pacote(s)
+                        </div>
+                        <div className="space-y-2">
+                          {pendingCityGroups.map((group) => (
+                            <div key={group.city} className="flex items-center gap-2">
+                              <div className="flex-1 min-w-0 text-xs">
+                                <span className="font-mono break-all">{group.city}</span>
+                                <span className="text-muted-foreground">
+                                  {" "}({group.count} pacote{group.count !== 1 ? "s" : ""}
+                                  {group.cep ? `, CEP ${group.cep}` : ", sem CEP"})
+                                </span>
+                              </div>
+                              <Input
+                                className="h-8 text-xs flex-1 bg-background"
+                                placeholder="Nome correto da cidade"
+                                value={cityCorrectionInputs[group.city] ?? ""}
+                                onChange={(e) =>
+                                  setCityCorrectionInputs((prev) => ({ ...prev, [group.city]: e.target.value }))
+                                }
+                              />
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-8"
+                                disabled={!cityCorrectionInputs[group.city]?.trim()}
+                                onClick={() => handleApplyCityCorrection(group.city)}
+                              >
+                                Aplicar
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
 
@@ -757,9 +1021,16 @@ export default function Cadastro() {
                         </TableHeader>
                         <TableBody>
                           {filePreview.rows.slice(0, 50).map((row, i) => (
-                            <TableRow key={i}>
+                            <TableRow key={i} className={row.needsReview ? "bg-amber-500/5" : undefined}>
                               <TableCell className="font-mono text-xs py-1.5">{row.trackingNumber}</TableCell>
-                              <TableCell className="text-xs py-1.5">{row.city}</TableCell>
+                              <TableCell className="text-xs py-1.5">
+                                {row.city}
+                                {row.needsReview && (
+                                  <span className="ml-1.5 text-amber-600 text-[10px] font-medium uppercase">
+                                    revisar
+                                  </span>
+                                )}
+                              </TableCell>
                               <TableCell className="text-xs py-1.5">{row.promisedDeliveryDate}</TableCell>
                             </TableRow>
                           ))}
@@ -777,7 +1048,7 @@ export default function Cadastro() {
                      <div className="flex gap-2 flex-wrap">
                       <Button
                         variant="outline"
-                        onClick={() => setFilePreview(null)}
+                        onClick={() => { setFilePreview(null); setCityCorrectionInputs({}); }}
                          className="flex-1 min-w-28"
                       >
                         Cancelar
@@ -785,7 +1056,7 @@ export default function Cadastro() {
                        <Button
                          variant="outline"
                          onClick={handleFileDownload}
-                         disabled={filePreview.rows.length === 0}
+                         disabled={readyFileRows.length === 0}
                          className="flex-1 min-w-40"
                        >
                          <Download className="h-4 w-4 mr-1.5" />
@@ -793,10 +1064,10 @@ export default function Cadastro() {
                        </Button>
                       <Button
                         onClick={handleFileImport}
-                        disabled={bulkCreate.isPending || filePreview.rows.length === 0}
+                        disabled={bulkCreate.isPending || readyFileRows.length === 0}
                          className="flex-1 min-w-40"
                       >
-                        {bulkCreate.isPending ? "Importando..." : `Importar ${filePreview.rows.length} pacotes`}
+                        {bulkCreate.isPending ? "Importando..." : `Importar ${readyFileRows.length} pacotes`}
                       </Button>
                     </div>
                   </div>

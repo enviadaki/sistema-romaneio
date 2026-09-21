@@ -23,6 +23,7 @@ export const auditEventTypes = [
   "manifest_deleted",
   "access_denied",
   "operator_login",
+  "city_correction_added",
 ] as const;
 export type AuditEventType = (typeof auditEventTypes)[number];
 
