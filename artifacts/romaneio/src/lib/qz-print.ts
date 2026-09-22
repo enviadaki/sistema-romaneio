@@ -1,19 +1,22 @@
 // Integração com o QZ Tray (https://qz.io) — ponte local que roda no PC do
 // operador e permite imprimir direto numa impressora instalada (USB,
 // Bluetooth ou rede) a partir do navegador, sem abrir a caixa de diálogo de
-// impressão do Chrome. Usado pelo Pré-Sorter pra imprimir a etiqueta da
-// Zebra a cada bipagem aceita (ver zpl-label.ts).
+// impressão do Chrome. Usado pelo Pré-Sorter e pela Bipagem Automática pra
+// imprimir a etiqueta da Zebra a cada bipagem aceita (ver zpl-label.ts).
 //
 // Requer que o programa QZ Tray esteja instalado e rodando no PC (ver
 // instruções de instalação entregues junto com esse patch) — se não
 // estiver, todas as funções aqui rejeitam a Promise, e quem chama decide o
-// que fazer (o Pré-Sorter nunca deixa isso travar a bipagem em si).
+// que fazer (o Pré-Sorter/Bipagem Automática nunca deixam isso travar a
+// bipagem em si).
 //
 // Carregado via <script> estático (public/vendor/qz-tray.js) em vez de
 // import de módulo — o pacote npm da QZ usa `require()` condicionalmente
 // (pra detectar dependências opcionais em ambiente Node), o que não bunda
 // de forma confiável com o Vite/Rollup. Como script solto, ele expõe
 // `window.qz` global, exatamente como a própria QZ Tray documenta.
+import { customFetch } from "@workspace/api-client-react";
+
 declare global {
   interface Window {
     qz?: any;
@@ -46,20 +49,64 @@ function loadQzTrayScript(): Promise<void> {
   return scriptLoadPromise;
 }
 
+// Assinatura das mensagens do QZ Tray (ver modules/qz/signing.ts no
+// servidor) — sem isso, toda conexão é "anônima" e o QZ Tray NUNCA deixa
+// lembrar uma conexão anônima: o popup "Allow" volta a cada pacote bipado,
+// mesmo marcando "Remember" (o checkbox fica desabilitado de propósito,
+// comportamento de segurança do próprio QZ Tray, não bug). Com um
+// certificado assinando cada pedido, a impressão fica silenciosa (zero
+// clique), contanto que esse mesmo certificado já tenha sido gerado e
+// instalado localmente no QZ Tray daquele PC (ver Site Manager nas
+// instruções entregues junto com esse patch).
+//
+// Busca o certificado do servidor uma vez só por carregamento de página; se
+// o servidor ainda não tiver um configurado (arquivo ausente — ver
+// signing.ts), a busca falha silenciosamente e o QZ Tray segue no fluxo
+// anônimo de hoje (com popup), sem quebrar a impressão.
+let securitySetupPromise: Promise<boolean> | null = null;
+
+async function trySetupQzSecurity(qz: any): Promise<boolean> {
+  if (securitySetupPromise) return securitySetupPromise;
+
+  securitySetupPromise = (async () => {
+    let certificate: string;
+    try {
+      certificate = await customFetch<string>("/api/qz/certificate", { responseType: "text" });
+      if (!certificate) return false;
+    } catch {
+      return false;
+    }
+
+    qz.security.setCertificatePromise((resolve: (v: string) => void) => resolve(certificate));
+    qz.security.setSignatureAlgorithm("SHA512");
+    qz.security.setSignaturePromise(
+      (toSign: string) => (resolve: (v: string) => void, reject: (e: unknown) => void) => {
+        customFetch<string>(`/api/qz/sign?request=${encodeURIComponent(toSign)}`, { responseType: "text" })
+          .then(resolve)
+          .catch(reject);
+      },
+    );
+    return true;
+  })();
+
+  return securitySetupPromise;
+}
+
 let connectPromise: Promise<void> | null = null;
 
 // Conecta uma vez só (conexões concorrentes reusam a mesma Promise) — QZ
-// Tray precisa estar instalado e rodando no PC. Sem certificado configurado
-// (ver README entregue), a primeira conexão de uma sessão do navegador
-// mostra um popup do QZ Tray perguntando se autoriza o site — marcando
-// "Remember this decision" ali, não pergunta mais nas próximas vezes nesse
-// mesmo PC/navegador.
+// Tray precisa estar instalado e rodando no PC. Com certificado configurado
+// no servidor, conecta silenciosamente; sem ele (ainda não configurado
+// nesse PC/operação), a primeira conexão de uma sessão do navegador mostra
+// o popup do QZ Tray perguntando se autoriza o site, do jeito que já
+// funcionava antes desse patch.
 export function ensureQzConnected(): Promise<void> {
   if (connectPromise) return connectPromise;
 
-  connectPromise = loadQzTrayScript().then(() => {
+  connectPromise = loadQzTrayScript().then(async () => {
     const qz = window.qz;
     if (!qz) throw new Error("qz-tray.js carregado mas window.qz não existe");
+    await trySetupQzSecurity(qz);
     if (qz.websocket.isActive()) return;
     return qz.websocket.connect({ retries: 2, delay: 1 });
   });

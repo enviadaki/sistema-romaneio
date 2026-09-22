@@ -31,6 +31,13 @@ services:
       SESSION_SECRET: ${SESSION_SECRET}
       ARCO_API_KEY: ${ARCO_API_KEY}
       ADMIN_EMAILS: ${ADMIN_EMAILS}
+    volumes:
+      # Certificado + chave privada da assinatura QZ Tray (impressão sem o
+      # popup "Allow" a cada bipagem — ver modules/qz/signing.ts). Pasta
+      # local, nunca vai pro git (ver .gitignore); montada só leitura.
+      # Instruções de como gerar e colocar os 2 arquivos aqui: ver
+      # documentação entregue junto com esse patch.
+      - ./secrets:/app/secrets:ro
     depends_on:
       postgres:
         condition: service_healthy

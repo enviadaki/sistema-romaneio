@@ -55,3 +55,7 @@ Thumbs.db
 # Database backups - never commit, keep outside the repo
 *.dump
 *.sql.gz
+
+# Certificado/chave privada da assinatura QZ Tray (impressão de etiqueta) -
+# nunca commitar, ver docker-compose.yml e modules/qz/signing.ts
+/secrets/

@@ -19,6 +19,7 @@ import arcoRouter from "./arco";
 import returnProtocolsRouter from "./return-protocols";
 import auditEventsRouter from "./audit-events";
 import cityCorrectionsRouter from "./city-corrections";
+import qzRouter from "./qz";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(returnProtocolsRouter);
 router.use(arcoRouter);
 router.use(auditEventsRouter);
 router.use(cityCorrectionsRouter);
+router.use(qzRouter);
 
 export default router;
