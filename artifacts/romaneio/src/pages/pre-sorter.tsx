@@ -37,6 +37,8 @@ import {
   type AvariaCategory,
 } from "@/hooks/use-avarias";
 import { compressImageFile } from "@/lib/image-utils";
+import { buildLoggiPreSorterLabelZpl } from "@/lib/zpl-label";
+import { printZplLabel } from "@/lib/qz-print";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -57,7 +59,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle2, XCircle, AlertCircle, MapPin, Route, Zap, Calendar, Camera, PackageOpen, Ban, WifiOff, TriangleAlert, ScanLine } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { CheckCircle2, XCircle, AlertCircle, MapPin, Route, Zap, Calendar, Camera, PackageOpen, Ban, WifiOff, TriangleAlert, ScanLine, Printer } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { CameraScanner } from "@/components/camera-scanner";
@@ -99,6 +102,81 @@ export default function PreSorter() {
   const [resultId, setResultId] = useState(0);
   const [autoOpen, setAutoOpen] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+
+  // Impressão de etiqueta (ZQ630 por Bluetooth) a cada bipagem aceita no
+  // modo "Rota" — ver zpl-label.ts/qz-print.ts. Fica salvo no navegador
+  // (localStorage) porque é uma preferência do PC físico onde a impressora
+  // está pareada, não do sistema como um todo: outro PC fazendo bipagem em
+  // outra mesa pode não ter impressora nenhuma, ou uma com nome diferente.
+  const [printerSettingsOpen, setPrinterSettingsOpen] = useState(false);
+  const [printerEnabled, setPrinterEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("presorter-printer-enabled") === "true";
+    } catch {
+      return false;
+    }
+  });
+  const [printerName, setPrinterName] = useState<string>(() => {
+    try {
+      return localStorage.getItem("presorter-printer-name") ?? "ZQ630";
+    } catch {
+      return "ZQ630";
+    }
+  });
+  const [printerTestPending, setPrinterTestPending] = useState(false);
+  // Evita empilhar um toast de erro a cada bipagem se a impressora estiver
+  // fora do ar (ex.: QZ Tray fechado) — avisa uma vez só, até a próxima
+  // impressão dar certo ou a tela ser recarregada.
+  const printerErrorNotifiedRef = useRef(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("presorter-printer-enabled", String(printerEnabled));
+    } catch {
+      // localStorage indisponível (modo privado, navegador bloqueando) —
+      // a preferência só não persiste entre sessões, nada quebra.
+    }
+  }, [printerEnabled]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("presorter-printer-name", printerName);
+    } catch {
+      // ver comentário acima
+    }
+  }, [printerName]);
+
+  // Configuração nova — dá outra chance de avisar se der erro de novo
+  // (em vez de ficar calado achando que já avisou dessa vez).
+  useEffect(() => {
+    printerErrorNotifiedRef.current = false;
+  }, [printerEnabled, printerName]);
+
+  const handleTestPrint = () => {
+    if (!printerName.trim()) {
+      toast({ title: "Digite o nome da impressora antes de testar.", variant: "destructive" });
+      return;
+    }
+    setPrinterTestPending(true);
+    const zpl = buildLoggiPreSorterLabelZpl({
+      city: "Etiqueta de teste",
+      routeName: "Pré-Sorter LOGGI",
+      trackingNumber: "TESTE123456",
+    });
+    printZplLabel(printerName.trim(), zpl)
+      .then(() => {
+        toast({ title: "Etiqueta de teste enviada", description: `Impressora: ${printerName.trim()}` });
+      })
+      .catch((err) => {
+        console.warn("[pre-sorter] falha no teste de impressão:", err);
+        toast({
+          title: "Falha ao imprimir etiqueta de teste",
+          description: "Confira se o QZ Tray está aberto e se o nome da impressora está certo.",
+          variant: "destructive",
+        });
+      })
+      .finally(() => setPrinterTestPending(false));
+  };
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -586,6 +664,34 @@ export default function PreSorter() {
           queryClient.invalidateQueries({ queryKey: getListScansQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetStatsQueryKey() });
           setTimeout(() => inputRef.current?.focus(), 100);
+
+          // Etiqueta da ZQ630 — só no modo "Rota" (fluxo clássico da
+          // LOGGI) e só se a impressão estiver ligada nesse PC. Nunca
+          // espera (await) nem trava a bipagem por causa disso: dispara e
+          // esquece, com o próprio erro tratado dentro do .catch — mesma
+          // filosofia "melhor esforço" já usada pro log de eventos.
+          if (filterMode === "rota" && printerEnabled && printerName.trim()) {
+            const zpl = buildLoggiPreSorterLabelZpl({
+              city: expectedPkg.city,
+              routeName: selectedRoute,
+              trackingNumber: code,
+            });
+            printZplLabel(printerName.trim(), zpl)
+              .then(() => {
+                printerErrorNotifiedRef.current = false;
+              })
+              .catch((err) => {
+                console.warn("[pre-sorter] falha ao imprimir etiqueta:", err);
+                if (!printerErrorNotifiedRef.current) {
+                  printerErrorNotifiedRef.current = true;
+                  toast({
+                    title: "Falha ao imprimir etiqueta",
+                    description: "A bipagem foi aceita normalmente — só a etiqueta não saiu. Verifique se o QZ Tray está aberto.",
+                    variant: "destructive",
+                  });
+                }
+              });
+          }
         },
         onError: (error) => {
           if (error instanceof ApiError && error.status === 409) {
@@ -713,13 +819,25 @@ export default function PreSorter() {
             Biper pacotes para gerar o romaneio da rota ou cidade.
           </p>
         </div>
-        <span className={`mt-1 shrink-0 text-sm font-bold px-3 py-1 rounded-full border ${
-          operation === "LOGGI"
-            ? "bg-blue-50 text-blue-700 border-blue-200"
-            : "bg-orange-50 text-orange-700 border-orange-200"
-        }`}>
-          {operation}
-        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className={printerEnabled ? "border-primary/40 text-primary" : undefined}
+            title="Configurar impressão de etiqueta"
+            onClick={() => setPrinterSettingsOpen(true)}
+          >
+            <Printer className="h-4 w-4" />
+          </Button>
+          <span className={`mt-1 text-sm font-bold px-3 py-1 rounded-full border ${
+            operation === "LOGGI"
+              ? "bg-blue-50 text-blue-700 border-blue-200"
+              : "bg-orange-50 text-orange-700 border-orange-200"
+          }`}>
+            {operation}
+          </span>
+        </div>
       </div>
 
       <Card className="border-2 border-primary/20">
@@ -1391,6 +1509,51 @@ export default function PreSorter() {
                         {bulkCreateScans.isPending ? "Registrando..." : "Confirmar"}
                       </Button>
                     </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              <Dialog open={printerSettingsOpen} onOpenChange={setPrinterSettingsOpen}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <Printer className="h-5 w-5" />
+                      Impressão de etiqueta
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-5 pt-2">
+                    <p className="text-sm text-muted-foreground">
+                      Imprime uma etiqueta (Zebra ZQ630, 61x40mm) a cada bipagem aceita no modo "Rota".
+                      Requer o programa <strong>QZ Tray</strong> instalado e aberto neste PC, com a
+                      impressora pareada por Bluetooth. Essa configuração é só deste computador.
+                    </p>
+
+                    <div className="flex items-center justify-between rounded-lg border p-3">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="printer-enabled">Imprimir etiqueta automaticamente</Label>
+                        <p className="text-xs text-muted-foreground">Só no modo "Rota"</p>
+                      </div>
+                      <Switch id="printer-enabled" checked={printerEnabled} onCheckedChange={setPrinterEnabled} />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="printer-name">Nome da impressora (como aparece no Windows)</Label>
+                      <Input
+                        id="printer-name"
+                        value={printerName}
+                        onChange={(e) => setPrinterName(e.target.value)}
+                        placeholder="Ex: ZQ630"
+                      />
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      className="w-full gap-1.5"
+                      onClick={handleTestPrint}
+                      disabled={printerTestPending}
+                    >
+                      <Printer className="h-4 w-4" />
+                      {printerTestPending ? "Enviando..." : "Testar impressão"}
+                    </Button>
                   </div>
                 </DialogContent>
               </Dialog>
