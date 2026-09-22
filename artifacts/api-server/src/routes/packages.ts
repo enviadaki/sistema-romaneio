@@ -13,6 +13,7 @@ import { isFilialAllowed, getAllowedFiliais, canCreateWithFilial } from "../midd
 import { validateTbrFormat, tbrValidationMessage, normalizeTbrCode } from "../modules/amazon/tbr";
 import { resolveFilialForCity } from "../modules/amazon/filial";
 import { resolveRotaForCep, getActiveRoutesForFilial, cityHasRoutes } from "../modules/amazon/rota";
+import { resolveLoggiRotaForCity, listLoggiCityRoutes } from "../modules/loggi/rota";
 import { logAuditEvent } from "../modules/audit/log";
 
 const router: IRouter = Router();
@@ -265,7 +266,17 @@ router.post("/packages", requireAuth, requireOperationAccess, async (req, res): 
   // Vitória da Conquista) — mesmo espírito de filial: nunca digitada,
   // derivada sozinha do CEP quando ele vier na importação. Ausência de CEP
   // ou CEP não mapeado não bloqueia o cadastro, só deixa rota nula.
-  const rota = filial ? await resolveRotaForCep(parsed.data.cep) : null;
+  //
+  // LOGGI não usa filial, mas tem seu próprio conceito de rota (por cidade
+  // inteira — ver modules/loggi/rota.ts e plano "Bipagem Automática"):
+  // resolvida sozinha a partir da cidade, mesmo espírito, granularidade
+  // diferente. Cidade não mapeada não bloqueia o cadastro, só deixa rota
+  // nula (o pacote continua roteável manualmente no Pré-Sorter).
+  const rota = filial
+    ? await resolveRotaForCep(parsed.data.cep)
+    : operation === "LOGGI"
+      ? await resolveLoggiRotaForCity(parsed.data.city)
+      : null;
 
   const [pkg] = await db
     .insert(packagesTable)
@@ -364,7 +375,11 @@ router.post("/packages/bulk", requireAuth, requireOperationAccess, async (req, r
         continue;
       }
 
-      const pkgRota = pkgFilial ? await resolveRotaForCep(pkg.cep) : null;
+      const pkgRota = pkgFilial
+        ? await resolveRotaForCep(pkg.cep)
+        : pkgOperation === "LOGGI"
+          ? await resolveLoggiRotaForCity(pkg.city)
+          : null;
 
       await db.insert(packagesTable).values({
         trackingNumber,
@@ -525,6 +540,15 @@ router.get("/filial-routes", requireAuth, requireOperationAccess, async (req, re
 
   const routes = await getActiveRoutesForFilial(filial);
   res.json(routes);
+});
+
+// GET /loggi-rotas-por-cidade — mapa cidade -> rota da LOGGI (ver
+// modules/loggi/rota.ts), usado pela tela "Bipagem Automática" pra calcular
+// a rota de cada linha da planilha importada ANTES de confirmar o cadastro
+// (preview), sem precisar de uma chamada ao servidor por linha.
+router.get("/loggi-rotas-por-cidade", requireAuth, requireOperationAccess, async (_req, res): Promise<void> => {
+  const rows = await listLoggiCityRoutes();
+  res.json(rows);
 });
 
 export default router;

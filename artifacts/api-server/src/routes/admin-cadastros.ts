@@ -17,6 +17,7 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { invalidateFilialCityCache } from "../modules/amazon/filial";
 import { invalidateRouteCepCache } from "../modules/amazon/rota";
+import { invalidateLoggiCityRouteCache } from "../modules/loggi/rota";
 
 const router: IRouter = Router();
 
@@ -59,6 +60,7 @@ router.post("/admin/routes", requireAuth, requireAdmin, async (req, res): Promis
     return;
   }
   const [row] = await db.insert(routesTable).values({ name: name.trim().toUpperCase() }).returning();
+  invalidateLoggiCityRouteCache();
   res.status(201).json(row);
 });
 
@@ -71,12 +73,14 @@ router.put("/admin/routes/:id", requireAuth, requireAdmin, async (req, res): Pro
   }
   const [row] = await db.update(routesTable).set({ name: name.trim().toUpperCase() }).where(eq(routesTable.id, id)).returning();
   if (!row) { res.status(404).json({ error: "Rota não encontrada" }); return; }
+  invalidateLoggiCityRouteCache();
   res.json(row);
 });
 
 router.delete("/admin/routes/:id", requireAuth, requireAdmin, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   await db.delete(routesTable).where(eq(routesTable.id, id));
+  invalidateLoggiCityRouteCache();
   res.json({ success: true });
 });
 
@@ -108,6 +112,7 @@ router.put("/admin/routes/:id/cities", requireAuth, requireAdmin, async (req, re
       await tx.insert(routeCitiesTable).values(cityIds.map((cityId) => ({ routeId, cityId })));
     }
   });
+  invalidateLoggiCityRouteCache();
   const rows = await db
     .select({ id: citiesTable.id, name: citiesTable.name })
     .from(routeCitiesTable)
@@ -131,6 +136,7 @@ router.post("/admin/cities", requireAuth, requireAdmin, async (req, res): Promis
     return;
   }
   const [row] = await db.insert(citiesTable).values({ name: name.trim().toUpperCase() }).returning();
+  invalidateLoggiCityRouteCache();
   res.status(201).json(row);
 });
 
@@ -143,12 +149,14 @@ router.put("/admin/cities/:id", requireAuth, requireAdmin, async (req, res): Pro
   }
   const [row] = await db.update(citiesTable).set({ name: name.trim().toUpperCase() }).where(eq(citiesTable.id, id)).returning();
   if (!row) { res.status(404).json({ error: "Cidade não encontrada" }); return; }
+  invalidateLoggiCityRouteCache();
   res.json(row);
 });
 
 router.delete("/admin/cities/:id", requireAuth, requireAdmin, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   await db.delete(citiesTable).where(eq(citiesTable.id, id));
+  invalidateLoggiCityRouteCache();
   res.json({ success: true });
 });
 

@@ -16,6 +16,7 @@ import { isPageAllowed, OPERATOR_PAGES } from "@/lib/operator-pages";
 import Dashboard from "@/pages/dashboard";
 import Cadastro from "@/pages/cadastro";
 import PreSorter from "@/pages/pre-sorter";
+import BipagemAutomatica from "@/pages/bipagem-automatica";
 import Historico from "@/pages/historico";
 import Avarias from "@/pages/avarias";
 import Romaneio from "@/pages/romaneio";
@@ -289,6 +290,7 @@ function ProtectedApp() {
           <Route path="/" component={Dashboard} />
           <Route path="/cadastro" component={Cadastro} />
           <Route path="/pre-sorter" component={PreSorter} />
+          <Route path="/bipagem-automatica" component={BipagemAutomatica} />
           <Route path="/consulta" component={Consulta} />
           <Route path="/entrega" component={Entrega} />
           <Route path="/historico" component={Historico} />
