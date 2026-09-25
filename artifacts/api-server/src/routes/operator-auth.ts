@@ -17,6 +17,7 @@ const VALID_PAGES = [
   "dashboard",
   "cadastro",
   "pre-sorter",
+  "bipagem-automatica",
   "consulta",
   "entrega",
   "historico",
