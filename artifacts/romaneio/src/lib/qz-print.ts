@@ -93,6 +93,10 @@ async function trySetupQzSecurity(qz: any): Promise<boolean> {
 }
 
 let connectPromise: Promise<void> | null = null;
+// true só depois que connectPromise resolve com sucesso — usado pra
+// diferenciar "ainda conectando" (não mexe, deixa a promise em andamento)
+// de "já conectou antes" (aí sim vale a pena checar se continua de pé).
+let connected = false;
 
 // Conecta uma vez só (conexões concorrentes reusam a mesma Promise) — QZ
 // Tray precisa estar instalado e rodando no PC. Com certificado configurado
@@ -100,21 +104,37 @@ let connectPromise: Promise<void> | null = null;
 // nesse PC/operação), a primeira conexão de uma sessão do navegador mostra
 // o popup do QZ Tray perguntando se autoriza o site, do jeito que já
 // funcionava antes desse patch.
+//
+// Bug corrigido em produção: o QZ Tray pode derrubar a conexão sozinho
+// depois de um tempo (PC hibernou, instabilidade de rede, mais de uma aba
+// do sistema aberta ao mesmo tempo disputando a mesma conexão) e o
+// navegador não avisa a gente sozinho disso. Sem essa checagem, a
+// primeira conexão bem-sucedida ficava guardada pra sempre e toda
+// impressão seguinte falhava com "A connection to QZ Tray has not been
+// established yet", mesmo com o QZ Tray aberto e funcionando — porque a
+// gente nunca percebia que a conexão anterior tinha caído.
 export function ensureQzConnected(): Promise<void> {
+  if (connectPromise && connected && !window.qz?.websocket?.isActive?.()) {
+    connectPromise = null;
+    connected = false;
+  }
   if (connectPromise) return connectPromise;
 
   connectPromise = loadQzTrayScript().then(async () => {
     const qz = window.qz;
     if (!qz) throw new Error("qz-tray.js carregado mas window.qz não existe");
     await trySetupQzSecurity(qz);
-    if (qz.websocket.isActive()) return;
-    return qz.websocket.connect({ retries: 2, delay: 1 });
+    if (!qz.websocket.isActive()) {
+      await qz.websocket.connect({ retries: 2, delay: 1 });
+    }
+    connected = true;
   });
 
   // Se a conexão falhar, não trava tentativas futuras (ex.: QZ Tray foi
   // aberto depois) — libera a memoização pra próxima chamada tentar de novo.
   connectPromise.catch(() => {
     connectPromise = null;
+    connected = false;
   });
 
   return connectPromise;
