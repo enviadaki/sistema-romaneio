@@ -247,6 +247,10 @@ export default function Cadastro() {
   const [trackingNumber, setTrackingNumber] = useState("");
   const [city, setCity] = useState("");
   const [promisedDeliveryDate, setPromisedDeliveryDate] = useState("");
+  // CEP opcional — só faz diferença pra Vitória da Conquista na LOGGI (define
+  // a sub-rota por bairro em vez de cair na rota única da cidade), mas é
+  // aceito e ignorado normalmente por qualquer outra cidade/operação.
+  const [singleCep, setSingleCep] = useState("");
 
   // Feedback em tempo real do formato TBR (só se aplica à operação AMAZON).
   const singleTbrCheck =
@@ -370,11 +374,20 @@ export default function Cadastro() {
     }
 
     createPkg.mutate(
-      { data: { trackingNumber: finalTrackingNumber, city, promisedDeliveryDate, operation } },
+      {
+        data: {
+          trackingNumber: finalTrackingNumber,
+          city,
+          promisedDeliveryDate,
+          cep: singleCep.trim() || undefined,
+          operation,
+        },
+      },
       {
         onSuccess: () => {
           toast({ title: "Pacote registrado com sucesso!" });
           setTrackingNumber("");
+          setSingleCep("");
           invalidateLists();
         },
         onError: () => {
@@ -846,6 +859,18 @@ export default function Cadastro() {
                 <div className="space-y-2">
                   <Label>Cidade</Label>
                   <Input value={city} onChange={e => setCity(e.target.value)} placeholder="Ex: São Paulo" required />
+                </div>
+                <div className="space-y-2">
+                  <Label>CEP (opcional)</Label>
+                  <Input
+                    value={singleCep}
+                    onChange={e => setSingleCep(e.target.value)}
+                    placeholder="Ex: 45000-100"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Em Vitória da Conquista, informar o CEP direciona o pacote pra sub-rota do bairro certo. Nas
+                    demais cidades pode deixar em branco.
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label>Data de Entrega Prometida</Label>
