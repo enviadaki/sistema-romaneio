@@ -12,12 +12,13 @@ import {
   filialCitiesTable,
   filialRoutesTable,
   routeCepsTable,
+  loggiRouteCepsTable,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { invalidateFilialCityCache } from "../modules/amazon/filial";
 import { invalidateRouteCepCache } from "../modules/amazon/rota";
-import { invalidateLoggiCityRouteCache } from "../modules/loggi/rota";
+import { invalidateLoggiCityRouteCache, invalidateLoggiRouteCepCache } from "../modules/loggi/rota";
 
 const router: IRouter = Router();
 
@@ -120,6 +121,70 @@ router.put("/admin/routes/:id/cities", requireAuth, requireAdmin, async (req, re
     .where(eq(routeCitiesTable.routeId, routeId))
     .orderBy(asc(citiesTable.name));
   res.json(rows);
+});
+
+// ── CEPs de uma rota LOGGI (granularidade de bairro dentro de uma cidade só
+// — ver loggi-route-ceps.ts no schema e modules/loggi/rota.ts:
+// resolveLoggiRotaForCep). Mesmo espírito da seção "CEPs de uma rota de
+// filial" mais abaixo (AMAZON/route_ceps), só que aqui a rota dona é uma
+// linha de `routes` em vez de `filial_routes`. Hoje só as sub-rotas de
+// Vitória da Conquista ("7.1".."7.26") têm CEP cadastrado — cadastrar CEP
+// numa rota qualquer passa a valer pra ela também, sem precisar mudar nada
+// aqui; o comportamento das demais rotas (por cidade inteira) não muda em
+// nada enquanto nenhum CEP for cadastrado nelas.
+router.get("/admin/routes/:id/ceps", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const routeId = Number(req.params.id);
+  const rows = await db
+    .select()
+    .from(loggiRouteCepsTable)
+    .where(eq(loggiRouteCepsTable.routeId, routeId))
+    .orderBy(asc(loggiRouteCepsTable.cep));
+  res.json(rows);
+});
+
+router.post("/admin/routes/:id/ceps", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const routeId = Number(req.params.id);
+  const { cep, bairro } = req.body as { cep?: string; bairro?: string };
+  const normalizedCep = cep?.replace(/\D/g, "").padStart(8, "0").slice(-8);
+  if (!normalizedCep || normalizedCep === "00000000") {
+    res.status(400).json({ error: "CEP inválido" });
+    return;
+  }
+
+  const [route] = await db.select().from(routesTable).where(eq(routesTable.id, routeId));
+  if (!route) {
+    res.status(404).json({ error: "Rota não encontrada" });
+    return;
+  }
+
+  const [conflict] = await db
+    .select({ routeId: loggiRouteCepsTable.routeId })
+    .from(loggiRouteCepsTable)
+    .where(eq(loggiRouteCepsTable.cep, normalizedCep));
+  if (conflict && conflict.routeId !== routeId) {
+    res.status(409).json({
+      error: `O CEP '${normalizedCep}' já está vinculado a outra rota. Cada CEP pode pertencer a apenas uma rota.`,
+    });
+    return;
+  }
+  if (conflict) {
+    res.status(409).json({ error: `O CEP '${normalizedCep}' já está vinculado a esta rota` });
+    return;
+  }
+
+  const [row] = await db
+    .insert(loggiRouteCepsTable)
+    .values({ cep: normalizedCep, bairro: bairro?.trim() || null, routeId })
+    .returning();
+  invalidateLoggiRouteCepCache();
+  res.status(201).json(row);
+});
+
+router.delete("/admin/loggi-route-ceps/:id", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  await db.delete(loggiRouteCepsTable).where(eq(loggiRouteCepsTable.id, id));
+  invalidateLoggiRouteCepCache();
+  res.json({ success: true });
 });
 
 // ── Cidades ────────────────────────────────────────────────────────────────

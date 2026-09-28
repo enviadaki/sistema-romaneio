@@ -7,7 +7,7 @@
 // granularidade é cidade inteira, não CEP/bairro. Ver plano "Bipagem
 // Automática": importar a lista já com a rota calculada, pra bipagem só
 // confirmar e imprimir, sem escolher rota manualmente na tela.
-import { db, routeCitiesTable, citiesTable, routesTable, cityCorrectionsTable } from "@workspace/db";
+import { db, routeCitiesTable, citiesTable, routesTable, cityCorrectionsTable, loggiRouteCepsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { normalizeCityKey } from "../amazon/filial";
 
@@ -71,6 +71,57 @@ export async function resolveLoggiRotaForCity(city: string): Promise<string | nu
 
   if (!correction) return null;
   return map.get(normalizeCityKey(correction.correctedCity)) ?? null;
+}
+
+// Rota por CEP/bairro, granularidade mais fina que cidade inteira (ver
+// modules/amazon/rota.ts: resolveRotaForCep, mesmo espírito, só que aqui a
+// rota dona é uma linha de `routes` em vez de `filial_routes` — ver
+// loggi-route-ceps.ts no schema). Hoje só Vitória da Conquista tem CEP
+// cadastrado aqui (dividida em sub-rotas "7.1", "7.2"... uma por bairro, ver
+// plano "rotas-bairro-conquista-loggi"); nenhuma outra cidade usa isso, então
+// elas continuam 100% resolvidas por routeCitiesTable, sem nenhuma mudança.
+//
+// Mesmo esquema de cache curto das outras funções deste arquivo — o mapa
+// muda raro (só quando o admin cadastra CEP novo pra uma rota).
+let cepCache: { map: Map<string, string>; expiresAt: number } | null = null;
+
+function normalizeCep(value: string): string {
+  return value.replace(/\D/g, "").padStart(8, "0").slice(-8);
+}
+
+async function loadRouteCepMap(): Promise<Map<string, string>> {
+  if (cepCache && cepCache.expiresAt > Date.now()) return cepCache.map;
+
+  const rows = await db
+    .select({ cep: loggiRouteCepsTable.cep, name: routesTable.name })
+    .from(loggiRouteCepsTable)
+    .innerJoin(routesTable, eq(routesTable.id, loggiRouteCepsTable.routeId));
+
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    map.set(row.cep, row.name);
+  }
+  cepCache = { map, expiresAt: Date.now() + CACHE_TTL_MS };
+  return map;
+}
+
+// Chamado sempre que o cadastro de CEPs por rota mudar via admin, mesmo
+// padrão de invalidateLoggiCityRouteCache.
+export function invalidateLoggiRouteCepCache(): void {
+  cepCache = null;
+}
+
+// Retorna o nome da rota dona daquele CEP, ou null se o CEP não veio, não
+// está no formato esperado, ou não está cadastrado (caso de toda cidade que
+// não seja Vitória da Conquista hoje). Chamado ANTES de
+// resolveLoggiRotaForCity — quando bate aqui, a rota por cidade nem chega a
+// ser consultada; quando não bate, cai pro fluxo antigo normalmente.
+export async function resolveLoggiRotaForCep(cep: string | null | undefined): Promise<string | null> {
+  if (!cep) return null;
+  const normalized = normalizeCep(cep);
+  if (normalized.length !== 8 || normalized === "00000000") return null;
+  const map = await loadRouteCepMap();
+  return map.get(normalized) ?? null;
 }
 
 export interface LoggiCityRoute {

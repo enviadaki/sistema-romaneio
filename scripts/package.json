@@ -6,6 +6,7 @@
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "seed-logistica": "tsx ./src/seed-logistica.ts",
+    "seed-conquista-bairros": "tsx ./src/seed-conquista-bairros.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
@@ -15,6 +16,7 @@
   },
   "dependencies": {
     "@workspace/db": "workspace:*",
+    "drizzle-orm": "catalog:",
     "pg": "catalog:"
   }
 }

@@ -444,7 +444,7 @@ function RouteRowItem({
       </div>
 
       {isExpanded && (
-        <div className="px-9 pb-3">
+        <div className="px-9 pb-3 space-y-3">
           {cities.length === 0 ? (
             <p className="text-xs text-muted-foreground italic">
               Nenhuma cidade vinculada — clique em "Cidades" para adicionar.
@@ -462,6 +462,102 @@ function RouteRowItem({
               ))}
             </div>
           )}
+
+          {/* CEPs/bairro dessa rota — granularidade mais fina que cidade,
+              usado hoje só pelas sub-rotas de Vitória da Conquista (7.1..7.26).
+              Quando uma rota tem CEP cadastrado aqui, ele manda no pacote
+              antes da cidade (ver modules/loggi/rota.ts). Pra qualquer outra
+              rota isso fica vazio e não muda nada no comportamento dela. */}
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1">
+              CEPs / bairro (opcional — só pra rotas por bairro, como as de Vitória da Conquista)
+            </p>
+            <LoggiRouteCepsList route={route} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface LoggiRouteCepRow { id: number; cep: string; bairro: string | null }
+
+function LoggiRouteCepsList({ route }: { route: RouteRow }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [newCep, setNewCep] = useState("");
+  const [newBairro, setNewBairro] = useState("");
+
+  const { data: ceps = [], isLoading } = useQuery<LoggiRouteCepRow[]>({
+    queryKey: ["loggi-route-ceps", route.id],
+    queryFn: () => customFetch<LoggiRouteCepRow[]>(`/api/admin/routes/${route.id}/ceps`),
+  });
+
+  const addMutation = useMutation({
+    mutationFn: () =>
+      customFetch<LoggiRouteCepRow>(`/api/admin/routes/${route.id}/ceps`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cep: newCep, bairro: newBairro }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["loggi-route-ceps", route.id] });
+      setNewCep("");
+      setNewBairro("");
+    },
+    onError: (err: any) => toast({ title: "Não foi possível adicionar o CEP", description: err?.message, variant: "destructive" }),
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (id: number) =>
+      customFetch<{ success: boolean }>(`/api/admin/loggi-route-ceps/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["loggi-route-ceps", route.id] }),
+  });
+
+  return (
+    <div className="pl-4 pr-2 py-2 space-y-2 bg-muted/30 rounded-md">
+      <div className="flex items-center gap-2">
+        <Input
+          placeholder="CEP (ex: 45000010)"
+          className="h-7 text-xs w-40"
+          value={newCep}
+          onChange={(e) => setNewCep(e.target.value)}
+        />
+        <Input
+          placeholder="Bairro (opcional, só referência)"
+          className="h-7 text-xs flex-1"
+          value={newBairro}
+          onChange={(e) => setNewBairro(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && newCep.trim()) addMutation.mutate(); }}
+        />
+        <Button size="sm" className="h-7 text-xs" disabled={!newCep.trim() || addMutation.isPending} onClick={() => addMutation.mutate()}>
+          Adicionar
+        </Button>
+      </div>
+      {isLoading ? (
+        <p className="text-xs text-muted-foreground py-2">Carregando...</p>
+      ) : ceps.length === 0 ? (
+        <p className="text-xs text-muted-foreground py-2">Nenhum CEP vinculado ainda</p>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          {ceps.length} CEP(s) vinculado(s)
+          {ceps.length <= 12 && (
+            <span className="ml-1">
+              ({ceps.map((c) => c.cep).join(", ")})
+            </span>
+          )}
+        </p>
+      )}
+      {ceps.length > 0 && ceps.length <= 12 && (
+        <div className="flex flex-wrap gap-1.5">
+          {ceps.map((c) => (
+            <span key={c.id} className="inline-flex items-center gap-1 text-xs bg-background border rounded px-1.5 py-0.5">
+              {c.cep}{c.bairro ? ` · ${c.bairro}` : ""}
+              <button className="text-destructive" onClick={() => removeMutation.mutate(c.id)}>
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
         </div>
       )}
     </div>

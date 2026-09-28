@@ -20,4 +20,5 @@ export * from "./filiais";
 export * from "./filial-cities";
 export * from "./filial-routes";
 export * from "./route-ceps";
+export * from "./loggi-route-ceps";
 export * from "./city-corrections";

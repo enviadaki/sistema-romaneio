@@ -13,7 +13,7 @@ import { isFilialAllowed, getAllowedFiliais, canCreateWithFilial } from "../midd
 import { validateTbrFormat, tbrValidationMessage, normalizeTbrCode } from "../modules/amazon/tbr";
 import { resolveFilialForCity } from "../modules/amazon/filial";
 import { resolveRotaForCep, getActiveRoutesForFilial, cityHasRoutes } from "../modules/amazon/rota";
-import { resolveLoggiRotaForCity, listLoggiCityRoutes } from "../modules/loggi/rota";
+import { resolveLoggiRotaForCity, resolveLoggiRotaForCep, listLoggiCityRoutes } from "../modules/loggi/rota";
 import { logAuditEvent } from "../modules/audit/log";
 
 const router: IRouter = Router();
@@ -267,15 +267,20 @@ router.post("/packages", requireAuth, requireOperationAccess, async (req, res): 
   // derivada sozinha do CEP quando ele vier na importação. Ausência de CEP
   // ou CEP não mapeado não bloqueia o cadastro, só deixa rota nula.
   //
-  // LOGGI não usa filial, mas tem seu próprio conceito de rota (por cidade
-  // inteira — ver modules/loggi/rota.ts e plano "Bipagem Automática"):
-  // resolvida sozinha a partir da cidade, mesmo espírito, granularidade
-  // diferente. Cidade não mapeada não bloqueia o cadastro, só deixa rota
-  // nula (o pacote continua roteável manualmente no Pré-Sorter).
+  // LOGGI não usa filial, mas tem seu próprio conceito de rota. Duas
+  // granularidades convivem (ver modules/loggi/rota.ts e plano
+  // "rotas-bairro-conquista-loggi"): primeiro tenta por CEP/bairro
+  // (resolveLoggiRotaForCep — hoje só Vitória da Conquista tem CEP
+  // cadastrado, dividida em sub-rotas "7.1".."7.26"); se não bater (nenhuma
+  // outra cidade tem CEP cadastrado, ou o CEP não veio), cai pro
+  // mapeamento antigo por cidade inteira (resolveLoggiRotaForCity),
+  // idêntico ao de antes. Nem cidade nem CEP mapeados não bloqueia o
+  // cadastro, só deixa rota nula (o pacote continua roteável manualmente
+  // no Pré-Sorter).
   const rota = filial
     ? await resolveRotaForCep(parsed.data.cep)
     : operation === "LOGGI"
-      ? await resolveLoggiRotaForCity(parsed.data.city)
+      ? (await resolveLoggiRotaForCep(parsed.data.cep)) ?? (await resolveLoggiRotaForCity(parsed.data.city))
       : null;
 
   const [pkg] = await db
@@ -378,7 +383,7 @@ router.post("/packages/bulk", requireAuth, requireOperationAccess, async (req, r
       const pkgRota = pkgFilial
         ? await resolveRotaForCep(pkg.cep)
         : pkgOperation === "LOGGI"
-          ? await resolveLoggiRotaForCity(pkg.city)
+          ? (await resolveLoggiRotaForCep(pkg.cep)) ?? (await resolveLoggiRotaForCity(pkg.city))
           : null;
 
       await db.insert(packagesTable).values({
