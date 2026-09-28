@@ -13,7 +13,7 @@ import { isFilialAllowed, getAllowedFiliais, canCreateWithFilial } from "../midd
 import { validateTbrFormat, tbrValidationMessage, normalizeTbrCode } from "../modules/amazon/tbr";
 import { resolveFilialForCity } from "../modules/amazon/filial";
 import { resolveRotaForCep, getActiveRoutesForFilial, cityHasRoutes } from "../modules/amazon/rota";
-import { resolveLoggiRotaForCity, resolveLoggiRotaForCep, listLoggiCityRoutes } from "../modules/loggi/rota";
+import { resolveLoggiRotaForCity, resolveLoggiRotaForCep, listLoggiCityRoutes, listLoggiBairroRoutes } from "../modules/loggi/rota";
 import { logAuditEvent } from "../modules/audit/log";
 
 const router: IRouter = Router();
@@ -553,6 +553,17 @@ router.get("/filial-routes", requireAuth, requireOperationAccess, async (req, re
 // (preview), sem precisar de uma chamada ao servidor por linha.
 router.get("/loggi-rotas-por-cidade", requireAuth, requireOperationAccess, async (_req, res): Promise<void> => {
   const rows = await listLoggiCityRoutes();
+  res.json(rows);
+});
+
+// GET /loggi-bairro-routes — lista as rotas por CEP/bairro da LOGGI (hoje só
+// as 26 sub-rotas de Vitória da Conquista, ver modules/loggi/rota.ts), pra
+// tela "Gerar Romaneio" oferecer cada bairro como opção própria no modo
+// "Rota" — sem isso, romaneios dessas sub-rotas só dariam pra gerar
+// filtrando por CEP na mão, já que elas dividem a mesma cidade e o filtro
+// por cidade (routes-data.ts, modo antigo) não separa uma da outra.
+router.get("/loggi-bairro-routes", requireAuth, requireOperationAccess, async (_req, res): Promise<void> => {
+  const rows = await listLoggiBairroRoutes();
   res.json(rows);
 });
 

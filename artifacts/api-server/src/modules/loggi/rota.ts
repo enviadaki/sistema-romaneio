@@ -141,3 +141,19 @@ export async function listLoggiCityRoutes(): Promise<LoggiCityRoute[]> {
     .orderBy(citiesTable.name);
   return rows;
 }
+
+// Lista as rotas por CEP/bairro (hoje só as 26 sub-rotas de Vitória da
+// Conquista, "7.1".."7.26" — ver resolveLoggiRotaForCep acima) para a tela
+// "Gerar Romaneio" oferecer cada bairro como opção própria no modo "Rota",
+// em vez de só a lista fixa de routes-data.ts (city-based, incompatível
+// com várias rotas dividindo a mesma cidade). Uma rota aqui é "dona" de
+// pelo menos um CEP em loggi_route_ceps — nenhuma cidade inteira (rota por
+// routeCitiesTable) aparece nessa lista.
+export async function listLoggiBairroRoutes(): Promise<{ name: string }[]> {
+  const rows = await db
+    .selectDistinct({ name: routesTable.name })
+    .from(loggiRouteCepsTable)
+    .innerJoin(routesTable, eq(routesTable.id, loggiRouteCepsTable.routeId))
+    .orderBy(routesTable.name);
+  return rows;
+}

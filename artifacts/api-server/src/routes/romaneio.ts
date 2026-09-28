@@ -15,8 +15,53 @@ router.get("/romaneio", requireAuth, requireOperationAccess, async (req, res): P
 
   const city = (req.query.city as string | undefined)?.trim();
   const citiesParam = (req.query.cities as string | undefined)?.trim();
+  const rota = (req.query.rota as string | undefined)?.trim();
   const label = (req.query.label as string | undefined)?.trim();
   const operation = (req.query.operation as string | undefined)?.trim() ?? "LOGGI";
+
+  // Modo "rota exata" — usado pelas sub-rotas por bairro (ex.: Vitória da
+  // Conquista, "CONQUISTA - ROTA 7.X"), onde várias rotas dividem a MESMA
+  // cidade e por isso o filtro por cidade (abaixo) não dá pra separar uma
+  // da outra — precisa casar com o campo `rota` gravado no pacote/scan
+  // (resolvido por CEP no cadastro), não com a cidade. Continua servindo
+  // qualquer rota, não só as de Conquista, mas hoje só elas usam esse modo
+  // (routes-data.ts, no frontend, continua sendo o modo "cidade" pra tudo
+  // mais). Checado ANTES do modo cidade — se `rota` veio, ignora city/cities.
+  if (rota) {
+    const scans = await db
+      .select()
+      .from(scansTable)
+      .where(and(eq(scansTable.rota, rota), eq(scansTable.scanDate, date), eq(scansTable.operation, operation)));
+
+    const packagesResult =
+      scans.length > 0
+        ? await db
+            .select()
+            .from(packagesTable)
+            .where(and(eq(packagesTable.rota, rota), eq(packagesTable.operation, operation)))
+        : [];
+
+    const packageMap = new Map(packagesResult.map((p) => [p.trackingNumber, p]));
+
+    const romaneioItems = scans
+      .map((s) => {
+        const pkg = packageMap.get(s.trackingNumber);
+        return {
+          trackingNumber: s.trackingNumber,
+          city: s.city,
+          promisedDeliveryDate: pkg?.promisedDeliveryDate ?? "",
+        };
+      })
+      .sort((a, b) => a.city.localeCompare(b.city) || a.trackingNumber.localeCompare(b.trackingNumber));
+
+    res.json({
+      city: label ?? rota,
+      date,
+      totalCount: romaneioItems.length,
+      packages: romaneioItems,
+    });
+    return;
+  }
 
   // Route mode: cities comma-separated
   const cityList = citiesParam

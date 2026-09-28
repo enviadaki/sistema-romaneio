@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   useListCities,
   getListCitiesQueryKey,
@@ -43,6 +43,18 @@ import { Badge } from "@/components/ui/badge";
 
 type FilterMode = "cidade" | "rota" | "massa";
 
+// Rota "por bairro" (ex.: as 26 sub-rotas de Vitória da Conquista) — vem do
+// banco (loggi_route_ceps), não da lista fixa de routes-data.ts, porque
+// várias delas dividem a mesma cidade e o filtro por cidade não separa uma
+// da outra (ver GET /loggi-bairro-routes e /api/romaneio?rota=). Convive
+// com as rotas antigas (city-based) na mesma lista/seletor — o que muda é
+// só como o romaneio é buscado (por `rota` exata, não por `cities`).
+interface RouteOption {
+  name: string;
+  cities: string[];
+  isBairro?: boolean;
+}
+
 interface RomaneioItem {
   trackingNumber: string;
   city: string;
@@ -59,6 +71,7 @@ interface RomaneioData {
 async function fetchRomaneio(params: {
   city?: string;
   cities?: string;
+  rota?: string;
   label?: string;
   date: string;
   operation: string;
@@ -66,6 +79,7 @@ async function fetchRomaneio(params: {
   const url = new URL("/api/romaneio", window.location.origin);
   if (params.city) url.searchParams.set("city", params.city);
   if (params.cities) url.searchParams.set("cities", params.cities);
+  if (params.rota) url.searchParams.set("rota", params.rota);
   if (params.label) url.searchParams.set("label", params.label);
   url.searchParams.set("date", params.date);
   url.searchParams.set("operation", params.operation);
@@ -331,13 +345,29 @@ export default function Romaneio() {
   const [massProgress, setMassProgress] = useState<{ current: number; total: number } | null>(null);
   const [massError, setMassError] = useState<string | null>(null);
 
+  // Rotas por bairro (LOGGI) — só faz sentido pra essa operação; a AMAZON já
+  // tem seu próprio seletor de bairro em outra tela (filial-routes).
+  const { data: bairroRoutesRaw } = useQuery({
+    queryKey: ["loggi-bairro-routes", operation],
+    queryFn: () => customFetch<{ name: string }[]>(`/api/loggi-bairro-routes?operation=${operation}`),
+    enabled: operation === "LOGGI",
+  });
+  const bairroRoutes: RouteOption[] = useMemo(
+    () =>
+      operation === "LOGGI"
+        ? (bairroRoutesRaw ?? []).map((r) => ({ name: r.name, cities: ["Vitória da Conquista"], isBairro: true }))
+        : [],
+    [bairroRoutesRaw, operation],
+  );
+
   const allowedRouteCodes: string[] | undefined =
     motoristaUser?.allowedRoutes?.length
       ? motoristaUser.allowedRoutes
       : (user?.publicMetadata?.allowedRoutes as string[] | undefined);
+  const allRoutes: RouteOption[] = [...ROUTES, ...bairroRoutes];
   const filteredRoutes = allowedRouteCodes?.length
-    ? ROUTES.filter((r) => allowedRouteCodes.some((code) => r.name.includes(code)))
-    : ROUTES;
+    ? allRoutes.filter((r) => allowedRouteCodes.some((code) => r.name.includes(code)))
+    : allRoutes;
 
   const [empresa, setEmpresa] = useState(() => localStorage.getItem("romaneio_empresa") || "");
   const [cnpj, setCnpj] = useState(() => localStorage.getItem("romaneio_cnpj") || "");
@@ -369,6 +399,13 @@ export default function Romaneio() {
     queryFn: () => {
       if (filterMode === "cidade") {
         return fetchRomaneio({ city, date, operation });
+      } else if (routeObj?.isBairro) {
+        return fetchRomaneio({
+          rota: selectedRoute,
+          label: selectedRoute,
+          date,
+          operation,
+        });
       } else {
         return fetchRomaneio({
           cities: routeObj?.cities.join(",") ?? "",
@@ -420,12 +457,11 @@ export default function Romaneio() {
     for (let i = 0; i < routeObjs.length; i++) {
       const route = routeObjs[i];
       try {
-        const data = await fetchRomaneio({
-          cities: route.cities.join(","),
-          label: route.name,
-          date,
-          operation,
-        });
+        const data = await fetchRomaneio(
+          route.isBairro
+            ? { rota: route.name, label: route.name, date, operation }
+            : { cities: route.cities.join(","), label: route.name, date, operation },
+        );
         if (data.packages.length > 0) {
           results.push({ route: route.name, data });
         }
@@ -569,7 +605,9 @@ export default function Romaneio() {
                   {filteredRoutes.map(r => (
                     <SelectItem key={r.name} value={r.name}>
                       <span className="font-medium">{r.name}</span>
-                      <span className="ml-2 text-xs text-muted-foreground">({r.cities.length} cidades)</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        {r.isBairro ? "(bairro)" : `(${r.cities.length} cidades)`}
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
