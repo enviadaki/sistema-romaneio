@@ -266,20 +266,74 @@ function addRomaneioToPDF(
   const tableHead = opts.isRouteMode
     ? [["#", "RASTREADOR (TRACKING NUMBER)", "CIDADE", "ENTREGA PROMETIDA", "ASSINATURA"]]
     : [["#", "RASTREADOR (TRACKING NUMBER)", "ENTREGA PROMETIDA", "ASSINATURA"]];
+
+  // A coluna do rastreador NUNCA pode quebrar linha: a automação externa do
+  // usuário lê o PDF pra bipar os pacotes no sistema da Loggi, e não
+  // reconhece o código quando ele sai quebrado em duas linhas na tabela —
+  // alguns códigos simplesmente não são bipados. Por isso a largura dessa
+  // coluna não é mais um número fixo: é calculada a partir do maior
+  // rastreador que realmente existe nesse romaneio (nessa fonte/tamanho),
+  // com as colunas vizinhas ("cidade"/"assinatura") cedendo espaço até um
+  // mínimo legível — e, só no caso extremo de um código gigante que nem
+  // assim caiba, a fonte da coluna encolhe um pouco (nunca quebra a linha).
+  const trackingFont = "courier" as const;
+  const trackingCellPadding = 3; // mesmo valor de styles.cellPadding abaixo
+  const baseTrackingColWidth = opts.isRouteMode ? 65 : 75;
+  const MIN_CIDADE_WIDTH = 25;
+  const MIN_ASSINATURA_WIDTH = 20;
+  const baseCidadeWidth = 45; // só usado no modo rota
+  const baseAssinaturaWidth = opts.isRouteMode
+    ? contentWidth - 12 - baseTrackingColWidth - baseCidadeWidth - 38
+    : contentWidth - 12 - baseTrackingColWidth - 38;
+  // Maior largura que a coluna do rastreador pode ter sem empurrar a
+  // tabela pra fora da página, já considerando os mínimos das colunas
+  // vizinhas.
+  const maxTrackingColWidth = opts.isRouteMode
+    ? contentWidth - 12 - MIN_CIDADE_WIDTH - 38 - MIN_ASSINATURA_WIDTH
+    : contentWidth - 12 - 38 - MIN_ASSINATURA_WIDTH;
+
+  let trackingFontSize = 9;
+  let longestTrackingWidth = 0;
+  for (; trackingFontSize >= 6; trackingFontSize -= 0.5) {
+    doc.setFont(trackingFont, "bold");
+    doc.setFontSize(trackingFontSize);
+    longestTrackingWidth = data.packages.reduce(
+      (max, pkg) => Math.max(max, doc.getTextWidth(pkg.trackingNumber)),
+      0,
+    );
+    if (longestTrackingWidth + trackingCellPadding * 2 + 2 <= maxTrackingColWidth) break;
+  }
+
+  const trackingColWidth = Math.min(
+    maxTrackingColWidth,
+    Math.max(baseTrackingColWidth, longestTrackingWidth + trackingCellPadding * 2 + 2), // +2mm de folga
+  );
+  const trackingExtra = trackingColWidth - baseTrackingColWidth;
+
   const tableColumns: Record<string, any> = opts.isRouteMode
-    ? {
-        0: { cellWidth: 12, halign: "center" as const, fontStyle: "bold" as const },
-        1: { cellWidth: 65, fontStyle: "bold" as const, font: "courier" as const, fontSize: 9 },
-        2: { cellWidth: 45 },
-        3: { cellWidth: 38, halign: "center" as const },
-        4: { cellWidth: contentWidth - 12 - 65 - 45 - 38 },
-      }
-    : {
-        0: { cellWidth: 12, halign: "center" as const, fontStyle: "bold" as const },
-        1: { cellWidth: 75, fontStyle: "bold" as const, font: "courier" as const, fontSize: 9 },
-        2: { cellWidth: 38, halign: "center" as const },
-        3: { cellWidth: contentWidth - 12 - 75 - 38 },
-      };
+    ? (() => {
+        // Primeiro tenta encolher a coluna "assinatura"; se não for
+        // suficiente, encolhe também a coluna "cidade".
+        const fromAssinatura = Math.min(trackingExtra, Math.max(0, baseAssinaturaWidth - MIN_ASSINATURA_WIDTH));
+        const remaining = trackingExtra - fromAssinatura;
+        const fromCidade = Math.min(remaining, Math.max(0, baseCidadeWidth - MIN_CIDADE_WIDTH));
+        return {
+          0: { cellWidth: 12, halign: "center" as const, fontStyle: "bold" as const },
+          1: { cellWidth: trackingColWidth, fontStyle: "bold" as const, font: trackingFont, fontSize: trackingFontSize },
+          2: { cellWidth: baseCidadeWidth - fromCidade },
+          3: { cellWidth: 38, halign: "center" as const },
+          4: { cellWidth: baseAssinaturaWidth - fromAssinatura },
+        };
+      })()
+    : (() => {
+        const fromAssinatura = Math.min(trackingExtra, Math.max(0, baseAssinaturaWidth - MIN_ASSINATURA_WIDTH));
+        return {
+          0: { cellWidth: 12, halign: "center" as const, fontStyle: "bold" as const },
+          1: { cellWidth: trackingColWidth, fontStyle: "bold" as const, font: trackingFont, fontSize: trackingFontSize },
+          2: { cellWidth: 38, halign: "center" as const },
+          3: { cellWidth: baseAssinaturaWidth - fromAssinatura },
+        };
+      })();
 
   autoTable(doc, {
     startY: tableStartY,
