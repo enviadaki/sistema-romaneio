@@ -115,12 +115,66 @@ export const ROUTES: Route[] = [
     ],
   },
   {
-    name: "CANDIBA - ROTA 05.4",
+    // Rota física 05.4 unificada: antes cada uma dessas 12 cidades era uma
+    // "rota" própria no sistema (CANDIBA - ROTA 05.4, CARIRANHA - ROTA
+    // 05.4, etc.), mas na prática é uma rota única que passa por todas
+    // elas — pedido do usuário pra que a bipagem e o romaneio tratem as 12
+    // juntas, como se fosse uma cidade só. Fica como uma entrada só de
+    // ROUTES, com todos os nomes/variações de cidade das 12 reunidos em
+    // `cities` (nada muda na lista de variações de cada cidade, só deixam
+    // de estar espalhadas em rotas separadas).
+    name: "ROTA 05.4 (CANDIBA / CARINHANHA / IUIU / JACARACI / LICÍNIO DE ALMEIDA / MALHADA / MATINA / MORTUGABA / PALMAS DE MONTE ALTO / PINDAÍ / SEBASTIÃO LARANJEIRAS / URANDI)",
     cities: [
       "CANDIBA",
       "CANDIBA (BA)",
       "Candiba",
       "Pilões",
+      "Agrovila XV",
+      "CARINHANHA",
+      "CARINHANHA (BA)",
+      "Carinhanha",
+      "IUIÚ",
+      "Iuiu",
+      "Iuiú",
+      "PINDORAMA/IUIU",
+      "Pindorama (Iuiu)",
+      "IRUNDIARA (JACARACI)",
+      "Irundiara",
+      "Irundiara (Jacaraci)",
+      "JACARACI",
+      "Jacaraci",
+      "LICÍNIO DE ALMEIDA",
+      "Licinio De Almeida",
+      "Licínio De Almeida",
+      "Tauapé",
+      "Cana Brava",
+      "MALHADA",
+      "MALHADA (BA)",
+      "Malhada",
+      "Parateca",
+      "MATINA",
+      "Matina",
+      "MORTUGABA",
+      "Mortugaba",
+      "Mortu6",
+      "PALMAS DE MONTE ALTO",
+      "PALMAS DE MONTE ALTO (BA)",
+      "Palmas De Monte Alto",
+      "Palmas de Monte Alto",
+      "Rancho Das Mães",
+      "Rancho das Mães",
+      "Guirapa",
+      "PINDAÍ",
+      "Pindai",
+      "Pindaí",
+      "Boquira",
+      "Mandiroba",
+      "SEBASTIAO LARANJEIRAS",
+      "SEBASTIÃO LARANJEIRAS",
+      "Sebastiao Laranjeiras",
+      "Sebastião Laranjeiras",
+      "URANDI",
+      "Urandi",
     ],
   },
   {
@@ -146,15 +200,6 @@ export const ROUTES: Route[] = [
       "Jânio quadros",
       "PRESIDENTE JÂNIO QUADROS",
       "Presidente Jânio Quadros",
-    ],
-  },
-  {
-    name: "CARIRANHA - ROTA 05.4",
-    cities: [
-      "Agrovila XV",
-      "CARINHANHA",
-      "CARINHANHA (BA)",
-      "Carinhanha",
     ],
   },
   {
@@ -330,26 +375,6 @@ export const ROUTES: Route[] = [
     ],
   },
   {
-    name: "IUIU - ROTA 05.4",
-    cities: [
-      "IUIÚ",
-      "Iuiu",
-      "Iuiú",
-      "PINDORAMA/IUIU",
-      "Pindorama (Iuiu)",
-    ],
-  },
-  {
-    name: "JACARACI - ROTA 05.4",
-    cities: [
-      "IRUNDIARA (JACARACI)",
-      "Irundiara",
-      "Irundiara (Jacaraci)",
-      "JACARACI",
-      "Jacaraci",
-    ],
-  },
-  {
     name: "JUSSIAPE - ROTA 03.4",
     cities: [
       "Caraguataí",
@@ -364,15 +389,6 @@ export const ROUTES: Route[] = [
     cities: [
       "LAGOA REAL",
       "Lagoa Real",
-    ],
-  },
-  {
-    name: "LICINIO DE ALMEIDA - ROTA 05.4",
-    cities: [
-      "LICÍNIO DE ALMEIDA",
-      "Licinio De Almeida",
-      "Licínio De Almeida",
-      "Tauapé",
     ],
   },
   {
@@ -422,35 +438,10 @@ export const ROUTES: Route[] = [
     ],
   },
   {
-    name: "MALHADA - ROTA 05.4",
-    cities: [
-      "Cana Brava",
-      "MALHADA",
-      "MALHADA (BA)",
-      "Malhada",
-      "Parateca",
-    ],
-  },
-  {
-    name: "MATINA - ROTA 05.4",
-    cities: [
-      "MATINA",
-      "Matina",
-    ],
-  },
-  {
     name: "MIRANTE - ROTA 01",
     cities: [
       "MIRANTE",
       "Mirante",
-    ],
-  },
-  {
-    name: "MORTUGABA - ROTA 05.4",
-    cities: [
-      "MORTUGABA",
-      "Mortugaba",
-      "Mortu6",
     ],
   },
   {
@@ -460,17 +451,6 @@ export const ROUTES: Route[] = [
       "NOVA CANAÃ",
       "Itajaí",
       "Nova Canaã",
-    ],
-  },
-  {
-    name: "PALMAS DE MONTE ALTO - ROTA 05.4",
-    cities: [
-      "PALMAS DE MONTE ALTO",
-      "PALMAS DE MONTE ALTO (BA)",
-      "Palmas De Monte Alto",
-      "Palmas de Monte Alto",
-      "Rancho Das Mães",
-      "Rancho das Mães",
     ],
   },
   {
@@ -493,15 +473,6 @@ export const ROUTES: Route[] = [
       "PIATA (BA)",
       "Piata",
       "Piatã",
-    ],
-  },
-  {
-    name: "PINDAI - ROTA 05.4",
-    cities: [
-      "Guirapa",
-      "PINDAÍ",
-      "Pindai",
-      "Pindaí",
     ],
   },
   {
@@ -570,30 +541,12 @@ export const ROUTES: Route[] = [
     ],
   },
   {
-    name: "SEBASTIÃO LARANJEIRAS - ROTA 05.4",
-    cities: [
-      "Boquira",
-      "Mandiroba",
-      "SEBASTIAO LARANJEIRAS",
-      "SEBASTIÃO LARANJEIRAS",
-      "Sebastiao Laranjeiras",
-      "Sebastião Laranjeiras",
-    ],
-  },
-  {
     name: "TREMENDAL - RETIRA 03",
     cities: [
       "Lagoa Preta",
       "TREMEDAL",
       "TREMEDAL (BA)",
       "Tremedal",
-    ],
-  },
-  {
-    name: "URANDI - ROTA 05.4",
-    cities: [
-      "URANDI",
-      "Urandi",
     ],
   },
   {
