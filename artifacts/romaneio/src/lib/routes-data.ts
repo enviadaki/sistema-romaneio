@@ -509,7 +509,13 @@ export const ROUTES: Route[] = [
     name: "POTIRAGUA - ROTA 04",
     cities: [
       "POTIRAGUA",
+      "POTIRAGUA (BA)",
+      "POTIRAGUÁ",
+      "POTIRAGUÁ (BA)",
       "Potiragua",
+      "Potiragua (BA)",
+      "Potiraguá",
+      "Potiraguá (BA)",
     ],
   },
   {
