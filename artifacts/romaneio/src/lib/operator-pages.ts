@@ -9,7 +9,7 @@ export const OPERATOR_PAGES: PageDef[] = [
   { key: "dashboard",          label: "Dashboard",           href: "/",                   group: "Geral" },
   { key: "cadastro",           label: "Cadastro",            href: "/cadastro",           group: "Operação" },
   { key: "pre-sorter",         label: "Pré-Sorter",          href: "/pre-sorter",         group: "Operação" },
-  { key: "bipagem-automatica", label: "Bipagem Automática",  href: "/bipagem-automatica", group: "Operação" },
+  { key: "bipagem-automatica", label: "Bipagem em Esteira",  href: "/bipagem-automatica", group: "Operação" },
   { key: "consulta",           label: "Consulta",            href: "/consulta",           group: "Operação" },
   { key: "entrega",            label: "Checagem de Entrega", href: "/entrega",            group: "Operação" },
   { key: "historico",          label: "Histórico",           href: "/historico",          group: "Operação" },

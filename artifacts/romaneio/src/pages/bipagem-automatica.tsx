@@ -416,7 +416,7 @@ export default function BipagemAutomatica() {
   return (
     <div className="max-w-5xl mx-auto space-y-4 p-1">
       <div>
-        <h1 className="text-xl font-semibold">Bipagem Automática</h1>
+        <h1 className="text-xl font-semibold">Bipagem em Esteira</h1>
         <p className="text-sm text-muted-foreground">
           Importe a lista de pacotes da LOGGI com a rota já calculada por cidade — depois é só bipar, em qualquer ordem, que a
           etiqueta certa sai sozinha.

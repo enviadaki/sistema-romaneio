@@ -113,7 +113,7 @@ export function Layout({ children }: { children: ReactNode }) {
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/cadastro", label: "Cadastro", icon: Package },
     { href: "/pre-sorter", label: "Pré-Sorter", icon: ScanLine },
-    { href: "/bipagem-automatica", label: "Bipagem Automática", icon: Zap },
+    { href: "/bipagem-automatica", label: "Bipagem em Esteira", icon: Zap },
     { href: "/consulta", label: "Consulta", icon: Search },
     { href: "/entrega", label: "Checagem Entrega", icon: Truck },
     { href: "/historico", label: "Histórico", icon: History },
