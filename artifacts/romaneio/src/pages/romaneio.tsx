@@ -3,6 +3,9 @@ import {
   useListCities,
   getListCitiesQueryKey,
   customFetch,
+  useCreateArcoEnvio,
+  ApiError,
+  type ArcoEnvioConflito,
 } from "@workspace/api-client-react";
 import { useOperation } from "@/contexts/operation-context";
 import { formatDate, getTodayDateString } from "@/lib/date-utils";
@@ -13,6 +16,17 @@ import { getRoutesForOperation } from "@/lib/routes-data";
 import { useQuery } from "@tanstack/react-query";
 import { useUser } from "@clerk/react";
 import { useMotoristaAuth } from "@/contexts/motorista-auth-context";
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -23,7 +37,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
-import { Printer, FileDown, Settings2, MapPin, Route, Layers, Loader2 } from "lucide-react";
+import { Printer, FileDown, Settings2, MapPin, Route, Layers, Loader2, Send } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -450,32 +464,54 @@ export default function Romaneio() {
 
   const routeObj = filteredRoutes.find((r) => r.name === selectedRoute);
 
+  // Mesmos parâmetros usados pra buscar/exibir o romaneio na tela — também
+  // usados ao criar o envio pro ARCO, pra garantir que o envio corresponda
+  // exatamente ao que o operador está vendo (ver POST /api/arco-envios).
+  function buildRomaneioFetchParams() {
+    if (filterMode === "cidade") {
+      return { city, date, operation };
+    } else if (routeObj?.isBairro) {
+      return { rota: selectedRoute, label: selectedRoute, date, operation };
+    } else {
+      return { cities: routeObj?.cities.join(",") ?? "", label: selectedRoute, date, operation };
+    }
+  }
+
   const { data: romaneio, isLoading } = useQuery({
     queryKey: ["romaneio", filterMode, filterMode === "cidade" ? city : selectedRoute, date, operation],
     enabled: isReady,
-    queryFn: () => {
-      if (filterMode === "cidade") {
-        return fetchRomaneio({ city, date, operation });
-      } else if (routeObj?.isBairro) {
-        return fetchRomaneio({
-          rota: selectedRoute,
-          label: selectedRoute,
-          date,
-          operation,
-        });
-      } else {
-        return fetchRomaneio({
-          cities: routeObj?.cities.join(",") ?? "",
-          label: selectedRoute,
-          date,
-          operation,
-        });
-      }
-    },
+    queryFn: () => fetchRomaneio(buildRomaneioFetchParams()),
   });
 
   const isRouteMode = filterMode === "rota";
   const canExport = !!(romaneio && romaneio.packages.length > 0);
+
+  const { toast } = useToast();
+  const [arcoConfirmOpen, setArcoConfirmOpen] = useState(false);
+  const [arcoConflitoId, setArcoConflitoId] = useState<number | null>(null);
+  const createArcoEnvio = useCreateArcoEnvio();
+
+  const submitArcoEnvio = (forcar?: boolean) => {
+    createArcoEnvio.mutate(
+      { data: { ...buildRomaneioFetchParams(), forcar } },
+      {
+        onSuccess: () => {
+          setArcoConfirmOpen(false);
+          setArcoConflitoId(null);
+          toast({ title: "Envio criado", description: "Acompanhe o andamento em \"Envios ARCO\"." });
+        },
+        onError: (err) => {
+          if (err instanceof ApiError && err.status === 409) {
+            const data = err.data as ArcoEnvioConflito | null;
+            setArcoConfirmOpen(false);
+            setArcoConflitoId(data?.envioExistenteId ?? -1);
+            return;
+          }
+          toast({ title: "Erro ao enviar para o ARCO", description: err.message, variant: "destructive" });
+        },
+      },
+    );
+  };
 
   const handlePrint = () => window.print();
 
@@ -687,9 +723,51 @@ export default function Romaneio() {
                 <FileDown className="mr-2 h-4 w-4" />
                 Exportar PDF
               </Button>
+              {operation === "LOGGI" && (
+                <Button variant="outline" onClick={() => setArcoConfirmOpen(true)} disabled={!canExport}>
+                  <Send className="mr-2 h-4 w-4" />
+                  Enviar para o ARCO
+                </Button>
+              )}
             </div>
           )}
         </div>
+
+        <AlertDialog open={arcoConfirmOpen} onOpenChange={setArcoConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Enviar para o ARCO</AlertDialogTitle>
+              <AlertDialogDescription>
+                O agente vai bipar {romaneio?.totalCount ?? 0} pacote(s) de{" "}
+                <strong>{romaneio?.city}</strong> (data {date ? formatDate(date) : ""}) no site da Loggi.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction disabled={createArcoEnvio.isPending} onClick={() => submitArcoEnvio()}>
+                {createArcoEnvio.isPending ? "Enviando..." : "Enviar"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={arcoConflitoId !== null} onOpenChange={(open) => !open && setArcoConflitoId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Já existe um envio para este romaneio</AlertDialogTitle>
+              <AlertDialogDescription>
+                Já existe um envio pendente, em andamento ou concluído para esta mesma rota/cidade e data.
+                Enviar mesmo assim pode bipar os pacotes em duplicidade no ARCO.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction disabled={createArcoEnvio.isPending} onClick={() => submitArcoEnvio(true)}>
+                {createArcoEnvio.isPending ? "Enviando..." : "Enviar mesmo assim"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Route city badges (rota mode) */}
         {filterMode === "rota" && selectedRoute && routeObj && (

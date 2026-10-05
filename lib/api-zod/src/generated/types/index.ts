@@ -6,7 +6,19 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./agenteHeartbeatEnvio200";
+export * from "./arcoAgenteEnvio";
+export * from "./arcoAgenteResultadoInput";
+export * from "./arcoAgenteResultadoItemInput";
+export * from "./arcoAgenteStatus";
 export * from "./arcoConfig";
+export * from "./arcoEnvio";
+export * from "./arcoEnvioComItens";
+export * from "./arcoEnvioConflito";
+export * from "./arcoEnvioItem";
+export * from "./arcoEnvioItemStatus";
+export * from "./arcoEnvioRomaneioEscopoTipo";
+export * from "./arcoEnvioStatus";
 export * from "./arcoLookupParams";
 export * from "./arcoLookupResult";
 export * from "./arcoPingResult";
@@ -18,6 +30,7 @@ export * from "./cityCount";
 export * from "./clearPackagesParams";
 export * from "./clearPackagesResult";
 export * from "./conferente";
+export * from "./createArcoEnvioInput";
 export * from "./deliveryManifest";
 export * from "./deliveryManifestItem";
 export * from "./errorResponse";
@@ -25,6 +38,8 @@ export * from "./filialRoute";
 export * from "./getRomaneioParams";
 export * from "./getStatsParams";
 export * from "./healthStatus";
+export * from "./listArcoEnviosParams";
+export * from "./listArcoEnviosStatus";
 export * from "./listFilialRoutesParams";
 export * from "./listPackagesParams";
 export * from "./listReturnProtocolsParams";

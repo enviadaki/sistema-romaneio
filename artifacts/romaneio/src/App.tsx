@@ -29,6 +29,7 @@ import Motoristas from "@/pages/motoristas";
 import Admin from "@/pages/admin";
 import Devolucoes from "@/pages/devolucoes";
 import Auditoria from "@/pages/auditoria";
+import ArcoEnvios from "@/pages/arco-envios";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -304,6 +305,7 @@ function ProtectedApp() {
           <Route path="/admin" component={Admin} />
           <Route path="/devolucoes" component={Devolucoes} />
           <Route path="/auditoria" component={Auditoria} />
+          <Route path="/arco-envios" component={ArcoEnvios} />
           <Route component={NotFound} />
         </Switch>
       </Layout>

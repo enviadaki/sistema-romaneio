@@ -536,3 +536,241 @@ export const GetStatsResponse = zod.object({
     }),
   ),
 });
+
+/**
+ * @summary List Arco envios
+ */
+export const listArcoEnviosQueryLimitMax = 200;
+
+export const ListArcoEnviosQueryParams = zod.object({
+  operation: zod.coerce.string().optional(),
+  status: zod
+    .enum([
+      "pendente",
+      "em_andamento",
+      "concluido",
+      "concluido_com_erros",
+      "falhou",
+      "interrompido",
+      "cancelado",
+    ])
+    .optional(),
+  limit: zod.coerce.number().min(1).max(listArcoEnviosQueryLimitMax).optional(),
+});
+
+export const ListArcoEnviosResponseItem = zod.object({
+  id: zod.number(),
+  operation: zod.string(),
+  romaneioData: zod.string(),
+  romaneioEscopoTipo: zod.enum(["cidade", "rota"]),
+  romaneioEscopoValor: zod.string(),
+  romaneioLabel: zod.string(),
+  status: zod.enum([
+    "pendente",
+    "em_andamento",
+    "concluido",
+    "concluido_com_erros",
+    "falhou",
+    "interrompido",
+    "cancelado",
+  ]),
+  criadoPor: zod.string().nullable(),
+  criadoEm: zod.string(),
+  iniciadoEm: zod.string().nullable(),
+  finalizadoEm: zod.string().nullable(),
+  ultimoHeartbeat: zod.string().nullable(),
+  erroGeral: zod.string().nullable(),
+  envioOrigemId: zod.number().nullable(),
+});
+export const ListArcoEnviosResponse = zod.array(ListArcoEnviosResponseItem);
+
+/**
+ * @summary Create an Arco envio from a romaneio (date + city/cities or rota)
+ */
+
+export const CreateArcoEnvioBody = zod.object({
+  date: zod.string().min(1),
+  operation: zod.string().optional(),
+  city: zod.string().optional(),
+  cities: zod
+    .string()
+    .optional()
+    .describe(
+      "Cidades separadas por vírgula (mesmo formato de GET \/romaneio)",
+    ),
+  rota: zod.string().optional(),
+  label: zod.string().optional(),
+  forcar: zod.boolean().optional(),
+});
+
+/**
+ * @summary Check whether the external agent has been seen recently
+ */
+export const GetArcoAgenteStatusResponse = zod.object({
+  online: zod.boolean(),
+  ultimoVistoEm: zod.string().nullable(),
+});
+
+/**
+ * @summary Get an Arco envio with its itens
+ */
+export const GetArcoEnvioParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetArcoEnvioResponse = zod
+  .object({
+    id: zod.number(),
+    operation: zod.string(),
+    romaneioData: zod.string(),
+    romaneioEscopoTipo: zod.enum(["cidade", "rota"]),
+    romaneioEscopoValor: zod.string(),
+    romaneioLabel: zod.string(),
+    status: zod.enum([
+      "pendente",
+      "em_andamento",
+      "concluido",
+      "concluido_com_erros",
+      "falhou",
+      "interrompido",
+      "cancelado",
+    ]),
+    criadoPor: zod.string().nullable(),
+    criadoEm: zod.string(),
+    iniciadoEm: zod.string().nullable(),
+    finalizadoEm: zod.string().nullable(),
+    ultimoHeartbeat: zod.string().nullable(),
+    erroGeral: zod.string().nullable(),
+    envioOrigemId: zod.number().nullable(),
+  })
+  .and(
+    zod.object({
+      itens: zod.array(
+        zod.object({
+          id: zod.number(),
+          envioId: zod.number(),
+          codigo: zod.string(),
+          status: zod.enum(["pendente", "ok", "erro", "nao_processado"]),
+          erro: zod.string().nullable(),
+        }),
+      ),
+    }),
+  );
+
+/**
+ * @summary Create a new envio with only the failed/unprocessed itens of the original
+ */
+export const ReenviarArcoEnvioFalhasParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary Cancel a pending Arco envio
+ */
+export const CancelarArcoEnvioParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CancelarArcoEnvioResponse = zod.object({
+  id: zod.number(),
+  operation: zod.string(),
+  romaneioData: zod.string(),
+  romaneioEscopoTipo: zod.enum(["cidade", "rota"]),
+  romaneioEscopoValor: zod.string(),
+  romaneioLabel: zod.string(),
+  status: zod.enum([
+    "pendente",
+    "em_andamento",
+    "concluido",
+    "concluido_com_erros",
+    "falhou",
+    "interrompido",
+    "cancelado",
+  ]),
+  criadoPor: zod.string().nullable(),
+  criadoEm: zod.string(),
+  iniciadoEm: zod.string().nullable(),
+  finalizadoEm: zod.string().nullable(),
+  ultimoHeartbeat: zod.string().nullable(),
+  erroGeral: zod.string().nullable(),
+  envioOrigemId: zod.number().nullable(),
+});
+
+/**
+ * @summary Atomically claim the oldest pending Arco envio
+ */
+export const AgenteProximoEnvioResponse = zod.object({
+  id: zod.number(),
+  operation: zod.string(),
+  romaneioLabel: zod.string(),
+  romaneioData: zod.string(),
+  codigos: zod.array(zod.string()),
+});
+
+/**
+ * @summary Report that the agent is still working on this envio
+ */
+export const AgenteHeartbeatEnvioParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AgenteHeartbeatEnvioResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Report the per-codigo result of an envio
+ */
+export const AgenteResultadoEnvioParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AgenteResultadoEnvioBody = zod.object({
+  itens: zod.array(
+    zod.object({
+      codigo: zod.string().min(1),
+      ok: zod.boolean(),
+      erro: zod.string().optional(),
+    }),
+  ),
+  erroGeral: zod.string().optional(),
+});
+
+export const AgenteResultadoEnvioResponse = zod
+  .object({
+    id: zod.number(),
+    operation: zod.string(),
+    romaneioData: zod.string(),
+    romaneioEscopoTipo: zod.enum(["cidade", "rota"]),
+    romaneioEscopoValor: zod.string(),
+    romaneioLabel: zod.string(),
+    status: zod.enum([
+      "pendente",
+      "em_andamento",
+      "concluido",
+      "concluido_com_erros",
+      "falhou",
+      "interrompido",
+      "cancelado",
+    ]),
+    criadoPor: zod.string().nullable(),
+    criadoEm: zod.string(),
+    iniciadoEm: zod.string().nullable(),
+    finalizadoEm: zod.string().nullable(),
+    ultimoHeartbeat: zod.string().nullable(),
+    erroGeral: zod.string().nullable(),
+    envioOrigemId: zod.number().nullable(),
+  })
+  .and(
+    zod.object({
+      itens: zod.array(
+        zod.object({
+          id: zod.number(),
+          envioId: zod.number(),
+          codigo: zod.string(),
+          status: zod.enum(["pendente", "ok", "erro", "nao_processado"]),
+          erro: zod.string().nullable(),
+        }),
+      ),
+    }),
+  );

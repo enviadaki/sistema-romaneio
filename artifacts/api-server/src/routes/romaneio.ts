@@ -1,8 +1,7 @@
 import { Router, type IRouter } from "express";
-import { eq, and, inArray, sql, SQL } from "drizzle-orm";
-import { db, scansTable, packagesTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireOperationAccess } from "../middlewares/requireOperationAccess";
+import { resolveRomaneioItems } from "../modules/romaneio/resolve";
 
 const router: IRouter = Router();
 
@@ -28,31 +27,7 @@ router.get("/romaneio", requireAuth, requireOperationAccess, async (req, res): P
   // (routes-data.ts, no frontend, continua sendo o modo "cidade" pra tudo
   // mais). Checado ANTES do modo cidade — se `rota` veio, ignora city/cities.
   if (rota) {
-    const scans = await db
-      .select()
-      .from(scansTable)
-      .where(and(eq(scansTable.rota, rota), eq(scansTable.scanDate, date), eq(scansTable.operation, operation)));
-
-    const packagesResult =
-      scans.length > 0
-        ? await db
-            .select()
-            .from(packagesTable)
-            .where(and(eq(packagesTable.rota, rota), eq(packagesTable.operation, operation)))
-        : [];
-
-    const packageMap = new Map(packagesResult.map((p) => [p.trackingNumber, p]));
-
-    const romaneioItems = scans
-      .map((s) => {
-        const pkg = packageMap.get(s.trackingNumber);
-        return {
-          trackingNumber: s.trackingNumber,
-          city: s.city,
-          promisedDeliveryDate: pkg?.promisedDeliveryDate ?? "",
-        };
-      })
-      .sort((a, b) => a.city.localeCompare(b.city) || a.trackingNumber.localeCompare(b.trackingNumber));
+    const romaneioItems = await resolveRomaneioItems({ date, operation, rota });
 
     res.json({
       city: label ?? rota,
@@ -75,42 +50,7 @@ router.get("/romaneio", requireAuth, requireOperationAccess, async (req, res): P
     return;
   }
 
-  const lowerCities = cityList.map((c) => c.toLowerCase());
-  const scanCityCondition =
-    lowerCities.length === 1
-      ? (sql`lower(${scansTable.city}) = ${lowerCities[0]}` as unknown as SQL)
-      : (inArray(sql`lower(${scansTable.city})`, lowerCities) as unknown as SQL);
-
-  const scans = await db
-    .select()
-    .from(scansTable)
-    .where(and(scanCityCondition, eq(scansTable.scanDate, date), eq(scansTable.operation, operation)));
-
-  const pkgCityCondition =
-    lowerCities.length === 1
-      ? (sql`lower(${packagesTable.city}) = ${lowerCities[0]}` as unknown as SQL)
-      : (inArray(sql`lower(${packagesTable.city})`, lowerCities) as unknown as SQL);
-
-  const packagesResult =
-    scans.length > 0
-      ? await db
-          .select()
-          .from(packagesTable)
-          .where(and(pkgCityCondition, eq(packagesTable.operation, operation)))
-      : [];
-
-  const packageMap = new Map(packagesResult.map((p) => [p.trackingNumber, p]));
-
-  const romaneioItems = scans
-    .map((s) => {
-      const pkg = packageMap.get(s.trackingNumber);
-      return {
-        trackingNumber: s.trackingNumber,
-        city: s.city,
-        promisedDeliveryDate: pkg?.promisedDeliveryDate ?? "",
-      };
-    })
-    .sort((a, b) => a.city.localeCompare(b.city) || a.trackingNumber.localeCompare(b.trackingNumber));
+  const romaneioItems = await resolveRomaneioItems({ date, operation, cities: cityList });
 
   const displayLabel = label ?? city ?? cityList[0] ?? "";
 

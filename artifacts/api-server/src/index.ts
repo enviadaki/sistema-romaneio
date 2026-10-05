@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seedReferenceData } from "./lib/seed-reference-data";
+import { sweepStaleEnvios } from "./modules/arco-envios/claim";
 
 const rawPort = process.env["PORT"];
 
@@ -24,4 +25,12 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
   seedReferenceData();
+
+  // Varredura periódica dos envios ARCO "esquecidos" — ver sweepStaleEnvios.
+  const ARCO_SWEEP_INTERVAL_MS = 60_000;
+  setInterval(() => {
+    sweepStaleEnvios().catch((err: unknown) => {
+      logger.error({ err }, "Falha na varredura de envios ARCO interrompidos");
+    });
+  }, ARCO_SWEEP_INTERVAL_MS);
 });

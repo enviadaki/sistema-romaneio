@@ -328,6 +328,116 @@ export interface Conferente {
   createdAt?: string;
 }
 
+export type ArcoEnvioItemStatus =
+  (typeof ArcoEnvioItemStatus)[keyof typeof ArcoEnvioItemStatus];
+
+export const ArcoEnvioItemStatus = {
+  pendente: "pendente",
+  ok: "ok",
+  erro: "erro",
+  nao_processado: "nao_processado",
+} as const;
+
+export interface ArcoEnvioItem {
+  id: number;
+  envioId: number;
+  codigo: string;
+  status: ArcoEnvioItemStatus;
+  /** @nullable */
+  erro: string | null;
+}
+
+export type ArcoEnvioRomaneioEscopoTipo =
+  (typeof ArcoEnvioRomaneioEscopoTipo)[keyof typeof ArcoEnvioRomaneioEscopoTipo];
+
+export const ArcoEnvioRomaneioEscopoTipo = {
+  cidade: "cidade",
+  rota: "rota",
+} as const;
+
+export type ArcoEnvioStatus =
+  (typeof ArcoEnvioStatus)[keyof typeof ArcoEnvioStatus];
+
+export const ArcoEnvioStatus = {
+  pendente: "pendente",
+  em_andamento: "em_andamento",
+  concluido: "concluido",
+  concluido_com_erros: "concluido_com_erros",
+  falhou: "falhou",
+  interrompido: "interrompido",
+  cancelado: "cancelado",
+} as const;
+
+export interface ArcoEnvio {
+  id: number;
+  operation: string;
+  romaneioData: string;
+  romaneioEscopoTipo: ArcoEnvioRomaneioEscopoTipo;
+  romaneioEscopoValor: string;
+  romaneioLabel: string;
+  status: ArcoEnvioStatus;
+  /** @nullable */
+  criadoPor: string | null;
+  criadoEm: string;
+  /** @nullable */
+  iniciadoEm: string | null;
+  /** @nullable */
+  finalizadoEm: string | null;
+  /** @nullable */
+  ultimoHeartbeat: string | null;
+  /** @nullable */
+  erroGeral: string | null;
+  /** @nullable */
+  envioOrigemId: number | null;
+}
+
+export type ArcoEnvioComItens = ArcoEnvio & {
+  itens: ArcoEnvioItem[];
+};
+
+export interface ArcoEnvioConflito {
+  error: string;
+  envioExistenteId: number;
+}
+
+export interface CreateArcoEnvioInput {
+  /** @minLength 1 */
+  date: string;
+  operation?: string;
+  city?: string;
+  /** Cidades separadas por vírgula (mesmo formato de GET /romaneio) */
+  cities?: string;
+  rota?: string;
+  label?: string;
+  forcar?: boolean;
+}
+
+export interface ArcoAgenteEnvio {
+  id: number;
+  operation: string;
+  romaneioLabel: string;
+  romaneioData: string;
+  codigos: string[];
+}
+
+export interface ArcoAgenteResultadoItemInput {
+  /** @minLength 1 */
+  codigo: string;
+  ok: boolean;
+  erro?: string;
+}
+
+export interface ArcoAgenteResultadoInput {
+  itens: ArcoAgenteResultadoItemInput[];
+  erroGeral?: string;
+}
+
+export interface ArcoAgenteStatus {
+  online: boolean;
+  /** @nullable */
+  ultimoVistoEm: string | null;
+}
+
 export type ArcoLookupParams = {
   /**
    * Package tracking number
@@ -447,4 +557,31 @@ export type GetStatsParams = {
    * Filter statistics by operation (e.g. LOGGI, AMAZON). Defaults to LOGGI if omitted.
    */
   operation?: string;
+};
+
+export type ListArcoEnviosParams = {
+  operation?: string;
+  status?: ListArcoEnviosStatus;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
+};
+
+export type ListArcoEnviosStatus =
+  (typeof ListArcoEnviosStatus)[keyof typeof ListArcoEnviosStatus];
+
+export const ListArcoEnviosStatus = {
+  pendente: "pendente",
+  em_andamento: "em_andamento",
+  concluido: "concluido",
+  concluido_com_erros: "concluido_com_erros",
+  falhou: "falhou",
+  interrompido: "interrompido",
+  cancelado: "cancelado",
+} as const;
+
+export type AgenteHeartbeatEnvio200 = {
+  ok: boolean;
 };

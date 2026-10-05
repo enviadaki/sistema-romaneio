@@ -30,6 +30,7 @@ services:
       CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY}
       SESSION_SECRET: ${SESSION_SECRET}
       ARCO_API_KEY: ${ARCO_API_KEY}
+      AGENTE_TOKEN: ${AGENTE_TOKEN}
       ADMIN_EMAILS: ${ADMIN_EMAILS}
     volumes:
       # Certificado + chave privada da assinatura QZ Tray (impressão sem o

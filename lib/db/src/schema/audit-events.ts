@@ -24,6 +24,8 @@ export const auditEventTypes = [
   "access_denied",
   "operator_login",
   "city_correction_added",
+  "arco_envio_criado",
+  "arco_envio_resultado",
 ] as const;
 export type AuditEventType = (typeof auditEventTypes)[number];
 

@@ -17,7 +17,14 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AgenteHeartbeatEnvio200,
+  ArcoAgenteEnvio,
+  ArcoAgenteResultadoInput,
+  ArcoAgenteStatus,
   ArcoConfig,
+  ArcoEnvio,
+  ArcoEnvioComItens,
+  ArcoEnvioConflito,
   ArcoLookupParams,
   ArcoLookupResult,
   ArcoPingResult,
@@ -26,11 +33,13 @@ import type {
   BulkScansResult,
   ClearPackagesParams,
   ClearPackagesResult,
+  CreateArcoEnvioInput,
   ErrorResponse,
   FilialRoute,
   GetRomaneioParams,
   GetStatsParams,
   HealthStatus,
+  ListArcoEnviosParams,
   ListFilialRoutesParams,
   ListPackagesParams,
   ListReturnProtocolsParams,
@@ -1882,3 +1891,768 @@ export function useGetStats<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary List Arco envios
+ */
+export const getListArcoEnviosUrl = (params?: ListArcoEnviosParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/arco-envios?${stringifiedParams}`
+    : `/api/arco-envios`;
+};
+
+export const listArcoEnvios = async (
+  params?: ListArcoEnviosParams,
+  options?: RequestInit,
+): Promise<ArcoEnvio[]> => {
+  return customFetch<ArcoEnvio[]>(getListArcoEnviosUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListArcoEnviosQueryKey = (params?: ListArcoEnviosParams) => {
+  return [`/api/arco-envios`, ...(params ? [params] : [])] as const;
+};
+
+export const getListArcoEnviosQueryOptions = <
+  TData = Awaited<ReturnType<typeof listArcoEnvios>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListArcoEnviosParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listArcoEnvios>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListArcoEnviosQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listArcoEnvios>>> = ({
+    signal,
+  }) => listArcoEnvios(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listArcoEnvios>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListArcoEnviosQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listArcoEnvios>>
+>;
+export type ListArcoEnviosQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List Arco envios
+ */
+
+export function useListArcoEnvios<
+  TData = Awaited<ReturnType<typeof listArcoEnvios>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListArcoEnviosParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listArcoEnvios>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListArcoEnviosQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create an Arco envio from a romaneio (date + city/cities or rota)
+ */
+export const getCreateArcoEnvioUrl = () => {
+  return `/api/arco-envios`;
+};
+
+export const createArcoEnvio = async (
+  createArcoEnvioInput: CreateArcoEnvioInput,
+  options?: RequestInit,
+): Promise<ArcoEnvioComItens> => {
+  return customFetch<ArcoEnvioComItens>(getCreateArcoEnvioUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createArcoEnvioInput),
+  });
+};
+
+export const getCreateArcoEnvioMutationOptions = <
+  TError = ErrorType<ErrorResponse | ArcoEnvioConflito>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createArcoEnvio>>,
+    TError,
+    { data: BodyType<CreateArcoEnvioInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createArcoEnvio>>,
+  TError,
+  { data: BodyType<CreateArcoEnvioInput> },
+  TContext
+> => {
+  const mutationKey = ["createArcoEnvio"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createArcoEnvio>>,
+    { data: BodyType<CreateArcoEnvioInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createArcoEnvio(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateArcoEnvioMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createArcoEnvio>>
+>;
+export type CreateArcoEnvioMutationBody = BodyType<CreateArcoEnvioInput>;
+export type CreateArcoEnvioMutationError = ErrorType<
+  ErrorResponse | ArcoEnvioConflito
+>;
+
+/**
+ * @summary Create an Arco envio from a romaneio (date + city/cities or rota)
+ */
+export const useCreateArcoEnvio = <
+  TError = ErrorType<ErrorResponse | ArcoEnvioConflito>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createArcoEnvio>>,
+    TError,
+    { data: BodyType<CreateArcoEnvioInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createArcoEnvio>>,
+  TError,
+  { data: BodyType<CreateArcoEnvioInput> },
+  TContext
+> => {
+  return useMutation(getCreateArcoEnvioMutationOptions(options));
+};
+
+/**
+ * @summary Check whether the external agent has been seen recently
+ */
+export const getGetArcoAgenteStatusUrl = () => {
+  return `/api/arco-envios/agente-status`;
+};
+
+export const getArcoAgenteStatus = async (
+  options?: RequestInit,
+): Promise<ArcoAgenteStatus> => {
+  return customFetch<ArcoAgenteStatus>(getGetArcoAgenteStatusUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetArcoAgenteStatusQueryKey = () => {
+  return [`/api/arco-envios/agente-status`] as const;
+};
+
+export const getGetArcoAgenteStatusQueryOptions = <
+  TData = Awaited<ReturnType<typeof getArcoAgenteStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getArcoAgenteStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetArcoAgenteStatusQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getArcoAgenteStatus>>
+  > = ({ signal }) => getArcoAgenteStatus({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getArcoAgenteStatus>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetArcoAgenteStatusQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getArcoAgenteStatus>>
+>;
+export type GetArcoAgenteStatusQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Check whether the external agent has been seen recently
+ */
+
+export function useGetArcoAgenteStatus<
+  TData = Awaited<ReturnType<typeof getArcoAgenteStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getArcoAgenteStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetArcoAgenteStatusQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get an Arco envio with its itens
+ */
+export const getGetArcoEnvioUrl = (id: number) => {
+  return `/api/arco-envios/${id}`;
+};
+
+export const getArcoEnvio = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ArcoEnvioComItens> => {
+  return customFetch<ArcoEnvioComItens>(getGetArcoEnvioUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetArcoEnvioQueryKey = (id: number) => {
+  return [`/api/arco-envios/${id}`] as const;
+};
+
+export const getGetArcoEnvioQueryOptions = <
+  TData = Awaited<ReturnType<typeof getArcoEnvio>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getArcoEnvio>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetArcoEnvioQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getArcoEnvio>>> = ({
+    signal,
+  }) => getArcoEnvio(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getArcoEnvio>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetArcoEnvioQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getArcoEnvio>>
+>;
+export type GetArcoEnvioQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get an Arco envio with its itens
+ */
+
+export function useGetArcoEnvio<
+  TData = Awaited<ReturnType<typeof getArcoEnvio>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getArcoEnvio>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetArcoEnvioQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a new envio with only the failed/unprocessed itens of the original
+ */
+export const getReenviarArcoEnvioFalhasUrl = (id: number) => {
+  return `/api/arco-envios/${id}/reenviar-falhas`;
+};
+
+export const reenviarArcoEnvioFalhas = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ArcoEnvioComItens> => {
+  return customFetch<ArcoEnvioComItens>(getReenviarArcoEnvioFalhasUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getReenviarArcoEnvioFalhasMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reenviarArcoEnvioFalhas>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reenviarArcoEnvioFalhas>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["reenviarArcoEnvioFalhas"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reenviarArcoEnvioFalhas>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return reenviarArcoEnvioFalhas(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReenviarArcoEnvioFalhasMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reenviarArcoEnvioFalhas>>
+>;
+
+export type ReenviarArcoEnvioFalhasMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Create a new envio with only the failed/unprocessed itens of the original
+ */
+export const useReenviarArcoEnvioFalhas = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reenviarArcoEnvioFalhas>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reenviarArcoEnvioFalhas>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getReenviarArcoEnvioFalhasMutationOptions(options));
+};
+
+/**
+ * @summary Cancel a pending Arco envio
+ */
+export const getCancelarArcoEnvioUrl = (id: number) => {
+  return `/api/arco-envios/${id}/cancelar`;
+};
+
+export const cancelarArcoEnvio = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ArcoEnvio> => {
+  return customFetch<ArcoEnvio>(getCancelarArcoEnvioUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getCancelarArcoEnvioMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelarArcoEnvio>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof cancelarArcoEnvio>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["cancelarArcoEnvio"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof cancelarArcoEnvio>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return cancelarArcoEnvio(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CancelarArcoEnvioMutationResult = NonNullable<
+  Awaited<ReturnType<typeof cancelarArcoEnvio>>
+>;
+
+export type CancelarArcoEnvioMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Cancel a pending Arco envio
+ */
+export const useCancelarArcoEnvio = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelarArcoEnvio>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof cancelarArcoEnvio>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getCancelarArcoEnvioMutationOptions(options));
+};
+
+/**
+ * @summary Atomically claim the oldest pending Arco envio
+ */
+export const getAgenteProximoEnvioUrl = () => {
+  return `/api/agente/envios/proximo`;
+};
+
+export const agenteProximoEnvio = async (
+  options?: RequestInit,
+): Promise<ArcoAgenteEnvio | void> => {
+  return customFetch<ArcoAgenteEnvio | void>(getAgenteProximoEnvioUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAgenteProximoEnvioMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof agenteProximoEnvio>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof agenteProximoEnvio>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["agenteProximoEnvio"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof agenteProximoEnvio>>,
+    void
+  > = () => {
+    return agenteProximoEnvio(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AgenteProximoEnvioMutationResult = NonNullable<
+  Awaited<ReturnType<typeof agenteProximoEnvio>>
+>;
+
+export type AgenteProximoEnvioMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Atomically claim the oldest pending Arco envio
+ */
+export const useAgenteProximoEnvio = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof agenteProximoEnvio>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof agenteProximoEnvio>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getAgenteProximoEnvioMutationOptions(options));
+};
+
+/**
+ * @summary Report that the agent is still working on this envio
+ */
+export const getAgenteHeartbeatEnvioUrl = (id: number) => {
+  return `/api/agente/envios/${id}/heartbeat`;
+};
+
+export const agenteHeartbeatEnvio = async (
+  id: number,
+  options?: RequestInit,
+): Promise<AgenteHeartbeatEnvio200> => {
+  return customFetch<AgenteHeartbeatEnvio200>(getAgenteHeartbeatEnvioUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAgenteHeartbeatEnvioMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof agenteHeartbeatEnvio>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof agenteHeartbeatEnvio>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["agenteHeartbeatEnvio"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof agenteHeartbeatEnvio>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return agenteHeartbeatEnvio(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AgenteHeartbeatEnvioMutationResult = NonNullable<
+  Awaited<ReturnType<typeof agenteHeartbeatEnvio>>
+>;
+
+export type AgenteHeartbeatEnvioMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Report that the agent is still working on this envio
+ */
+export const useAgenteHeartbeatEnvio = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof agenteHeartbeatEnvio>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof agenteHeartbeatEnvio>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getAgenteHeartbeatEnvioMutationOptions(options));
+};
+
+/**
+ * @summary Report the per-codigo result of an envio
+ */
+export const getAgenteResultadoEnvioUrl = (id: number) => {
+  return `/api/agente/envios/${id}/resultado`;
+};
+
+export const agenteResultadoEnvio = async (
+  id: number,
+  arcoAgenteResultadoInput: ArcoAgenteResultadoInput,
+  options?: RequestInit,
+): Promise<ArcoEnvioComItens> => {
+  return customFetch<ArcoEnvioComItens>(getAgenteResultadoEnvioUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(arcoAgenteResultadoInput),
+  });
+};
+
+export const getAgenteResultadoEnvioMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof agenteResultadoEnvio>>,
+    TError,
+    { id: number; data: BodyType<ArcoAgenteResultadoInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof agenteResultadoEnvio>>,
+  TError,
+  { id: number; data: BodyType<ArcoAgenteResultadoInput> },
+  TContext
+> => {
+  const mutationKey = ["agenteResultadoEnvio"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof agenteResultadoEnvio>>,
+    { id: number; data: BodyType<ArcoAgenteResultadoInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return agenteResultadoEnvio(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AgenteResultadoEnvioMutationResult = NonNullable<
+  Awaited<ReturnType<typeof agenteResultadoEnvio>>
+>;
+export type AgenteResultadoEnvioMutationBody =
+  BodyType<ArcoAgenteResultadoInput>;
+export type AgenteResultadoEnvioMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Report the per-codigo result of an envio
+ */
+export const useAgenteResultadoEnvio = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof agenteResultadoEnvio>>,
+    TError,
+    { id: number; data: BodyType<ArcoAgenteResultadoInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof agenteResultadoEnvio>>,
+  TError,
+  { id: number; data: BodyType<ArcoAgenteResultadoInput> },
+  TContext
+> => {
+  return useMutation(getAgenteResultadoEnvioMutationOptions(options));
+};

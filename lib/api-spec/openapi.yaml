@@ -20,6 +20,10 @@ tags:
     description: Statistics
   - name: arco
     description: Arco Loggi integration
+  - name: arco-envios
+    description: Fila de envios para bipagem no site da Loggi via agente externo
+  - name: arco-agente
+    description: Endpoints consumidos pelo agente externo (AGENTE_TOKEN)
 
 paths:
   /healthz:
@@ -641,7 +645,247 @@ paths:
               schema:
                 $ref: "#/components/schemas/Stats"
 
+  /arco-envios:
+    get:
+      operationId: listArcoEnvios
+      tags: [arco-envios]
+      summary: List Arco envios
+      parameters:
+        - name: operation
+          in: query
+          required: false
+          schema: { type: string }
+        - name: status
+          in: query
+          required: false
+          schema: { type: string, enum: [pendente, em_andamento, concluido, concluido_com_erros, falhou, interrompido, cancelado] }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 200 }
+      responses:
+        "200":
+          description: Arco envios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ArcoEnvio"
+    post:
+      operationId: createArcoEnvio
+      tags: [arco-envios]
+      summary: Create an Arco envio from a romaneio (date + city/cities or rota)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateArcoEnvioInput"
+      responses:
+        "201":
+          description: Arco envio created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArcoEnvioComItens"
+        "400":
+          description: Validation error, or romaneio sem pacotes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Já existe um envio ativo para este romaneio
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArcoEnvioConflito"
+
+  /arco-envios/agente-status:
+    get:
+      operationId: getArcoAgenteStatus
+      tags: [arco-envios]
+      summary: Check whether the external agent has been seen recently
+      responses:
+        "200":
+          description: Agent presence status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArcoAgenteStatus"
+
+  /arco-envios/{id}:
+    get:
+      operationId: getArcoEnvio
+      tags: [arco-envios]
+      summary: Get an Arco envio with its itens
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Arco envio
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArcoEnvioComItens"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /arco-envios/{id}/reenviar-falhas:
+    post:
+      operationId: reenviarArcoEnvioFalhas
+      tags: [arco-envios]
+      summary: Create a new envio with only the failed/unprocessed itens of the original
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "201":
+          description: New Arco envio created with the failed itens
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArcoEnvioComItens"
+        "400":
+          description: Envio sem itens de erro/não processados
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /arco-envios/{id}/cancelar:
+    post:
+      operationId: cancelarArcoEnvio
+      tags: [arco-envios]
+      summary: Cancel a pending Arco envio
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Cancelled Arco envio
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArcoEnvio"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Envio não está mais pendente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /agente/envios/proximo:
+    post:
+      operationId: agenteProximoEnvio
+      tags: [arco-agente]
+      summary: Atomically claim the oldest pending Arco envio
+      security: [{ agenteToken: [] }]
+      responses:
+        "200":
+          description: Envio claimed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArcoAgenteEnvio"
+        "204":
+          description: No pending envio
+        "401":
+          description: Invalid or missing agent token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /agente/envios/{id}/heartbeat:
+    post:
+      operationId: agenteHeartbeatEnvio
+      tags: [arco-agente]
+      summary: Report that the agent is still working on this envio
+      security: [{ agenteToken: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Heartbeat recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        "404":
+          description: Envio not found or not em_andamento
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /agente/envios/{id}/resultado:
+    post:
+      operationId: agenteResultadoEnvio
+      tags: [arco-agente]
+      summary: Report the per-codigo result of an envio
+      security: [{ agenteToken: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ArcoAgenteResultadoInput"
+      responses:
+        "200":
+          description: Envio finalizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArcoEnvioComItens"
+        "404":
+          description: Envio not found or not em_andamento/interrompido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
+  securitySchemes:
+    agenteToken:
+      type: http
+      scheme: bearer
+      description: Token do agente externo (env AGENTE_TOKEN), comparado com timingSafeEqual.
   schemas:
     ArcoPingResult:
       type: object
@@ -1147,3 +1391,149 @@ components:
           type: string
         createdAt:
           type: string
+
+    ArcoEnvioItem:
+      type: object
+      required: [id, envioId, codigo, status, erro]
+      properties:
+        id:
+          type: integer
+        envioId:
+          type: integer
+        codigo:
+          type: string
+        status:
+          type: string
+          enum: [pendente, ok, erro, nao_processado]
+        erro:
+          type: ["string", "null"]
+
+    ArcoEnvio:
+      type: object
+      required:
+        [
+          id, operation, romaneioData, romaneioEscopoTipo, romaneioEscopoValor,
+          romaneioLabel, status, criadoPor, criadoEm, iniciadoEm, finalizadoEm,
+          ultimoHeartbeat, erroGeral, envioOrigemId,
+        ]
+      properties:
+        id:
+          type: integer
+        operation:
+          type: string
+        romaneioData:
+          type: string
+        romaneioEscopoTipo:
+          type: string
+          enum: [cidade, rota]
+        romaneioEscopoValor:
+          type: string
+        romaneioLabel:
+          type: string
+        status:
+          type: string
+          enum: [pendente, em_andamento, concluido, concluido_com_erros, falhou, interrompido, cancelado]
+        criadoPor:
+          type: ["string", "null"]
+        criadoEm:
+          type: string
+        iniciadoEm:
+          type: ["string", "null"]
+        finalizadoEm:
+          type: ["string", "null"]
+        ultimoHeartbeat:
+          type: ["string", "null"]
+        erroGeral:
+          type: ["string", "null"]
+        envioOrigemId:
+          type: ["integer", "null"]
+
+    ArcoEnvioComItens:
+      allOf:
+        - $ref: "#/components/schemas/ArcoEnvio"
+        - type: object
+          required: [itens]
+          properties:
+            itens:
+              type: array
+              items:
+                $ref: "#/components/schemas/ArcoEnvioItem"
+
+    ArcoEnvioConflito:
+      type: object
+      required: [error, envioExistenteId]
+      properties:
+        error:
+          type: string
+        envioExistenteId:
+          type: integer
+
+    CreateArcoEnvioInput:
+      type: object
+      required: [date]
+      properties:
+        date:
+          type: string
+          minLength: 1
+        operation:
+          type: string
+        city:
+          type: string
+        cities:
+          type: string
+          description: Cidades separadas por vírgula (mesmo formato de GET /romaneio)
+        rota:
+          type: string
+        label:
+          type: string
+        forcar:
+          type: boolean
+
+    ArcoAgenteEnvio:
+      type: object
+      required: [id, operation, romaneioLabel, romaneioData, codigos]
+      properties:
+        id:
+          type: integer
+        operation:
+          type: string
+        romaneioLabel:
+          type: string
+        romaneioData:
+          type: string
+        codigos:
+          type: array
+          items:
+            type: string
+
+    ArcoAgenteResultadoItemInput:
+      type: object
+      required: [codigo, ok]
+      properties:
+        codigo:
+          type: string
+          minLength: 1
+        ok:
+          type: boolean
+        erro:
+          type: string
+
+    ArcoAgenteResultadoInput:
+      type: object
+      required: [itens]
+      properties:
+        itens:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArcoAgenteResultadoItemInput"
+        erroGeral:
+          type: string
+
+    ArcoAgenteStatus:
+      type: object
+      required: [online, ultimoVistoEm]
+      properties:
+        online:
+          type: boolean
+        ultimoVistoEm:
+          type: ["string", "null"]
