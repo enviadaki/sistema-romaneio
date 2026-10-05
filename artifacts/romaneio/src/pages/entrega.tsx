@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { customFetch } from "@workspace/api-client-react";
-import { ROUTES } from "@/lib/routes-data";
+import { getRoutesForOperation } from "@/lib/routes-data";
 import { CameraScanner } from "@/components/camera-scanner";
 import { getTodayDateString } from "@/lib/date-utils";
 import { useOperation } from "@/contexts/operation-context";
@@ -62,14 +62,19 @@ export default function Entrega() {
   const { user: clerkUser } = useUser();
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Rota 05.4 só vem unificada numa rota só na AMAZON; na LOGGI continua
+  // com as 12 cidades separadas (ver getRoutesForOperation em
+  // routes-data.ts).
+  const routesForOperation = useMemo(() => getRoutesForOperation(operation), [operation]);
+
   // Filter routes to only those the motorista is allowed to access
   const allowedRouteCodes: string[] | undefined =
     motoristaUser?.allowedRoutes?.length
       ? motoristaUser.allowedRoutes
       : (clerkUser?.publicMetadata?.allowedRoutes as string[] | undefined);
   const availableRoutes = allowedRouteCodes?.length
-    ? ROUTES.filter((r) => allowedRouteCodes.some((code) => r.name.includes(code)))
-    : ROUTES;
+    ? routesForOperation.filter((r) => allowedRouteCodes.some((code) => r.name.includes(code)))
+    : routesForOperation;
 
   const [selectedRoute, setSelectedRoute] = useState(() =>
     availableRoutes.length === 1 ? availableRoutes[0].name : ""
@@ -84,8 +89,8 @@ export default function Entrega() {
 
   const routeCities = useMemo(() => {
     if (!selectedRoute) return [];
-    return ROUTES.find((r) => r.name === selectedRoute)?.cities ?? [];
-  }, [selectedRoute]);
+    return routesForOperation.find((r) => r.name === selectedRoute)?.cities ?? [];
+  }, [selectedRoute, routesForOperation]);
 
   // Fetch packages + confirmed deliveries whenever route changes
   const loadRouteData = useCallback(async (route: string, cities: string[]) => {

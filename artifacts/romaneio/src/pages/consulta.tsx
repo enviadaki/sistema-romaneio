@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from "react";
 import { customFetch } from "@workspace/api-client-react";
 import { useOperation } from "@/contexts/operation-context";
 import { OperationBadge } from "@/components/operation-badge";
-import { ROUTES } from "@/lib/routes-data";
+import { getRoutesForOperation } from "@/lib/routes-data";
 import { CameraScanner } from "@/components/camera-scanner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,9 +32,13 @@ interface LookupResult {
   scannedBy: string | null;
 }
 
-function findRouteForCity(city: string): string | null {
+// Rota 05.4 só vem unificada numa rota só na AMAZON; na LOGGI continua
+// com as 12 cidades separadas (ver getRoutesForOperation em
+// routes-data.ts) — por isso precisa da operação pra escolher a lista
+// certa.
+function findRouteForCity(city: string, operation: string): string | null {
   const lower = city.toLowerCase();
-  for (const route of ROUTES) {
+  for (const route of getRoutesForOperation(operation)) {
     if (route.cities.some((c) => c.toLowerCase() === lower)) {
       return route.name;
     }
@@ -87,7 +91,7 @@ export default function Consulta() {
   };
 
   const pkg = result && result !== "not_found" ? result : null;
-  const route = pkg ? findRouteForCity(pkg.city) : null;
+  const route = pkg ? findRouteForCity(pkg.city, operation) : null;
 
   return (
     <div className="max-w-xl mx-auto space-y-8">

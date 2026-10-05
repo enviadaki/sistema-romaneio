@@ -9,7 +9,7 @@ import { formatDate, getTodayDateString } from "@/lib/date-utils";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import JSZip from "jszip";
-import { ROUTES } from "@/lib/routes-data";
+import { getRoutesForOperation } from "@/lib/routes-data";
 import { useQuery } from "@tanstack/react-query";
 import { useUser } from "@clerk/react";
 import { useMotoristaAuth } from "@/contexts/motorista-auth-context";
@@ -418,7 +418,10 @@ export default function Romaneio() {
     motoristaUser?.allowedRoutes?.length
       ? motoristaUser.allowedRoutes
       : (user?.publicMetadata?.allowedRoutes as string[] | undefined);
-  const allRoutes: RouteOption[] = [...ROUTES, ...bairroRoutes];
+  // Rota 05.4 só vem unificada numa rota só na AMAZON; na LOGGI continua
+  // com as 12 cidades separadas (ver getRoutesForOperation em
+  // routes-data.ts — era um bug ter isso valendo pras duas operações).
+  const allRoutes: RouteOption[] = [...getRoutesForOperation(operation), ...bairroRoutes];
   const filteredRoutes = allowedRouteCodes?.length
     ? allRoutes.filter((r) => allowedRouteCodes.some((code) => r.name.includes(code)))
     : allRoutes;

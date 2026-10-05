@@ -8,7 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { formatDateTime, getTodayDateString } from "@/lib/date-utils";
 import { useOperation } from "@/contexts/operation-context";
 import { OperationBadge } from "@/components/operation-badge";
-import { ROUTES } from "@/lib/routes-data";
+import { getRoutesForOperation } from "@/lib/routes-data";
 
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -43,7 +43,12 @@ export default function Historico() {
   const [dateToFilter, setDateToFilter] = useState<string>(getTodayDateString());
   const [operatorFilter, setOperatorFilter] = useState<string>("ALL");
 
-  const selectedRoute = ROUTES.find((r) => r.name === routeFilter);
+  // Rota 05.4 só vem unificada numa rota só na AMAZON; na LOGGI continua
+  // com as 12 cidades separadas (ver getRoutesForOperation em
+  // routes-data.ts).
+  const routesForOperation = useMemo(() => getRoutesForOperation(operation), [operation]);
+
+  const selectedRoute = routesForOperation.find((r) => r.name === routeFilter);
 
   const params: Record<string, string> = {};
   if (selectedRoute) params.cities = selectedRoute.cities.join(",");
@@ -149,7 +154,7 @@ export default function Historico() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">Todas as Rotas</SelectItem>
-              {ROUTES.map((r) => (
+              {routesForOperation.map((r) => (
                 <SelectItem key={r.name} value={r.name}>
                   {r.name}
                 </SelectItem>

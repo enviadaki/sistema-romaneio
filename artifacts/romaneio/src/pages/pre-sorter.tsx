@@ -18,7 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { getTodayDateString, formatTime, formatDateTime } from "@/lib/date-utils";
 import { useOperation } from "@/contexts/operation-context";
 import { playScanSuccess, playScanError, playScanWarning, playScanInvalid } from "@/lib/scan-sounds";
-import { ROUTES } from "@/lib/routes-data";
+import { getRoutesForOperation } from "@/lib/routes-data";
 import {
   useCurrentScanSession,
   useOpenScanSession,
@@ -342,11 +342,16 @@ export default function PreSorter() {
     [availableBairros, selectedBairro],
   );
 
+  // Lista de rotas pra essa operação — a rota 05.4 só vem unificada numa
+  // rota só na AMAZON; na LOGGI continua com as 12 cidades separadas (ver
+  // getRoutesForOperation em routes-data.ts).
+  const routesForOperation = useMemo(() => getRoutesForOperation(operation), [operation]);
+
   // Derived: cities for the selected route
   const routeCities = useMemo(() => {
     if (filterMode !== "rota" || !selectedRoute) return [];
-    return ROUTES.find((r) => r.name === selectedRoute)?.cities ?? [];
-  }, [filterMode, selectedRoute]);
+    return routesForOperation.find((r) => r.name === selectedRoute)?.cities ?? [];
+  }, [filterMode, selectedRoute, routesForOperation]);
 
   // Build cities query param (comma-separated for route mode)
   const citiesParam = useMemo(() => {
@@ -582,7 +587,7 @@ export default function PreSorter() {
         `/api/packages/lookup?trackingNumber=${encodeURIComponent(code)}&operation=${operation}`,
       );
 
-      const realRoute = ROUTES.find((r) => r.cities.includes(found.city))?.name;
+      const realRoute = routesForOperation.find((r) => r.cities.includes(found.city))?.name;
       const realBairroName = found.rota
         ? availableBairros?.find((r) => r.code === found.rota)?.name ?? found.rota
         : null;
@@ -872,7 +877,7 @@ export default function PreSorter() {
                     <SelectValue placeholder="Selecione a rota..." />
                   </SelectTrigger>
                   <SelectContent className="max-h-[300px]">
-                    {ROUTES.map((r) => (
+                    {routesForOperation.map((r) => (
                       <SelectItem key={r.name} value={r.name}>
                         <span className="font-medium">{r.name}</span>
                         <span className="ml-2 text-xs text-muted-foreground">

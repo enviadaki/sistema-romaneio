@@ -115,66 +115,12 @@ export const ROUTES: Route[] = [
     ],
   },
   {
-    // Rota física 05.4 unificada: antes cada uma dessas 12 cidades era uma
-    // "rota" própria no sistema (CANDIBA - ROTA 05.4, CARIRANHA - ROTA
-    // 05.4, etc.), mas na prática é uma rota única que passa por todas
-    // elas — pedido do usuário pra que a bipagem e o romaneio tratem as 12
-    // juntas, como se fosse uma cidade só. Fica como uma entrada só de
-    // ROUTES, com todos os nomes/variações de cidade das 12 reunidos em
-    // `cities` (nada muda na lista de variações de cada cidade, só deixam
-    // de estar espalhadas em rotas separadas).
-    name: "ROTA 05.4 (CANDIBA / CARINHANHA / IUIU / JACARACI / LICÍNIO DE ALMEIDA / MALHADA / MATINA / MORTUGABA / PALMAS DE MONTE ALTO / PINDAÍ / SEBASTIÃO LARANJEIRAS / URANDI)",
+    name: "CANDIBA - ROTA 05.4",
     cities: [
       "CANDIBA",
       "CANDIBA (BA)",
       "Candiba",
       "Pilões",
-      "Agrovila XV",
-      "CARINHANHA",
-      "CARINHANHA (BA)",
-      "Carinhanha",
-      "IUIÚ",
-      "Iuiu",
-      "Iuiú",
-      "PINDORAMA/IUIU",
-      "Pindorama (Iuiu)",
-      "IRUNDIARA (JACARACI)",
-      "Irundiara",
-      "Irundiara (Jacaraci)",
-      "JACARACI",
-      "Jacaraci",
-      "LICÍNIO DE ALMEIDA",
-      "Licinio De Almeida",
-      "Licínio De Almeida",
-      "Tauapé",
-      "Cana Brava",
-      "MALHADA",
-      "MALHADA (BA)",
-      "Malhada",
-      "Parateca",
-      "MATINA",
-      "Matina",
-      "MORTUGABA",
-      "Mortugaba",
-      "Mortu6",
-      "PALMAS DE MONTE ALTO",
-      "PALMAS DE MONTE ALTO (BA)",
-      "Palmas De Monte Alto",
-      "Palmas de Monte Alto",
-      "Rancho Das Mães",
-      "Rancho das Mães",
-      "Guirapa",
-      "PINDAÍ",
-      "Pindai",
-      "Pindaí",
-      "Boquira",
-      "Mandiroba",
-      "SEBASTIAO LARANJEIRAS",
-      "SEBASTIÃO LARANJEIRAS",
-      "Sebastiao Laranjeiras",
-      "Sebastião Laranjeiras",
-      "URANDI",
-      "Urandi",
     ],
   },
   {
@@ -200,6 +146,107 @@ export const ROUTES: Route[] = [
       "Jânio quadros",
       "PRESIDENTE JÂNIO QUADROS",
       "Presidente Jânio Quadros",
+    ],
+  },
+  {
+    name: "CARIRANHA - ROTA 05.4",
+    cities: [
+      "Agrovila XV",
+      "CARINHANHA",
+      "CARINHANHA (BA)",
+      "Carinhanha",
+    ],
+  },
+  {
+    name: "IUIU - ROTA 05.4",
+    cities: [
+      "IUIÚ",
+      "Iuiu",
+      "Iuiú",
+      "PINDORAMA/IUIU",
+      "Pindorama (Iuiu)",
+    ],
+  },
+  {
+    name: "JACARACI - ROTA 05.4",
+    cities: [
+      "IRUNDIARA (JACARACI)",
+      "Irundiara",
+      "Irundiara (Jacaraci)",
+      "JACARACI",
+      "Jacaraci",
+    ],
+  },
+  {
+    name: "LICINIO DE ALMEIDA - ROTA 05.4",
+    cities: [
+      "LICÍNIO DE ALMEIDA",
+      "Licinio De Almeida",
+      "Licínio De Almeida",
+      "Tauapé",
+    ],
+  },
+  {
+    name: "MALHADA - ROTA 05.4",
+    cities: [
+      "Cana Brava",
+      "MALHADA",
+      "MALHADA (BA)",
+      "Malhada",
+      "Parateca",
+    ],
+  },
+  {
+    name: "MATINA - ROTA 05.4",
+    cities: [
+      "MATINA",
+      "Matina",
+    ],
+  },
+  {
+    name: "MORTUGABA - ROTA 05.4",
+    cities: [
+      "MORTUGABA",
+      "Mortugaba",
+      "Mortu6",
+    ],
+  },
+  {
+    name: "PALMAS DE MONTE ALTO - ROTA 05.4",
+    cities: [
+      "PALMAS DE MONTE ALTO",
+      "PALMAS DE MONTE ALTO (BA)",
+      "Palmas De Monte Alto",
+      "Palmas de Monte Alto",
+      "Rancho Das Mães",
+      "Rancho das Mães",
+    ],
+  },
+  {
+    name: "PINDAI - ROTA 05.4",
+    cities: [
+      "Guirapa",
+      "PINDAÍ",
+      "Pindai",
+      "Pindaí",
+    ],
+  },
+  {
+    name: "SEBASTIÃO LARANJEIRAS - ROTA 05.4",
+    cities: [
+      "Boquira",
+      "Mandiroba",
+      "SEBASTIAO LARANJEIRAS",
+      "SEBASTIÃO LARANJEIRAS",
+      "Sebastiao Laranjeiras",
+      "Sebastião Laranjeiras",
+    ],
+  },
+  {
+    name: "URANDI - ROTA 05.4",
+    cities: [
+      "URANDI",
+      "Urandi",
     ],
   },
   {
@@ -614,4 +661,61 @@ export function findRouteForCity(city: string): Route | undefined {
   return ROUTES.find((r) =>
     r.cities.some((c) => c.toLowerCase() === lower),
   );
+}
+
+// Rota física 05.4 — passa por 12 cidades (Candiba, Carinhanha, Iuiu,
+// Jacaraci, Licínio de Almeida, Malhada, Matina, Mortugaba, Palmas de
+// Monte Alto, Pindaí, Sebastião Laranjeiras e Urandi), cada uma com sua
+// própria entrada em ROUTES (CANDIBA - ROTA 05.4, CARIRANHA - ROTA 05.4,
+// etc. — mesma estrutura de sempre, usada pela LOGGI).
+//
+// A AMAZON pediu pra tratar essas 12 juntas, como se fosse uma rota só
+// (bipagem e romaneio saem todos juntos) — mas isso é só pra AMAZON: na
+// LOGGI as rotas continuam separadas por cidade, do jeito que sempre
+// foram (já rolou de um merge pensado só pra AMAZON vazar pra LOGGI por
+// engano, porque ROUTES era usado igual pelas duas operações). Por isso a
+// junção não fica dentro de ROUTES — fica só numa view derivada
+// (ROUTES_AMAZON/getRoutesForOperation) que a tela monta na hora, olhando
+// a operação atual.
+const ROTA_05_4_NAMES = [
+  "CANDIBA - ROTA 05.4",
+  "CARIRANHA - ROTA 05.4",
+  "IUIU - ROTA 05.4",
+  "JACARACI - ROTA 05.4",
+  "LICINIO DE ALMEIDA - ROTA 05.4",
+  "MALHADA - ROTA 05.4",
+  "MATINA - ROTA 05.4",
+  "MORTUGABA - ROTA 05.4",
+  "PALMAS DE MONTE ALTO - ROTA 05.4",
+  "PINDAI - ROTA 05.4",
+  "SEBASTIÃO LARANJEIRAS - ROTA 05.4",
+  "URANDI - ROTA 05.4",
+];
+
+const ROTA_05_4_MERGED_NAME =
+  "ROTA 05.4 (CANDIBA / CARINHANHA / IUIU / JACARACI / LICÍNIO DE ALMEIDA / MALHADA / MATINA / MORTUGABA / PALMAS DE MONTE ALTO / PINDAÍ / SEBASTIÃO LARANJEIRAS / URANDI)";
+
+const ROUTES_AMAZON: Route[] = (() => {
+  const firstIdx = ROUTES.findIndex((r) => r.name === ROTA_05_4_NAMES[0]);
+  const merged: Route = {
+    name: ROTA_05_4_MERGED_NAME,
+    cities: ROTA_05_4_NAMES.flatMap((name) => ROUTES.find((r) => r.name === name)?.cities ?? []),
+  };
+  const others = ROUTES.filter((r) => !ROTA_05_4_NAMES.includes(r.name));
+  // Mantém a rota unificada mais ou menos na mesma posição em que a
+  // primeira das 12 aparecia em ROUTES, só por organização da lista —
+  // não afeta o funcionamento.
+  const citiesBeforeFirst = ROUTES.slice(0, firstIdx).filter((r) => !ROTA_05_4_NAMES.includes(r.name)).length;
+  return [...others.slice(0, citiesBeforeFirst), merged, ...others.slice(citiesBeforeFirst)];
+})();
+
+/**
+ * Lista de rotas pra exibir/filtrar, já considerando a operação atual —
+ * hoje a única diferença entre operações é a rota 05.4 (ver comentário
+ * acima): unificada numa rota só na AMAZON, separada por cidade em
+ * qualquer outra operação (LOGGI incluída). Usar isso em vez do ROUTES
+ * puro em qualquer tela que filtra/lista rotas dependendo da operação.
+ */
+export function getRoutesForOperation(operation: string): Route[] {
+  return operation === "AMAZON" ? ROUTES_AMAZON : ROUTES;
 }

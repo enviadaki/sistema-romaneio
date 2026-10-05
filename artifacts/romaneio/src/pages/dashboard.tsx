@@ -13,7 +13,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ROUTES } from "@/lib/routes-data";
+import { getRoutesForOperation } from "@/lib/routes-data";
 import { useMemo } from "react";
 import { useOperation } from "@/contexts/operation-context";
 import { OperationBadge } from "@/components/operation-badge";
@@ -25,7 +25,12 @@ export default function Dashboard() {
   const { operation } = useOperation();
   const { data: stats, isLoading } = useGetStats({ operation });
 
-  // Build route progress from static ROUTES config + stats data
+  // Rota 05.4 só vem unificada numa rota só na AMAZON; na LOGGI continua
+  // com as 12 cidades separadas (ver getRoutesForOperation em
+  // routes-data.ts).
+  const routesForOperation = useMemo(() => getRoutesForOperation(operation), [operation]);
+
+  // Build route progress from routesForOperation + stats data
   const routeProgress = useMemo(() => {
     if (!stats) return [];
 
@@ -39,7 +44,7 @@ export default function Dashboard() {
       scanMap[item.city] = (scanMap[item.city] ?? 0) + item.count;
     }
 
-    return ROUTES.map((route) => {
+    return routesForOperation.map((route) => {
       let totalPkgs = 0;
       let totalScans = 0;
       for (const city of route.cities) {
@@ -55,7 +60,7 @@ export default function Dashboard() {
         const bPct = b.totalPkgs > 0 ? b.totalScans / b.totalPkgs : 0;
         return bPct - aPct;
       });
-  }, [stats]);
+  }, [stats, routesForOperation]);
 
   if (isLoading) {
     return (
@@ -89,7 +94,7 @@ export default function Dashboard() {
     (r) => r.totalScans > 0 && r.totalScans < r.totalPkgs,
   ).length;
   const rotasComPacotes = routeProgress.filter((r) => r.totalPkgs > 0).length;
-  const totalRotas = ROUTES.length;
+  const totalRotas = routesForOperation.length;
 
   return (
     <div className="space-y-8">
