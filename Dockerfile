@@ -38,12 +38,17 @@ FROM deps AS frontend-build
 ARG VITE_CLERK_PUBLISHABLE_KEY
 ARG VITE_CLERK_PROXY_URL=""
 ARG BASE_PATH=/
+# Nome do cliente exibido no app (sidebar, PDFs, tela de login). O logo em
+# si é artifacts/romaneio/public/brand-logo.png — trocar de cliente é
+# substituir esse arquivo antes do build, não mudar código ou build arg.
+ARG VITE_BRAND_NAME="Envia Daki"
 # Vite's config requires PORT to be set even for a production build (it's
 # only actually used by `vite dev`/`vite preview`); the value here is unused.
 ENV PORT=5173
 ENV BASE_PATH=${BASE_PATH}
 ENV VITE_CLERK_PUBLISHABLE_KEY=${VITE_CLERK_PUBLISHABLE_KEY}
 ENV VITE_CLERK_PROXY_URL=${VITE_CLERK_PROXY_URL}
+ENV VITE_BRAND_NAME=${VITE_BRAND_NAME}
 RUN pnpm --filter @workspace/romaneio run build
 
 # ---- final: API runtime ----

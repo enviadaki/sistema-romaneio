@@ -105,7 +105,7 @@ async function getLogoImg() {
   return new Promise<HTMLImageElement>((resolve) => {
     const img = new Image();
     const base = import.meta.env.BASE_URL === "/" ? "" : import.meta.env.BASE_URL;
-    img.src = `${base}/enviadaki-logo.png`;
+    img.src = `${base}/brand-logo.png`;
     img.onload = () => resolve(img);
     img.onerror = () => resolve(img);
   });
@@ -883,7 +883,7 @@ export default function Romaneio() {
             <div className="bg-white text-black p-8 border rounded-lg shadow-sm print:shadow-none print:border-0 print:p-0">
               <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-6">
                 <div className="flex items-center gap-6">
-                  <img src={`${import.meta.env.BASE_URL === "/" ? "" : import.meta.env.BASE_URL}/enviadaki-logo.png`} alt="Envia Daki" className="h-10 w-auto" />
+                  <img src={`${import.meta.env.BASE_URL === "/" ? "" : import.meta.env.BASE_URL}/brand-logo.png`} alt="Logo" className="h-10 w-auto" />
                   <div>
                     <h2 className="text-2xl font-bold uppercase tracking-wider">ROMANEIO DE ENTREGA</h2>
                     {empresa && <p className="text-sm mt-1 text-gray-600">{empresa}{cnpj ? ` — CNPJ: ${cnpj}` : ""}</p>}
