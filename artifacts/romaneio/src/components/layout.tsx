@@ -18,6 +18,12 @@ interface FilialOption { id: number; code: string; name: string }
 
 const ALL_MOTORISTA_PATHS = ["/entrega"];
 
+// Nome do cliente para o alt text do logo — configurável por implantação via
+// VITE_BRAND_NAME (ver deploy/.env.example). O arquivo de imagem em si é
+// sempre /brand-logo.png (ver public/brand-logo.png): trocar de cliente é
+// substituir esse arquivo, não editar código.
+const BRAND_NAME = (import.meta.env.VITE_BRAND_NAME as string | undefined) || "Envia Daki";
+
 export function Layout({ children }: { children: ReactNode }) {
   const [location, navigate] = useLocation();
   const { signOut } = useClerk();
@@ -162,7 +168,7 @@ export function Layout({ children }: { children: ReactNode }) {
       {/* Sidebar */}
       <aside className="w-full md:w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border flex flex-col flex-shrink-0 no-print">
         <div className="p-4 border-b border-sidebar-border flex items-center justify-center h-20">
-          <img src={`${import.meta.env.BASE_URL === "/" ? "" : import.meta.env.BASE_URL}/enviadaki-logo.png`} alt="Envia Daki" className="h-10 w-auto" />
+          <img src={`${import.meta.env.BASE_URL === "/" ? "" : import.meta.env.BASE_URL}/brand-logo.png`} alt={BRAND_NAME} className="h-10 w-auto" />
         </div>
 
         {/* Operation Selector — hidden for motoristas */}

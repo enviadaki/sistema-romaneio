@@ -37,6 +37,12 @@ const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string;
 
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL as string | undefined;
 
+// Nome do cliente — configurável por implantação via VITE_BRAND_NAME (ver
+// deploy/.env.example e layout.tsx, onde a mesma constante é definida para
+// o alt text do logo na sidebar). O arquivo de imagem é sempre
+// /brand-logo.png (ver public/brand-logo.png).
+const BRAND_NAME = (import.meta.env.VITE_BRAND_NAME as string | undefined) || "Envia Daki";
+
 function stripBase(path: string): string {
   return basePath && path.startsWith(basePath)
     ? path.slice(basePath.length) || "/"
@@ -53,7 +59,7 @@ const clerkAppearance = {
   options: {
     logoPlacement: "inside" as const,
     logoLinkUrl: basePath || "/",
-    logoImageUrl: `${window.location.origin}${basePath}/enviadaki-logo.png`,
+    logoImageUrl: `${window.location.origin}${basePath}/brand-logo.png`,
   },
   variables: {
     colorPrimary: "#35a7df",
@@ -227,8 +233,8 @@ function SignInPage() {
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <img
-            src={`${basePath}/enviadaki-logo.png`}
-            alt="Envia Daki"
+            src={`${basePath}/brand-logo.png`}
+            alt={BRAND_NAME}
             className="mx-auto mb-6 h-12 w-auto"
           />
         </div>

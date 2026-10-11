@@ -55,7 +55,7 @@ async function getLogoImg() {
   return new Promise<HTMLImageElement>((resolve) => {
     const img = new Image();
     const base = import.meta.env.BASE_URL === "/" ? "" : import.meta.env.BASE_URL;
-    img.src = `${base}/enviadaki-logo.png`;
+    img.src = `${base}/brand-logo.png`;
     img.onload = () => resolve(img);
     img.onerror = () => resolve(img);
   });
