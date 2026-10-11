@@ -50,6 +50,7 @@ services:
       target: frontend
       args:
         VITE_CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY}
+        VITE_BRAND_NAME: ${VITE_BRAND_NAME:-Envia Daki}
     restart: unless-stopped
     depends_on: [api]
     networks: [internal, proxy]
